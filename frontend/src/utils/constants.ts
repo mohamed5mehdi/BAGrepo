@@ -32,6 +32,7 @@ export const ROLE_LABELS: Record<Role, string> = {
   ROLE_AMG:        'AMG',
   ROLE_DAF:        'DAF',
   ROLE_DG:         'Direction Générale',
+  ROLE_ADMIN:      'Administrateur',
 };
 
 export const ROLE_COLORS: Record<Role, string> = {
@@ -42,6 +43,7 @@ export const ROLE_COLORS: Record<Role, string> = {
   ROLE_AMG:        'from-orange-500 to-amber-600',
   ROLE_DAF:        'from-fuchsia-500 to-purple-700',
   ROLE_DG:         'from-rose-500 to-red-700',
+  ROLE_ADMIN:      'from-slate-800 to-black',
 };
 
 export function getDaTotal(da: { details?: { quantite: number; prix_unitaire: number }[] }): number {

@@ -17,6 +17,7 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: string; to: string }[]> =
   ROLE_AMG:       [{ label: 'Dossiers AMG', icon: '📂', to: '/amg' }],
   ROLE_DAF:       [{ label: 'Contrôle Budget', icon: '💰', to: '/daf' }],
   ROLE_DG:        [{ label: 'Direction', icon: '🏢', to: '/dg' }],
+  ROLE_ADMIN:     [{ label: 'Administration', icon: '⚙️', to: '/admin' }],
 };
 
 export default function Sidebar() {

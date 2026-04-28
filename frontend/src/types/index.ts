@@ -6,7 +6,8 @@ export type Role =
   | 'ROLE_ACHETEUR'
   | 'ROLE_AMG'
   | 'ROLE_DAF'
-  | 'ROLE_DG';
+  | 'ROLE_DG'
+  | 'ROLE_ADMIN';
 
 export type StatutDA =
   | 'EN_ATTENTE_N1'

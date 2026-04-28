@@ -40,12 +40,13 @@ public class DataInitializer implements CommandLineRunner {
             User amg      = new User("Responsable AMG",    "amg@test.com",      encoder.encode("password"), Role.ROLE_AMG);
             User daf      = new User("Directeur DAF",      "daf@test.com",      encoder.encode("password"), Role.ROLE_DAF);
             User dg       = new User("Directeur Général",  "dg@test.com",       encoder.encode("password"), Role.ROLE_DG);
+            User admin    = new User("Administrateur",     "admin@test.com",    encoder.encode("password"), Role.ROLE_ADMIN);
             
             demandeur = new User("Demandeur Test", "demandeur@test.com", encoder.encode("password"), Role.ROLE_DEMANDEUR);
             demandeur.setService("IT");
             demandeur.setN1(n1);
             
-            userRepository.saveAll(List.of(n1, tech, acheteur, amg, daf, dg, demandeur));
+            userRepository.saveAll(List.of(n1, tech, acheteur, amg, daf, dg, admin, demandeur));
         } else {
             demandeur = userRepository.findByEmail("demandeur@test.com").orElse(null);
         }

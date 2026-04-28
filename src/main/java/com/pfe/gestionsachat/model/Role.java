@@ -7,5 +7,6 @@ public enum Role {
     ROLE_AMG,
     ROLE_DAF,
     ROLE_DG,
-    ROLE_DEMANDEUR
+    ROLE_DEMANDEUR,
+    ROLE_ADMIN
 }

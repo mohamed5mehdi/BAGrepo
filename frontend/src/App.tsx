@@ -7,6 +7,7 @@ import DemandeurPage from './pages/DemandeurPage';
 import AcheteurPage from './pages/AcheteurPage';
 import DafPage from './pages/DafPage';
 import DgPage from './pages/DgPage';
+import AdminPage from './pages/AdminPage';
 import { N1Page, TechPage, AmgPage, ProtectedRoute } from './pages/RolePages';
 
 const qc = new QueryClient({
@@ -32,6 +33,7 @@ export default function App() {
             <Route path="/amg"           element={<ProtectedRoute><AmgPage /></ProtectedRoute>} />
             <Route path="/daf"           element={<ProtectedRoute><DafPage /></ProtectedRoute>} />
             <Route path="/dg"            element={<ProtectedRoute><DgPage /></ProtectedRoute>} />
+            <Route path="/admin"         element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/login" replace />} />
