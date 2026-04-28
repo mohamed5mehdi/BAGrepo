@@ -1,0 +1,18 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false"
+                 name="GestionsAchatApplication"
+                 type="SpringBootApplicationConfigurationType"
+                 factoryName="Spring Boot"
+                 nameIsGenerated="true">
+    <!-- Module name as IntelliJ sees it (GestionsAchat (1) = the main sources module) -->
+    <module name="GestionsAchat (1)" />
+    <option name="SPRING_BOOT_MAIN_CLASS" value="com.pfe.gestionsachat.GestionsAchatApplication" />
+    <!-- Suppress Tomcat JNI native-access warning (Java 17+ / 26) -->
+    <option name="VM_PARAMETERS" value="--enable-native-access=ALL-UNNAMED" />
+    <option name="ACTIVE_PROFILES" value="" />
+    <option name="OVERRIDE_MODULE_RUN_CONFIGURATION" value="false" />
+    <method v="2">
+      <option name="Make" enabled="true" />
+    </method>
+  </configuration>
+</component>

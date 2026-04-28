@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard DG - Gestion des Achats</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="topbar" id="topbar"></header>
+
+        <div class="content-wrapper">
+            <div class="kpi-grid">
+                <div class="kpi-card purple"><div class="kpi-icon">📁</div><div class="kpi-info"><span class="kpi-label">Total DA</span><span class="kpi-value" id="kpiTotal">0</span></div></div>
+                <div class="kpi-card blue"><div class="kpi-icon">⏳</div><div class="kpi-info"><span class="kpi-label">En attente DG</span><span class="kpi-value" id="kpiMine">0</span></div></div>
+                <div class="kpi-card green"><div class="kpi-icon">✅</div><div class="kpi-info"><span class="kpi-label">Validées</span><span class="kpi-value" id="kpiApproved">0</span></div></div>
+            </div>
+
+            <div class="table-container">
+                <table class="requests-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>Code</th><th>Demandeur</th><th>Famille</th><th>Sous-Famille</th><th>Statut</th><th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyRequests"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Workflow -->
+    <div class="modal-overlay" id="workflowModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalDaCode">DA-XXX</h3>
+                <span id="modalStatus"></span>
+            </div>
+            <div class="modal-body">
+                <div id="modalStepper" class="stepper"></div>
+                <hr>
+                <p><strong>Objet :</strong> <span id="modalSubject"></span></p>
+                <p><strong>Montant :</strong> <span id="modalMontant" class="price-tag"></span></p>
+                
+                <div id="budgetInsightContainer"></div>
+
+                <!-- SECTION AJUSTEMENT FAMILLE (DG) -->
+                <div id="btnDgApproveSection" class="action-box" style="display:none; background:rgba(183, 28, 28, 0.1); padding:1rem; border-radius:8px; margin-top:1rem; border:1px solid #b71c1c">
+                    <h4 style="color:#b71c1c; margin-bottom:10px">⚖️ Arbitrage / Ajustement Famille</h4>
+                    <p style="font-size:0.85rem; margin-bottom:15px">Injecter du budget supplémentaire (Niveau Famille) :</p>
+                    <div class="form-group">
+                        <label>Montant Injection (€) :</label>
+                        <input type="number" id="inputDgAjustAmount" class="search-input" style="width:100%" placeholder="0.00">
+                    </div>
+                    <button class="btn btn-danger" onclick="applyDgAjustment()" style="width:100%; margin-top:15px">Approuver l'Ajustement Famille & Valider DA</button>
+                </div>
+
+                <div class="form-group" style="margin-top:1rem;">
+                    <label>Commentaire / Motif :</label>
+                    <textarea id="modalComment" class="search-input" style="width:100%; height:80px" placeholder="Ajouter une note..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer" id="sectionAction">
+                <button class="btn btn-secondary" onclick="closeModal()">Fermer</button>
+                <button class="btn btn-danger" id="btnRefuser" onclick="processAction('REJETE')">Rejeter</button>
+                <button class="btn btn-primary" id="btnValider" onclick="processAction('ACCEPTE')">Valider Finale (Arbitrage)</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/shared-layout.js"></script>
+    <script>
+        // Inject Layout
+        document.getElementById('sidebar').innerHTML = `
+            <div class="profile-section">
+                <img src="" alt="Avatar" class="profile-img" id="sidebarAvatar">
+                <div class="profile-info"><h3 id="sidebarName"></h3><span class="role-badge" id="sidebarRole"></span></div>
+            </div>
+            <nav class="menu">
+                <a href="/dg.html" class="menu-item active">🏠 <span>Accueil</span></a>
+                <a href="#" class="menu-item">⚖️ <span>Arbitrage</span></a>
+            </nav>
+            <a href="#" onclick="logout()" class="menu-item logout">🚪 <span>Déconnexion</span></a>
+        `;
+        document.getElementById('topbar').innerHTML = `
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <div class="topbar-right"><button class="icon-btn" onclick="toggleTheme()">🌓</button></div>
+        `;
+
+        function applyDgAjustment() {
+            const amount = document.getElementById('inputDgAjustAmount').value;
+            const cibleId = currentDa.details[0].subFamily.oid_sub || currentDa.details[0].subFamily.id;
+
+            if(!amount) return showToast("Veuillez saisir un montant", "error");
+
+            fetch(`/api/workflow/adjust-family?daId=${currentDa.oidDa}&dgId=${userId}&cibleId=${cibleId}&montant=${amount}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(() => {
+                    showToast("Budget famille ajusté. DA validée.", "success");
+                    closeModal(); loadRequests();
+                })
+                .catch(() => showToast("Erreur lors de l'ajustement", "error"));
+        }
+    </script>
+</body>
+</html>

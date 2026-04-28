@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Saisie Demande d'Achat</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+<div class="container">
+    <h1>📝 Nouvelle Demande d'Achat (DA)</h1>
+    
+    <form id="daForm">
+        <div class="form-group">
+            <label for="subject">Sujet de la demande</label>
+            <input type="text" id="subject" name="subject" placeholder="Ex: Achat de matériel informatique" required>
+        </div>
+
+        <div class="form-group">
+            <label for="reason">Raison (Justification globale)</label>
+            <textarea id="reason" name="reason" rows="3" placeholder="Pourquoi cet achat est-il nécessaire ?" required></textarea>
+        </div>
+
+        <div class="form-group">
+            <label for="urgency">Niveau d'urgence</label>
+            <select id="urgency" name="urgency" required>
+                <option value="NORMAL">Normal</option>
+                <option value="HIGH">Élevé</option>
+                <option value="URGENT">Urgent</option>
+            </select>
+        </div>
+
+        <h2>📦 Articles (Lignes de détail)</h2>
+        <table class="details-table" id="detailsTable">
+            <thead>
+                <tr>
+                    <th>Code Article</th>
+                    <th>Description</th>
+                    <th>Qté</th>
+                    <th>Prix U. (€)</th>
+                    <th>Justification</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                <!-- Lignes insérées dynamiquement via JS -->
+            </tbody>
+        </table>
+        
+        <button type="button" class="btn btn-secondary" onclick="addDetailRow()">+ Ajouter un article</button>
+        
+        <div class="total-budget" id="totalBudgetDisplay">
+            Budget Total : 0.00 €
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="submitBtn">Enregistrer la Demande</button>
+    </form>
+</div>
+
+<script>
+    const detailsTableBody = document.querySelector('#detailsTable tbody');
+    let rowCount = 0;
+
+    // Vérifier si l'utilisateur est connecté
+    const userId = localStorage.getItem('userId');
+    const userName = localStorage.getItem('userName');
+
+    if (!userId) {
+        alert("Veuillez vous connecter d'abord.");
+        window.location.href = "/";
+    }
+
+    // Ajouter une ligne au démarrage et afficher le nom de l'utilisateur
+    window.onload = () => {
+        addDetailRow();
+        const header = document.querySelector('h1');
+        header.innerHTML = `📝 Nouvelle Demande d'Achat <br><span style="font-size: 0.9rem; color: var(--text-muted);">Demandeur: ${userName}</span>`;
+    };
+
+    function addDetailRow() {
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+            <td><input type="text" name="itemCode[]" required placeholder="REF-001"></td>
+            <td><input type="text" name="itemDescription[]" required placeholder="Ordinateur"></td>
+            <td><input type="number" name="quantity[]" min="1" value="1" required oninput="calculateTotal()"></td>
+            <td><input type="number" name="unitPrice[]" min="0.01" step="0.01" value="0.00" required oninput="calculateTotal()"></td>
+            <td><input type="text" name="justification[]" placeholder="Renouvellement"></td>
+            <td><button type="button" class="btn btn-danger" onclick="removeRow(this)">X</button></td>
+        `;
+        detailsTableBody.appendChild(tr);
+        rowCount++;
+        calculateTotal();
+    }
+
+    function removeRow(btn) {
+        if (rowCount > 1) {
+            btn.closest('tr').remove();
+            rowCount--;
+            calculateTotal();
+        } else {
+            alert("Vous devez avoir au moins un article.");
+        }
+    }
+
+    function calculateTotal() {
+        let total = 0;
+        const rows = document.querySelectorAll('#detailsTable tbody tr');
+        rows.forEach(row => {
+            const qty = parseFloat(row.querySelector('input[name="quantity[]"]').value) || 0;
+            const price = parseFloat(row.querySelector('input[name="unitPrice[]"]').value) || 0;
+            total += (qty * price);
+        });
+        document.getElementById('totalBudgetDisplay').innerText = `Budget Total : ${total.toFixed(2)} €`;
+        return total;
+    }
+
+    document.getElementById('daForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        // Création du payload JSON
+        const payload = {
+            subject: document.getElementById('subject').value,
+            reason: document.getElementById('reason').value,
+            urgency: document.getElementById('urgency').value,
+            totalBudget: calculateTotal(),
+            details: []
+        };
+
+        const rows = document.querySelectorAll('#detailsTable tbody tr');
+        rows.forEach(row => {
+            payload.details.push({
+                itemCode: row.querySelector('input[name="itemCode[]"]').value,
+                itemDescription: row.querySelector('input[name="itemDescription[]"]').value,
+                quantity: parseInt(row.querySelector('input[name="quantity[]"]').value),
+                unitPrice: parseFloat(row.querySelector('input[name="unitPrice[]"]').value),
+                justification: row.querySelector('input[name="justification[]"]').value
+            });
+        });
+
+        const submitBtn = document.getElementById('submitBtn');
+        submitBtn.innerText = "Enregistrement...";
+        submitBtn.disabled = true;
+
+        // ID de l'utilisateur récupéré depuis le localStorage
+        if (!userId) {
+            alert("Erreur: Utilisateur non authentifié.");
+            return;
+        }
+
+        fetch(`/api/purchase-requests/user/${userId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(payload)
+        })
+        .then(response => {
+            if (response.ok) {
+                return response.json();
+            }
+            throw new Error('Erreur lors de la création de la demande');
+        })
+        .then(data => {
+            alert("✅ Demande d'Achat N° " + data.number + " créée avec succès en Brouillon !");
+            window.location.href = "/"; // Retour à l'accueil
+        })
+        .catch(error => {
+            alert("❌ Erreur : " + error.message);
+            submitBtn.innerText = "Enregistrer la Demande";
+            submitBtn.disabled = false;
+        });
+    });
+</script>
+</body>
+</html>

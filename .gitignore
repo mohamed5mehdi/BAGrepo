@@ -1,0 +1,59 @@
+HELP.md
+target/
+.mvn/wrapper/maven-wrapper.jar
+!**/src/main/**/target/
+!**/src/test/**/target/
+
+### STS ###
+
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+
+### IntelliJ IDEA ###
+# Ignore user-specific and workspace files, but KEEP shared project config
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/dictionaries/
+.idea/shelf/
+.idea/httpRequests/
+.idea/dataSources/
+.idea/dataToImport.xml
+*.iws
+*.iml
+*.ipr
+
+# Keep these IntelliJ config files (shared project settings):
+# .idea/compiler.xml      → bytecode target
+# .idea/misc.xml          → SDK + language level
+# .idea/vcs.xml           → VCS mappings
+# .idea/runConfigurations/ → Run configs with JVM args
+
+### NetBeans ###
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+build/
+!**/src/main/**/build/
+!**/src/test/**/build/
+
+### VS Code ###
+.vscode/
+
+# Env file
+.env
+
+### Frontend ###
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+### Logs ###
+logs.txt
+*.log

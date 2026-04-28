@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="fr" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Acheteur - Gestion des Achats</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/dashboard.css">
+</head>
+<body>
+    <aside class="sidebar" id="sidebar"></aside>
+
+    <main class="main-content">
+        <header class="topbar" id="topbar"></header>
+
+        <div class="content-wrapper">
+            <div class="kpi-grid">
+                <div class="kpi-card purple"><div class="kpi-icon">📁</div><div class="kpi-info"><span class="kpi-label">DAs Actives</span><span class="kpi-value" id="kpiTotal">0</span></div></div>
+                <div class="kpi-card blue"><div class="kpi-icon">⏳</div><div class="kpi-info"><span class="kpi-label">À Traiter</span><span class="kpi-value" id="kpiMine">0</span></div></div>
+                <div class="kpi-card green"><div class="kpi-icon">📦</div><div class="kpi-info"><span class="kpi-label">Bons de Commande</span><span class="kpi-value" id="kpiApproved">0</span></div></div>
+            </div>
+
+            <div class="table-container">
+                <table class="requests-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th><th>Code</th><th>Demandeur</th><th>Famille</th><th>Sous-Famille</th><th>Statut</th><th>Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="tbodyRequests"></tbody>
+                </table>
+            </div>
+        </div>
+    </main>
+
+    <!-- Modal Workflow -->
+    <div class="modal-overlay" id="workflowModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 id="modalDaCode">DA-XXX</h3>
+                <span id="modalStatus"></span>
+            </div>
+            <div class="modal-body">
+                <div id="modalStepper" class="stepper"></div>
+                <hr>
+                <p><strong>Objet :</strong> <span id="modalSubject"></span></p>
+                <p><strong>Justification :</strong> <span id="modalDesc"></span></p>
+                <p><strong>Montant Estimé :</strong> <span id="modalMontant" class="price-tag"></span></p>
+                
+                <div id="budgetInsightContainer"></div>
+
+                <!-- SECTION TRAITEMENT ACHETEUR -->
+                <div id="sectionAction" class="action-box" style="display:none;">
+                    <h4 style="margin-bottom:10px">🛒 Traitement Acheteur</h4>
+                    <div class="form-group" style="margin-bottom:1rem">
+                        <label>Commentaire / Analyse Marché :</label>
+                        <textarea id="modalComment" class="search-input" style="width:100%; height:60px"></textarea>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                        <button class="btn btn-primary" onclick="checkAndValidateBudget()">✅ Budget OK - Valider</button>
+                        <button class="btn btn-warning" onclick="showAdjustmentForm()" style="background:#ff9800; color:white">⚠️ Budget Insuffisant</button>
+                    </div>
+                </div>
+
+                <!-- FORMULAIRE AJUSTEMENT -->
+                <div id="adjustmentForm" style="display:none; background:rgba(255,152,0,0.1); padding:1rem; border-radius:8px; margin-top:1rem; border:1px solid #ff9800">
+                    <h4 style="color:#e65100">Solliciter un Ajustement Budgétaire</h4>
+                    <select id="adjType" class="search-input" style="width:100%; margin:10px 0;">
+                        <option value="SUBFAMILY">Ajustement Sous-Famille (Circuit DAF)</option>
+                        <option value="FAMILY">Ajustement Famille (Circuit DG)</option>
+                    </select>
+                    <button class="btn btn-primary" onclick="submitAdjustmentRequest()" style="width:100%">Envoyer pour Arbitrage AMG</button>
+                </div>
+
+                <!-- BOUTON PO -->
+                <div id="poSection" style="display:none; margin-top:1rem; text-align:center;">
+                    <button class="btn btn-success" onclick="createPO()" style="width:100%; padding:15px; font-weight:700">🛒 GÉNÉRER LE BON DE COMMANDE (PO)</button>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Fermer</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/shared-layout.js"></script>
+    <script>
+        // Layout Injection
+        document.getElementById('sidebar').innerHTML = `
+            <div class="profile-section">
+                <img src="" alt="Avatar" class="profile-img" id="sidebarAvatar">
+                <div class="profile-info"><h3 id="sidebarName"></h3><span class="role-badge" id="sidebarRole"></span></div>
+            </div>
+            <nav class="menu">
+                <a href="/acheteur.html" class="menu-item active">🏠 <span>Accueil</span></a>
+                <a href="#" class="menu-item">🛒 <span>Marché</span></a>
+            </nav>
+            <a href="#" onclick="logout()" class="menu-item logout">🚪 <span>Déconnexion</span></a>
+        `;
+        document.getElementById('topbar').innerHTML = `
+            <button class="menu-toggle" onclick="toggleSidebar()">☰</button>
+            <div class="topbar-right"><button class="icon-btn" onclick="toggleTheme()">🌓</button></div>
+        `;
+
+        // Acheteur specific overrides
+        const oldOpenModal = openModal;
+        openModal = function(da) {
+            oldOpenModal(da);
+            const status = da.statut || da.status;
+            document.getElementById('poSection').style.display = (status === 'VALIDEE') ? 'block' : 'none';
+        }
+
+        function checkAndValidateBudget() {
+            fetch(`/api/workflow/check-budget?daId=${currentDa.oidDa}&acheteurId=${userId}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(res => {
+                    if(res === 'SUFFISANT') {
+                        showToast("Budget suffisant. Dossier transmis à l'AMG.", "success");
+                        closeModal(); loadRequests();
+                    } else {
+                        showToast("Budget insuffisant ! Veuillez solliciter un ajustement.", "error");
+                        showAdjustmentForm();
+                    }
+                });
+        }
+
+        function showAdjustmentForm() {
+            document.getElementById('adjustmentForm').style.display = 'block';
+        }
+
+        function submitAdjustmentRequest() {
+            const type = document.getElementById('adjType').value;
+            const motif = document.getElementById('modalComment').value;
+            fetch(`/api/workflow/request-adjustment?daId=${currentDa.oidDa}&acheteurId=${userId}&type=${type}&motif=${encodeURIComponent(motif)}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(() => {
+                    showToast("Demande d'ajustement envoyée à l'AMG.", "success");
+                    closeModal(); loadRequests();
+                });
+        }
+
+        function createPO() {
+            fetch(`/api/workflow/create-po?daId=${currentDa.oidDa}&acheteurId=${userId}`, { method: 'POST' })
+                .then(r => r.json())
+                .then(() => {
+                    showToast("Bon de Commande (PO) généré avec succès !", "success");
+                    closeModal(); loadRequests();
+                });
+        }
+    </script>
+</body>
+</html>

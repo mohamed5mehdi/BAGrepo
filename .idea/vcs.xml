@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <!--
+    VCS mapping removed: Git is not installed on this machine.
+    Re-add <mapping directory="$PROJECT_DIR$" vcs="Git" /> after installing Git.
+
+    target/ and out/ are excluded from file-watching to prevent
+    "Notify file events failed" errors.
+  -->
+  <component name="VcsDirectoryMappings">
+    <mapping directory="" vcs="" />
+  </component>
+</project>

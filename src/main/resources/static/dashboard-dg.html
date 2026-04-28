@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — General Manager | Purchase Management</title>
+    <link rel="stylesheet" href="/shared-actors.css">
+</head>
+<body>
+<aside class="sidebar" id="sidebar">
+    <div class="profile-section">
+        <img id="sidebarAvatar" class="profile-img" src="" alt="avatar">
+        <div class="profile-info">
+            <h3 id="sidebarName">General Manager</h3>
+            <span class="role-badge" id="sidebarRole">General Management</span>
+        </div>
+    </div>
+    <nav class="nav-menu">
+        <a class="nav-item active"><span class="nav-icon">🏠</span><span class="nav-label">Home</span></a>
+        <a class="nav-item" href="#"><span class="nav-icon">📋</span><span class="nav-label">Requests</span></a>
+        <a class="nav-item" href="#"><span class="nav-icon">👤</span><span class="nav-label">Profile</span></a>
+    </nav>
+    <button class="nav-item" onclick="logout()"><span class="nav-icon">🚪</span><span class="nav-label">Logout</span></button>
+</aside>
+
+<main class="main-content">
+    <header class="topbar">
+        <div style="display:flex;align-items:center;gap:.75rem;">
+            <button class="icon-btn" onclick="toggleSidebar()">☰</button>
+            <span class="topbar-title">Dashboard — General Manager</span>
+        </div>
+        <div class="topbar-right">
+            <button class="icon-btn" onclick="toggleTheme()">🌓</button>
+            <button class="icon-btn" style="position:relative">🔔<span class="badge" id="badgeCount">0</span></button>
+        </div>
+    </header>
+
+    <div class="content">
+        <div class="kpi-grid">
+            <div class="kpi-card"><div class="kpi-icon purple">📄</div><div><div class="kpi-label">All Requests</div><div class="kpi-value" id="kpiTotal">—</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon blue">⏳</div><div><div class="kpi-label">Pending My Action</div><div class="kpi-value" id="kpiMine">—</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon green">✅</div><div><div class="kpi-label">PO Created</div><div class="kpi-value" id="kpiApproved">—</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon red">❌</div><div><div class="kpi-label">Rejected</div><div class="kpi-value" id="kpiRejected">—</div></div></div>
+            <div class="kpi-card"><div class="kpi-icon orange">🔄</div><div><div class="kpi-label">In Progress</div><div class="kpi-value" id="kpiPending">—</div></div></div>
+        </div>
+        <div class="action-bar">
+            <input class="search-box" placeholder="🔍  Search by code, requester...">
+            <button class="btn btn-modifier" onclick="loadRequests()">🔄 Refresh</button>
+        </div>
+        <div class="table-wrapper">
+            <table class="da-table">
+                <thead><tr><th>#</th><th>DA Code</th><th>Requester</th><th>Category</th><th>Sub-Family</th><th>Status</th><th>Action</th></tr></thead>
+                <tbody id="tbodyRequests"><tr><td colspan="7" class="no-data">Loading...</td></tr></tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<div class="modal-overlay" id="workflowModal">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3>📋 Request Detail — <span id="modalDaCode"></span></h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-info-grid">
+                <div class="info-item"><label>DA Code</label><span id="modalDaCode2" style="color:var(--primary)"></span></div>
+                <div class="info-item"><label>Creation Date</label><span id="modalDaDate"></span></div>
+                <div class="info-item"><label>Subject</label><span id="modalSubject"></span></div>
+                <div class="info-item"><label>Total Amount</label><span id="modalMontant" style="color:#f57c00;font-size:1.1rem"></span></div>
+                <div class="info-item"><label>Category / Sub-Family</label><span id="modalCategorie"></span></div>
+                <div class="info-item"><label>Current Status</label><span id="modalStatus"></span></div>
+            </div>
+            <div class="section-title">Description</div>
+            <p id="modalDesc" style="font-size:.9rem;color:var(--text-muted);font-style:italic"></p>
+            <div class="section-title">Workflow Progress</div>
+            <div class="stepper" id="modalStepper"></div>
+            <div id="budgetInsightContainer"></div>
+            <textarea class="modal-input" id="modalComment" rows="2" placeholder="Comment (optional)…" style="margin-top:1rem"></textarea>
+
+            <!-- Hidden for DG — escalation is done by DAF only -->
+            <div class="action-section" id="btnEscaladeSection" style="display:none">
+                <h4>⚠️ Insufficient Budget — Escalate to DG</h4>
+                <textarea class="modal-input" id="escaladeComment" rows="2" placeholder="Reason for escalation…"></textarea>
+                <button class="btn btn-warning" onclick="escalateToDG()">🔺 Escalate to DG</button>
+            </div>
+
+            <!-- DG: approve exceptional budget increase -->
+            <div class="action-section" id="btnDgApproveSection" style="display:none">
+                <h4>💰 Exceptional Budget Increase</h4>
+                <input class="modal-input" id="dgAmount" type="number" min="1" placeholder="Amount to add (€)">
+                <input class="modal-input" id="dgMotif" type="text" placeholder="Reason for increase…">
+                <button class="btn btn-success" onclick="approveDGBudget()">✅ Approve &amp; Unlock</button>
+            </div>
+        </div>
+        <div class="modal-foot">
+            <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+            <button class="btn btn-danger"  id="btnRefuser" onclick="processAction('REJECT')">✖ Reject</button>
+            <button class="btn btn-success" id="btnValider" onclick="processAction('ACCEPT')">✔ Validate</button>
+        </div>
+    </div>
+</div>
+
+<script src="/shared-layout.js"></script>
+<script>
+    const _origRenderTable = renderTable;
+    renderTable = function(list) {
+        _origRenderTable(list);
+        const mine = document.getElementById('kpiMine');
+        const badge = document.getElementById('badgeCount');
+        if (badge && mine && mine.innerText !== '—') badge.innerText = mine.innerText;
+    };
+</script>
+</body>
+</html>

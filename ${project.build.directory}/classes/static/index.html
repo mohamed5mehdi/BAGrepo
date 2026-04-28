@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connexion - Gestion des Achats</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .login-container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .login-header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        .login-header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        .error-message {
+            color: var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+            padding: 0.75rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            text-align: center;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .demo-credentials {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: rgba(79, 70, 229, 0.05);
+            border-radius: 10px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .demo-credentials strong {
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container login-container">
+    <div class="login-header">
+        <h1>🏢 Connexion</h1>
+        <p>Connectez-vous pour accéder à votre espace</p>
+    </div>
+
+    <div id="errorMessage" class="error-message"></div>
+
+    <form id="loginForm">
+        <div class="form-group">
+            <label for="email">Adresse Email</label>
+            <input type="email" id="email" name="email" placeholder="Ex: acheteur@test.com" required>
+        </div>
+
+        <div class="form-group">
+            <label for="password">Mot de passe</label>
+            <input type="password" id="password" name="password" placeholder="Votre mot de passe" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="loginBtn">Se connecter</button>
+    </form>
+
+    <div class="demo-credentials">
+        <strong>Accès de test générés :</strong><br>
+        Email: <em>acheteur@test.com</em><br>
+        Mot de passe: <em>password</em>
+    </div>
+</div>
+
+<script>
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const loginBtn = document.getElementById('loginBtn');
+        const errorMsg = document.getElementById('errorMessage');
+
+        loginBtn.innerText = "Connexion...";
+        loginBtn.disabled = true;
+        errorMsg.style.display = 'none';
+
+        // L'API utilise @RequestParam, on doit envoyer les données en x-www-form-urlencoded
+        const formData = new URLSearchParams();
+        formData.append('email', email);
+        formData.append('password', password);
+
+        fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData.toString()
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Email ou mot de passe incorrect');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                // Stocker les informations de l'utilisateur dans le navigateur
+                localStorage.setItem('userId', data.userId);
+                localStorage.setItem('userName', data.userName);
+                localStorage.setItem('userRole', data.role);
+
+                // Redirection selon le rôle (par défaut vers la création de DA)
+                if (data.role === 'PURCHASE_USER') {
+                    window.location.href = '/demandeur.html';
+                } else {
+                    // Pour les autres rôles, on les enverra vers demandeur.html temporairement
+                    // jusqu'à ce que leurs pages soient créées.
+                    window.location.href = '/demandeur.html';
+                }
+            } else {
+                throw new Error(data.message || "Erreur de connexion");
+            }
+        })
+        .catch(error => {
+            errorMsg.innerText = error.message;
+            errorMsg.style.display = 'block';
+            loginBtn.innerText = "Se connecter";
+            loginBtn.disabled = false;
+        });
+    });
+</script>
+</body>
+</html>

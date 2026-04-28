@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Demandeur | Purchase Management</title>
+    <link rel="stylesheet" href="/shared-actors.css">
+</head>
+<body>
+
+<!-- ══ SIDEBAR ══════════════════════════════════════ -->
+<aside class="sidebar" id="sidebar">
+    <div class="profile-section">
+        <img id="sidebarAvatar" class="profile-img" src="" alt="avatar">
+        <div class="profile-info">
+            <h3 id="sidebarName">Demandeur</h3>
+            <span class="role-badge" id="sidebarRole">Requester</span>
+        </div>
+    </div>
+    <nav class="nav-menu">
+        <a class="nav-item active"><span class="nav-icon">🏠</span><span class="nav-label">My Requests</span></a>
+        <a class="nav-item" href="/demandeur.html"><span class="nav-icon">➕</span><span class="nav-label">New Request</span></a>
+        <a class="nav-item" href="#"><span class="nav-icon">👤</span><span class="nav-label">Profile</span></a>
+    </nav>
+    <button class="nav-item" onclick="logout()"><span class="nav-icon">🚪</span><span class="nav-label">Logout</span></button>
+</aside>
+
+<!-- ══ MAIN ══════════════════════════════════════════ -->
+<main class="main-content">
+    <header class="topbar">
+        <div style="display:flex;align-items:center;gap:.75rem;">
+            <button class="icon-btn" onclick="toggleSidebar()">☰</button>
+            <span class="topbar-title">My Space — Request Tracking</span>
+        </div>
+        <div class="topbar-right">
+            <button class="icon-btn" onclick="toggleTheme()">🌓</button>
+            <button class="icon-btn" style="position:relative">🔔<span class="badge" id="badgeCount">0</span></button>
+        </div>
+    </header>
+
+    <div class="content">
+        <!-- KPIs -->
+        <div class="kpi-grid">
+            <div class="kpi-card">
+                <div class="kpi-icon purple">📄</div>
+                <div><div class="kpi-label">My Requests</div><div class="kpi-value" id="kpiTotal">—</div></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon blue">⏳</div>
+                <div><div class="kpi-label">In Progress</div><div class="kpi-value" id="kpiPending">—</div></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon green">✅</div>
+                <div><div class="kpi-label">Finalized (PO Created)</div><div class="kpi-value" id="kpiApproved">—</div></div>
+            </div>
+            <div class="kpi-card">
+                <div class="kpi-icon red">❌</div>
+                <div><div class="kpi-label">Rejected</div><div class="kpi-value" id="kpiRejected">—</div></div>
+            </div>
+            <div class="kpi-card" style="cursor:pointer;" onclick="window.location.href='/demandeur.html'">
+                <div class="kpi-icon" style="background:#1976d2;">➕</div>
+                <div><div class="kpi-label" style="color:var(--primary);font-weight:600;">New Request</div><div style="font-size:.8rem;color:var(--text-muted);">Click here</div></div>
+            </div>
+        </div>
+
+        <!-- Action Bar -->
+        <div class="action-bar">
+            <input class="search-box" id="searchInput" placeholder="🔍  Search my requests..." oninput="filterTable()">
+            <button class="btn btn-nouvelle" onclick="window.location.href='/demandeur.html'">+ New Request</button>
+            <button class="btn btn-modifier" onclick="loadRequests()">🔄 Refresh</button>
+        </div>
+
+        <!-- Table -->
+        <div class="table-wrapper">
+            <table class="da-table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>DA Code</th>
+                        <th>Subject</th>
+                        <th>Category</th>
+                        <th>Amount (€)</th>
+                        <th>Status</th>
+                        <th>Action</th>
+                    </tr>
+                </thead>
+                <tbody id="tbodyRequests">
+                    <tr><td colspan="7" class="no-data">Loading...</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</main>
+
+<!-- ══ MODAL (read-only for Demandeur) ═══════════════ -->
+<div class="modal-overlay" id="workflowModal">
+    <div class="modal-box">
+        <div class="modal-head">
+            <h3>📋 Request Tracking — <span id="modalDaCode"></span></h3>
+            <button class="modal-close" onclick="closeModal()">✕</button>
+        </div>
+        <div class="modal-body">
+            <div class="modal-info-grid">
+                <div class="info-item"><label>DA Code</label><span id="modalDaCode2" style="color:var(--primary)"></span></div>
+                <div class="info-item"><label>Creation Date</label><span id="modalDaDate"></span></div>
+                <div class="info-item"><label>Subject</label><span id="modalSubject"></span></div>
+                <div class="info-item"><label>Total Amount</label><span id="modalMontant" style="color:#f57c00;font-size:1.1rem"></span></div>
+                <div class="info-item"><label>Category / Sub-Family</label><span id="modalCategorie"></span></div>
+                <div class="info-item"><label>Current Status</label><span id="modalStatus"></span></div>
+            </div>
+
+            <div class="section-title">Description / Justification</div>
+            <p id="modalDesc" style="font-size:.9rem;color:var(--text-muted);font-style:italic;background:rgba(0,0,0,.03);padding:.75rem;border-radius:8px;"></p>
+
+            <div class="section-title">Workflow Progress</div>
+            <div class="stepper" id="modalStepper"></div>
+            <div id="budgetInsightContainer"></div>
+
+            <!-- Demandeur cannot act -->
+            <div id="btnEscaladeSection" style="display:none"></div>
+            <div id="btnDgApproveSection" style="display:none"></div>
+        </div>
+
+        <div class="modal-foot">
+            <button class="btn btn-secondary" onclick="closeModal()">Close</button>
+            <!-- Demandeur is read-only -->
+            <button id="btnRefuser" style="display:none"></button>
+            <button id="btnValider" style="display:none"></button>
+        </div>
+    </div>
+</div>
+
+<script src="/shared-layout.js"></script>
+<script>
+    // ── Override renderTable — show only the logged-in user's own requests ──
+    renderTable = function(list) {
+        const tb = document.getElementById('tbodyRequests');
+        if (!tb) return;
+        const myList = list.filter(d => {
+            const dId = d.demandeur?.id_demandeur || d.demandeur?.idDemandeur || d.demandeur?.id;
+            return String(dId) === String(userId);
+        });
+
+        if (myList.length === 0) {
+            tb.innerHTML = `<tr><td colspan="7" class="no-data">
+                You have not created any requests yet.
+                <a href="/demandeur.html" style="color:var(--primary)">Create a request →</a>
+            </td></tr>`;
+            _updateDemandeurKPIs(myList);
+            return;
+        }
+
+        tb.innerHTML = myList.map((da, i) => `
+            <tr class="table-row" onclick="openModal(${JSON.stringify(da).replace(/"/g,'&quot;')})">
+                <td>${da.oidDa}</td>
+                <td class="da-number">DA-${String(da.oidDa).padStart(3, '0')}</td>
+                <td>${da.objet || '—'}</td>
+                <td>${getDaCategory(da)}</td>
+                <td><strong>${getDaTotal(da) > 0 ? getDaTotal(da).toFixed(2) + ' €' : '—'}</strong></td>
+                <td>${statusBadge(da.statut)}</td>
+                <td>
+                    <button class="btn btn-modifier"
+                        onclick="event.stopPropagation(); openModal(${JSON.stringify(da).replace(/"/g,'&quot;')})">
+                        👁 View
+                    </button>
+                </td>
+            </tr>`).join('');
+
+        _updateDemandeurKPIs(myList);
+        const badge = document.getElementById('badgeCount');
+        if (badge) badge.innerText = myList.filter(d =>
+            d.statut !== 'PO_CREE' && !d.statut?.includes('REJETEE')
+        ).length || '0';
+    };
+
+    function _updateDemandeurKPIs(myList) {
+        const s = id => { const e = document.getElementById(id); if(e) e.innerText = 0; };
+        document.getElementById('kpiTotal').innerText    = myList.length;
+        document.getElementById('kpiApproved').innerText = myList.filter(d => d.statut === 'PO_CREE').length;
+        document.getElementById('kpiRejected').innerText = myList.filter(d =>
+            ['REJETEE'].includes(d.statut)).length;
+        document.getElementById('kpiPending').innerText  = myList.filter(d =>
+            !['PO_CREE','REJETEE'].includes(d.statut)).length;
+    }
+
+    // ── Search filter ──
+    function filterTable() {
+        const q = document.getElementById('searchInput').value.toLowerCase();
+        document.querySelectorAll('#tbodyRequests .table-row').forEach(row => {
+            row.style.display = row.innerText.toLowerCase().includes(q) ? '' : 'none';
+        });
+    }
+
+    // ── Override openModal — sync second span ──
+    const _origOpenModal = openModal;
+    openModal = function(da) {
+        _origOpenModal(da);
+        document.getElementById('modalDaCode2').innerText = 'DA-' + String(currentDa?.oidDa).padStart(3, '0');
+    };
+</script>
+</body>
+</html>

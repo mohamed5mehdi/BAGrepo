@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Purchase Management</title>
+    <link rel="stylesheet" href="/style.css">
+    <style>
+        .login-container {
+            max-width: 400px;
+            margin: 0 auto;
+        }
+        .login-header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .login-header h1 {
+            font-size: 1.8rem;
+            margin-bottom: 0.5rem;
+        }
+        .login-header p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+        .error-message {
+            color: var(--danger);
+            background: rgba(239, 68, 68, 0.1);
+            padding: 0.75rem;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            text-align: center;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .demo-credentials {
+            margin-top: 2rem;
+            padding: 1rem;
+            background: rgba(79, 70, 229, 0.05);
+            border-radius: 10px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+        }
+        .demo-credentials strong {
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container login-container">
+    <div class="login-header">
+        <h1>🏢 Login</h1>
+        <p>Log in to access your space</p>
+    </div>
+
+    <div id="errorMessage" class="error-message"></div>
+
+    <form id="loginForm">
+        <div class="form-group">
+            <label for="email">Email Address</label>
+            <input type="email" id="email" name="email" placeholder="Ex: demandeur@test.com" required>
+        </div>
+
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="Your password" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="loginBtn">Login</button>
+    </form>
+
+    <div class="demo-credentials">
+        <strong>Generated test access:</strong><br>
+        Email: <em>demandeur@test.com</em><br>
+        Password: <em>password</em>
+    </div>
+</div>
+
+<script>
+    document.getElementById('loginForm').addEventListener('submit', function(e) {
+        e.preventDefault();
+
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const loginBtn = document.getElementById('loginBtn');
+        const errorMsg = document.getElementById('errorMessage');
+
+        loginBtn.innerText = "Connecting...";
+        loginBtn.disabled = true;
+        errorMsg.style.display = 'none';
+
+        const formData = new URLSearchParams();
+        formData.append('email', email);
+        formData.append('password', password);
+
+        fetch('/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/x-www-form-urlencoded'
+            },
+            body: formData.toString()
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Invalid email or password');
+            }
+            return response.json();
+        })
+        .then(data => {
+            if (data.success) {
+                localStorage.setItem('userId',   data.userId);
+                localStorage.setItem('userName', data.userName);
+                localStorage.setItem('userRole', data.role);
+
+                // ── Redirection automatique selon le rôle ──────────────────
+                const role = (data.role || '').toUpperCase();
+                let target = '/dashboard-demandeur.html'; // par défaut
+
+                if      (role === 'ROLE_N1')         target = '/dashboard-n1.html';
+                else if (role === 'ROLE_TECHNICIEN')  target = '/dashboard-tech.html';
+                else if (role === 'ROLE_ACHETEUR')    target = '/dashboard-acheteur.html';
+                else if (role === 'ROLE_AMG')         target = '/dashboard-acheteur.html';
+                else if (role === 'ROLE_DAF')         target = '/dashboard-daf.html';
+                else if (role === 'ROLE_DG')          target = '/dashboard-dg.html';
+                else if (role === 'ROLE_DEMANDEUR')   target = '/dashboard-demandeur.html';
+
+                window.location.href = target;
+            } else {
+                throw new Error(data.message || "Login error");
+            }
+        })
+        .catch(error => {
+            console.error('Login error:', error);
+            errorMsg.innerText = error.message || "Server connection error";
+            errorMsg.style.display = 'block';
+            loginBtn.innerText = "Login";
+            loginBtn.disabled = false;
+        });
+    });
+</script>
+</body>
+</html>
