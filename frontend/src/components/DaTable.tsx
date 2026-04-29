@@ -1,26 +1,29 @@
-import type { DaHeader } from '../types';
-import { formatDA, getDaTotal, formatCurrency } from '../utils/constants';
+import type { DemandeAchatInterne } from '../types';
+import { formatDA, formatCurrency } from '../utils/constants';
 import StatusBadge from './StatusBadge';
 
 interface Props {
-  rows: DaHeader[];
-  onRowClick: (da: DaHeader) => void;
+  rows: DemandeAchatInterne[];
+  onRowClick: (da: DemandeAchatInterne) => void;
   showRequester?: boolean;
-  actionLabel?: (da: DaHeader) => string;
+  actionLabel?: (da: DemandeAchatInterne) => string;
   loading?: boolean;
   searchQuery?: string;
+  showPrice?: boolean;
 }
 
 export default function DaTable({
   rows, onRowClick, showRequester = true,
-  actionLabel, loading, searchQuery = ''
+  actionLabel, loading, searchQuery = '',
+  showPrice = true
 }: Props) {
+
   const filtered = rows.filter(da => {
     const q = searchQuery.toLowerCase();
     if (!q) return true;
     return (
-      da.objet?.toLowerCase().includes(q) ||
-      formatDA(da.oid_da).toLowerCase().includes(q) ||
+      da.designation?.toLowerCase().includes(q) ||
+      formatDA(da.id).toLowerCase().includes(q) ||
       da.demandeur?.nom?.toLowerCase().includes(q)
     );
   });
@@ -36,7 +39,9 @@ export default function DaTable({
               {showRequester && (
                 <th className="text-left px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">Demandeur</th>
               )}
-              <th className="text-left px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">Montant Est.</th>
+              {showPrice && (
+                <th className="text-left px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">Montant Est.</th>
+              )}
               <th className="text-left px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">Statut</th>
               <th className="text-left px-4 py-3 font-semibold text-slate-500 dark:text-slate-400 text-xs uppercase tracking-wide">Date</th>
               <th className="px-4 py-3"></th>
@@ -54,24 +59,26 @@ export default function DaTable({
               </td></tr>
             )}
             {!loading && filtered.map(da => {
-              const total = getDaTotal(da);
+              const total = da.montantEstime || 0;
               const label = actionLabel ? actionLabel(da) : '✏️ Traiter';
               return (
                 <tr
-                  key={da.oid_da}
+                  key={da.id}
                   className="da-row border-b border-slate-50 dark:border-slate-700/50 last:border-0"
                   onClick={() => onRowClick(da)}
                 >
                   <td className="px-4 py-3">
-                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{formatDA(da.oid_da)}</span>
+                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{formatDA(da.id)}</span>
                   </td>
-                  <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 max-w-[200px] truncate">{da.objet}</td>
+                  <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 max-w-[200px] truncate">{da.designation}</td>
                   {showRequester && (
                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{da.demandeur?.nom ?? '—'}</td>
                   )}
-                  <td className="px-4 py-3 font-semibold text-amber-600 dark:text-amber-400">
-                    {total > 0 ? formatCurrency(total) : '—'}
-                  </td>
+                  {showPrice && (
+                    <td className="px-4 py-3 font-semibold text-amber-600 dark:text-amber-400">
+                      {total > 0 ? formatCurrency(total) : '—'}
+                    </td>
+                  )}
                   <td className="px-4 py-3"><StatusBadge statut={da.statut} /></td>
                   <td className="px-4 py-3 text-slate-400 text-xs">{da.dateCreation ?? '—'}</td>
                   <td className="px-4 py-3">

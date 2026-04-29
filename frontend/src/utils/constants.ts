@@ -25,25 +25,25 @@ export const STATUS_COLORS: Record<StatutDA, string> = {
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
-  ROLE_DEMANDEUR:  'Demandeur',
-  ROLE_N1:         'Manager N+1',
-  ROLE_TECHNICIEN: 'Technicien',
-  ROLE_ACHETEUR:   'Acheteur',
-  ROLE_AMG:        'AMG',
-  ROLE_DAF:        'DAF',
-  ROLE_DG:         'Direction Générale',
-  ROLE_ADMIN:      'Administrateur',
+  EMPLOYE:         'Demandeur',
+  MANAGER_N1:      'Manager N+1',
+  TECHNICIEN:      'Technicien',
+  ACHETEUR:        'Acheteur',
+  AMG:             'AMG',
+  DAF:             'DAF',
+  DG:              'Direction Générale',
+  ADMINISTRATEUR:  'Administrateur',
 };
 
 export const ROLE_COLORS: Record<Role, string> = {
-  ROLE_DEMANDEUR:  'from-sky-500 to-blue-600',
-  ROLE_N1:         'from-violet-500 to-purple-600',
-  ROLE_TECHNICIEN: 'from-cyan-500 to-teal-600',
-  ROLE_ACHETEUR:   'from-indigo-500 to-blue-700',
-  ROLE_AMG:        'from-orange-500 to-amber-600',
-  ROLE_DAF:        'from-fuchsia-500 to-purple-700',
-  ROLE_DG:         'from-rose-500 to-red-700',
-  ROLE_ADMIN:      'from-slate-800 to-black',
+  EMPLOYE:         'from-sky-500 to-blue-600',
+  MANAGER_N1:      'from-violet-500 to-purple-600',
+  TECHNICIEN:      'from-cyan-500 to-teal-600',
+  ACHETEUR:        'from-indigo-500 to-blue-700',
+  AMG:             'from-orange-500 to-amber-600',
+  DAF:             'from-fuchsia-500 to-purple-700',
+  DG:              'from-rose-500 to-red-700',
+  ADMINISTRATEUR:  'from-slate-800 to-black',
 };
 
 export function getDaTotal(da: { details?: { quantite: number; prix_unitaire: number }[] }): number {

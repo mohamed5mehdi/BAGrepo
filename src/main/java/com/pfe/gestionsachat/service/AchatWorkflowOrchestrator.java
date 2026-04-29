@@ -45,19 +45,19 @@ public class AchatWorkflowOrchestrator {
         }
 
         switch (role) {
-            case ROLE_N1:
+            case MANAGER_N1:
                 if (StatutDA.EN_ATTENTE_N1.equals(da.getStatut())) {
                     da.setStatut(StatutDA.EN_ATTENTE_TECH);
                 }
                 break;
 
-            case ROLE_TECHNICIEN:
+            case TECHNICIEN:
                 if (StatutDA.EN_ATTENTE_TECH.equals(da.getStatut())) {
                     da.setStatut(StatutDA.EN_ATTENTE_ACHAT);
                 }
                 break;
 
-            case ROLE_AMG:
+            case AMG:
                 if (StatutDA.EN_ATTENTE_AMG.equals(da.getStatut())) {
                     List<BudgetTransfer> transfers = budgetTransferRepository.findByDaHeader_OidDa(da.getOidDa());
                     
@@ -76,14 +76,14 @@ public class AchatWorkflowOrchestrator {
                 }
                 break;
 
-            case ROLE_DAF:
+            case DAF:
                 if (StatutDA.EN_ATTENTE_DAF.equals(da.getStatut())) {
                     // After DAF budget approval, it MUST go to DG for final arbitrage
                     da.setStatut(StatutDA.EN_ATTENTE_DG);
                 }
                 break;
 
-            case ROLE_DG:
+            case DG:
                 if (StatutDA.EN_ATTENTE_DG.equals(da.getStatut())) {
                     da.setStatut(StatutDA.VALIDEE);
                 }
@@ -195,11 +195,14 @@ public class AchatWorkflowOrchestrator {
             throw new RuntimeException("La DA doit être VALIDEE avant de créer un PO");
         }
 
-        java.math.BigDecimal total = da.getDetails().stream()
+        java.math.BigDecimal totalHT = da.getDetails().stream()
                 .map(DaDetails::getTotalPrice)
                 .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
+        
+        // Calcul TTC avec TVA 20% (Standard BAG)
+        java.math.BigDecimal totalTTC = totalHT.multiply(new java.math.BigDecimal("1.20")).setScale(2, java.math.RoundingMode.HALF_UP);
 
-        PurchaseOrder po = new PurchaseOrder(da, total);
+        PurchaseOrder po = new PurchaseOrder(da, totalTTC);
         po.setStatut("VALIDE");
         purchaseOrderRepository.save(po);
 

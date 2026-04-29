@@ -44,15 +44,18 @@ export function useAuth(): AuthContextType {
 }
 
 // Util: role → dashboard route
-export function getDashboardRoute(role: Role): string {
-  const map: Record<Role, string> = {
-    ROLE_DEMANDEUR:  '/demandeur',
-    ROLE_N1:         '/n1',
-    ROLE_TECHNICIEN: '/tech',
-    ROLE_ACHETEUR:   '/acheteur',
-    ROLE_AMG:        '/amg',
-    ROLE_DAF:        '/daf',
-    ROLE_DG:         '/dg',
+export function getDashboardRoute(role: string): string {
+  const map: Record<string, string> = {
+    EMPLOYE:         '/demandeur',
+    MANAGER_N1:      '/n1',
+    TECHNICIEN:      '/tech',
+    ACHETEUR:        '/acheteur',
+    AMG:             '/amg',
+    DAF:             '/daf',
+    DG:              '/dg',
+    ADMINISTRATEUR:  '/admin',
   };
-  return map[role] ?? '/login';
+  // Handle case where role might be prefixed with ROLE_
+  const cleanRole = role.replace('ROLE_', '');
+  return map[cleanRole] ?? '/login';
 }

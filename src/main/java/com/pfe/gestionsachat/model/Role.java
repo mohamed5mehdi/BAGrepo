@@ -1,12 +1,12 @@
 package com.pfe.gestionsachat.model;
 
 public enum Role {
-    ROLE_N1,
-    ROLE_TECHNICIEN,
-    ROLE_ACHETEUR,
-    ROLE_AMG,
-    ROLE_DAF,
-    ROLE_DG,
-    ROLE_DEMANDEUR,
-    ROLE_ADMIN
+    EMPLOYE,
+    MANAGER_N1,
+    TECHNICIEN,
+    ACHETEUR,
+    AMG,
+    DAF,
+    DG,
+    ADMINISTRATEUR
 }

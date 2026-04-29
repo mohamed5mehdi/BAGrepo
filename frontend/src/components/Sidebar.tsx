@@ -5,19 +5,23 @@ import { ROLE_LABELS, ROLE_COLORS } from '../utils/constants';
 import type { Role } from '../types';
 
 const NAV_BY_ROLE: Record<Role, { label: string; icon: string; to: string }[]> = {
-  ROLE_DEMANDEUR: [
+  EMPLOYE: [
     { label: 'Mes Demandes', icon: '📋', to: '/demandeur' },
     { label: 'Nouvelle DA',  icon: '➕', to: '/demandeur/new' },
   ],
-  ROLE_N1:        [{ label: 'À Valider', icon: '✅', to: '/n1' }],
-  ROLE_TECHNICIEN:[{ label: 'À Valider', icon: '🔧', to: '/tech' }],
-  ROLE_ACHETEUR:  [
+  MANAGER_N1:        [{ label: 'À Valider', icon: '✅', to: '/n1' }],
+  TECHNICIEN:[{ label: 'À Valider', icon: '🔧', to: '/tech' }],
+  ACHETEUR:  [
     { label: 'Tableau de bord', icon: '🛒', to: '/acheteur' },
+    { label: 'Logistique', icon: '🚚', to: '/logistics' },
   ],
-  ROLE_AMG:       [{ label: 'Dossiers AMG', icon: '📂', to: '/amg' }],
-  ROLE_DAF:       [{ label: 'Contrôle Budget', icon: '💰', to: '/daf' }],
-  ROLE_DG:        [{ label: 'Direction', icon: '🏢', to: '/dg' }],
-  ROLE_ADMIN:     [{ label: 'Administration', icon: '⚙️', to: '/admin' }],
+  AMG:       [{ label: 'Dossiers AMG', icon: '📂', to: '/amg' }],
+  DAF:       [{ label: 'Contrôle Budget', icon: '💰', to: '/daf' }],
+  DG:        [{ label: 'Direction', icon: '🏢', to: '/dg' }],
+  ADMINISTRATEUR:     [
+    { label: 'Administration', icon: '⚙️', to: '/admin' },
+    { label: 'Logistique', icon: '🚚', to: '/logistics' },
+  ],
 };
 
 export default function Sidebar() {

@@ -55,10 +55,10 @@ class FullIntegrationTest {
         System.out.println("\n=== TEST 2 : Rôles des utilisateurs ===");
 
         List<User> users = userRepository.findAll();
-        long countN1   = users.stream().filter(u -> u.getRole() == Role.ROLE_N1).count();
-        long countDAF  = users.stream().filter(u -> u.getRole() == Role.ROLE_DAF).count();
-        long countDG   = users.stream().filter(u -> u.getRole() == Role.ROLE_DG).count();
-        long countDEM  = users.stream().filter(u -> u.getRole() == Role.ROLE_DEMANDEUR).count();
+        long countN1   = users.stream().filter(u -> u.getRole() == Role.MANAGER_N1).count();
+        long countDAF  = users.stream().filter(u -> u.getRole() == Role.DAF).count();
+        long countDG   = users.stream().filter(u -> u.getRole() == Role.DG).count();
+        long countDEM  = users.stream().filter(u -> u.getRole() == Role.EMPLOYE).count();
 
         assertTrue(countN1  >= 1, "❌ Aucun manager N1 !");
         assertTrue(countDAF >= 1, "❌ Aucun DAF !");
@@ -103,7 +103,7 @@ class FullIntegrationTest {
 
         // Récupérer un demandeur existant
         User demandeur = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == Role.ROLE_DEMANDEUR)
+                .filter(u -> u.getRole() == Role.EMPLOYE)
                 .findFirst()
                 .orElseThrow();
         assertNotNull(demandeur, "❌ Demandeur introuvable !");
@@ -180,7 +180,7 @@ class FullIntegrationTest {
 
         // Créer une DA en état EN_ATTENTE_N1
         User demandeur = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == Role.ROLE_DEMANDEUR)
+                .filter(u -> u.getRole() == Role.EMPLOYE)
                 .findFirst().orElseThrow();
         DaHeader da = new DaHeader("Workflow Test DA", demandeur);
         da.setStatut(StatutDA.EN_ATTENTE_N1);
@@ -189,7 +189,7 @@ class FullIntegrationTest {
 
         // Récupérer le User N1
         User n1 = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == Role.ROLE_N1)
+                .filter(u -> u.getRole() == Role.MANAGER_N1)
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Aucun N1 trouvé !"));
         Integer n1Id = n1.getOidUser();
@@ -215,14 +215,14 @@ class FullIntegrationTest {
         System.out.println("\n=== TEST 7 : Rejet d'une DA ===");
 
         User demandeur = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == Role.ROLE_DEMANDEUR)
+                .filter(u -> u.getRole() == Role.EMPLOYE)
                 .findFirst().orElseThrow();
         DaHeader da = new DaHeader("DA à rejeter", demandeur);
         da.setStatut(StatutDA.EN_ATTENTE_N1);
         da = daHeaderRepository.save(da);
 
         User n1 = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == Role.ROLE_N1)
+                .filter(u -> u.getRole() == Role.MANAGER_N1)
                 .findFirst().orElseThrow();
 
         DaHeader rejected = orchestrator.processValidation(da.getOidDa(), n1.getOidUser(),
@@ -241,7 +241,7 @@ class FullIntegrationTest {
         System.out.println("\n=== TEST 8 : Données d'authentification ===");
 
         List<User> demandeurs = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == Role.ROLE_DEMANDEUR)
+                .filter(u -> u.getRole() == Role.EMPLOYE)
                 .toList();
         assertFalse(demandeurs.isEmpty(), "❌ Aucun demandeur en base !");
 

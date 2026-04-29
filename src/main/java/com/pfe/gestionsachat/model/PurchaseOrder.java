@@ -19,6 +19,10 @@ public class PurchaseOrder {
     @JoinColumn(name = "id_da")
     private DaHeader daHeader;
 
+    @OneToOne
+    @JoinColumn(name = "id_demande_interne")
+    private DemandeAchatInterne demandeInterne;
+
     @Column(name = "date_creation")
     @com.fasterxml.jackson.annotation.JsonProperty("date_creation")
     private LocalDate dateCreation;
@@ -45,10 +49,13 @@ public class PurchaseOrder {
     public LocalDate getDateCreation() { return dateCreation; }
     public String getStatut() { return statut; }
     public BigDecimal getMontantTotal() { return montantTotal; }
+    public BigDecimal getTotalAmount() { return montantTotal; }
+    public DemandeAchatInterne getDemandeInterne() { return demandeInterne; }
 
     // Setters
     public void setIdPo(Integer idPo) { this.idPo = idPo; }
     public void setDaHeader(DaHeader daHeader) { this.daHeader = daHeader; }
+    public void setDemandeInterne(DemandeAchatInterne demandeInterne) { this.demandeInterne = demandeInterne; }
     public void setDateCreation(LocalDate dateCreation) { this.dateCreation = dateCreation; }
     public void setStatut(String statut) { this.statut = statut; }
     public void setMontantTotal(BigDecimal montantTotal) { this.montantTotal = montantTotal; }

@@ -1,18 +1,20 @@
 import { useEffect, useRef } from 'react';
-import type { DaHeader } from '../types';
-import { formatDA, getDaTotal, formatCurrency } from '../utils/constants';
+import type { DemandeAchatInterne } from '../types';
+import { formatDA, formatCurrency } from '../utils/constants';
 import StatusBadge from './StatusBadge';
 import WorkflowStepper from './WorkflowStepper';
 
 interface Props {
-  da: DaHeader | null;
+  da: DemandeAchatInterne | null;
   onClose: () => void;
   title?: string;
   children?: React.ReactNode;  // role-specific action panel
   wide?: boolean;
+  showPrice?: boolean;
 }
 
-export default function DaModal({ da, onClose, title, children, wide = false }: Props) {
+export default function DaModal({ da, onClose, title, children, wide = false, showPrice = true }: Props) {
+
   const ref = useRef<HTMLDivElement>(null);
 
   // Close on backdrop click
@@ -28,7 +30,7 @@ export default function DaModal({ da, onClose, title, children, wide = false }: 
   }, [onClose]);
 
   if (!da) return null;
-  const total = getDaTotal(da);
+  const total = da.montantEstime || 0;
 
   return (
     <div
@@ -40,7 +42,7 @@ export default function DaModal({ da, onClose, title, children, wide = false }: 
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700 flex-shrink-0">
           <h2 className="font-bold text-slate-800 dark:text-white text-lg">
-            {title ?? '📋 Détail DA'} — <span className="text-indigo-600 font-mono">{formatDA(da.oid_da)}</span>
+            {title ?? '📋 Détail DA'} — <span className="text-indigo-600 font-mono">{formatDA(da.id)}</span>
           </h2>
           <button
             onClick={onClose}
@@ -53,11 +55,11 @@ export default function DaModal({ da, onClose, title, children, wide = false }: 
           {/* Info grid */}
           <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
             {[
-              { label: 'Code DA',    value: formatDA(da.oid_da) },
+              { label: 'Code DA',    value: formatDA(da.id) },
               { label: 'Date',       value: da.dateCreation ?? '—' },
-              { label: 'Objet',      value: da.objet },
+              { label: 'Objet',      value: da.designation },
               { label: 'Demandeur',  value: da.demandeur?.nom ?? '—' },
-              { label: 'Montant Est.', value: total > 0 ? formatCurrency(total) : '—' },
+              ...(showPrice ? [{ label: 'Montant Est.', value: total > 0 ? formatCurrency(total) : '—' }] : []),
               { label: 'Statut',     value: <StatusBadge statut={da.statut} /> },
             ].map(({ label, value }) => (
               <div key={label} className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
@@ -77,8 +79,8 @@ export default function DaModal({ da, onClose, title, children, wide = false }: 
             </div>
           )}
 
-          {/* Details lines */}
-          {da.details && da.details.length > 0 && (
+          {/* Details */}
+          {da.designation && (
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Lignes de la demande</p>
               <div className="overflow-x-auto rounded-xl border border-slate-100 dark:border-slate-700">
@@ -86,24 +88,30 @@ export default function DaModal({ da, onClose, title, children, wide = false }: 
                   <thead className="bg-slate-50 dark:bg-slate-900/60 text-xs text-slate-500 uppercase">
                     <tr>
                       <th className="px-3 py-2 text-left">Article</th>
-                      <th className="px-3 py-2 text-left">Description</th>
+                      <th className="px-3 py-2 text-left">Catégorie</th>
                       <th className="px-3 py-2 text-center">Qté</th>
-                      <th className="px-3 py-2 text-right">P.U. HT</th>
-                      <th className="px-3 py-2 text-right">Total HT</th>
+                      {showPrice && (
+                        <>
+                          <th className="px-3 py-2 text-right">P.U. HT</th>
+                          <th className="px-3 py-2 text-right">Total HT</th>
+                        </>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
-                    {da.details.map((d, i) => (
-                      <tr key={i} className="border-t border-slate-50 dark:border-slate-700">
-                        <td className="px-3 py-2 font-medium">{d.itemName ?? d.description ?? '—'}</td>
-                        <td className="px-3 py-2 text-slate-500">{d.description ?? '—'}</td>
-                        <td className="px-3 py-2 text-center">{d.quantite}</td>
-                        <td className="px-3 py-2 text-right">{formatCurrency(d.prix_unitaire ?? 0)}</td>
-                        <td className="px-3 py-2 text-right font-semibold text-amber-600">
-                          {formatCurrency((d.quantite ?? 0) * (d.prix_unitaire ?? 0))}
-                        </td>
+                      <tr className="border-t border-slate-50 dark:border-slate-700">
+                        <td className="px-3 py-2 font-medium">{da.designation ?? '—'}</td>
+                        <td className="px-3 py-2 text-slate-500">{da.categorie ?? '—'}</td>
+                        <td className="px-3 py-2 text-center">{da.quantite}</td>
+                        {showPrice && (
+                          <>
+                            <td className="px-3 py-2 text-right">{formatCurrency(da.prixUnitaire ?? 0)}</td>
+                            <td className="px-3 py-2 text-right font-semibold text-amber-600">
+                              {formatCurrency((da.quantite ?? 0) * (da.prixUnitaire ?? 0))}
+                            </td>
+                          </>
+                        )}
                       </tr>
-                    ))}
                   </tbody>
                 </table>
               </div>

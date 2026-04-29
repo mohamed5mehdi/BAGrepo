@@ -6,192 +6,269 @@ import KpiCard from '../components/KpiCard';
 import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
 import { useAuth } from '../context/AuthContext';
-import { getDAByDemandeur, createDA, getFamilies, getSubFamilies, getSubFamiliesByFamily } from '../api/services';
-import type { DaHeader, Family, SubFamily } from '../types';
+import { getMesDemandesInternes, createDemandeInterne, soumettreDemandeInterne, getFamilies, getSubFamiliesByFamily } from '../api/services';
+import type { DemandeAchatInterne, Family, SubFamily } from '../types';
+
+interface DaLine {
+  id: string;
+  itemName: string;
+  subFamilyId: string;
+  quantite: number;
+  prix_unitaire: number;
+}
 
 export default function DemandeurPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [selectedDa, setSelectedDa] = useState<DaHeader | null>(null);
+  const [selectedDa, setSelectedDa] = useState<DemandeAchatInterne | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
   const [search, setSearch] = useState('');
 
-  // Form state
-  const [objet, setObjet] = useState('');
+  // Form Header State
+  const [designation, setDesignation] = useState('');
+  const [categorie, setCategorie] = useState('INFORMATIQUE');
+  const [quantite, setQuantite] = useState(1);
   const [justification, setJustification] = useState('');
-  const [urgency, setUrgency] = useState('NORMAL');
-  const [familyId, setFamilyId] = useState('');
-  const [subFamilyId, setSubFamilyId] = useState('');
-  const [quantity, setQuantity] = useState(1);
+  const [urgency, setUrgency] = useState('NORMALE');
+  const [budgetFamilleId, setBudgetFamilleId] = useState<string>('');
+  const [budgetSousFamilleId, setBudgetSousFamilleId] = useState<string>('');
 
+  // Data Fetching
   const { data: daList = [], isLoading } = useQuery({
-    queryKey: ['da', 'demandeur', user?.userId],
-    queryFn: () => getDAByDemandeur(user!.userId).then(r => r.data),
+    queryKey: ['da', 'mes-demandes', user?.userId],
+    queryFn: () => getMesDemandesInternes(user!.userId).then(r => r.data),
     enabled: !!user,
   });
 
   const { data: families = [] } = useQuery({
-    queryKey: ['families'],
+    queryKey: ['budget-families'],
     queryFn: () => getFamilies().then(r => r.data),
   });
 
-  const { data: subFamilies = [] } = useQuery({
-    queryKey: ['sub-families', familyId],
-    queryFn: () => familyId ? getSubFamiliesByFamily(Number(familyId)).then(r => r.data) : getSubFamilies().then(r => r.data),
+  const { data: subFamilies = [] } = useQuery<SubFamily[]>({
+    queryKey: ['sub-families', budgetFamilleId],
+    queryFn: () => budgetFamilleId ? getSubFamiliesByFamily(Number(budgetFamilleId)).then(r => r.data) : Promise.resolve([]),
+    enabled: !!budgetFamilleId
   });
 
   const createMutation = useMutation({
-    mutationFn: (payload: Partial<DaHeader>) => createDA(payload),
+    mutationFn: (payload: any) => createDemandeInterne(payload, user!.userId),
     onSuccess: () => {
-      toast.success('Demande créée et soumise !');
-      qc.invalidateQueries({ queryKey: ['da', 'demandeur'] });
+      toast.success('Demande d\'achat interne créée !');
+      qc.invalidateQueries({ queryKey: ['da', 'mes-demandes'] });
       setShowNewForm(false);
       resetForm();
     },
-    onError: () => toast.error('Erreur lors de la création'),
+    onError: (err: any) => {
+      toast.error('Erreur lors de la création de la demande');
+    },
   });
 
   const resetForm = () => {
-    setObjet(''); setJustification(''); setUrgency('NORMAL');
-    setFamilyId(''); setSubFamilyId(''); setQuantity(1);
+    setDesignation('');
+    setCategorie('INFORMATIQUE');
+    setQuantite(1);
+    setJustification('');
+    setUrgency('NORMALE');
+    setBudgetFamilleId('');
+    setBudgetSousFamilleId('');
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
-    const sf = subFamilies.find((s: SubFamily) => String(s.id) === subFamilyId);
-    createMutation.mutate({
-      objet,
+
+    const payload = {
+      designation,
+      categorie,
+      quantite,
       justification,
-      urgencyLevel: urgency,
-      demandeur: { oid_user: user.userId } as any,
-      details: sf ? [{ subFamily: sf, quantite: quantity, prix_unitaire: 0, description: objet }] : [],
-    });
+      urgence: urgency,
+      budgetFamille: { id: Number(budgetFamilleId) },
+      budgetSousFamille: { id: Number(budgetSousFamilleId) }
+    };
+
+    createMutation.mutate(payload);
   };
 
   const kpis = {
     total:   daList.length,
-    pending: daList.filter(d => !['PO_CREE','REJETEE'].includes(d.statut)).length,
-    done:    daList.filter(d => d.statut === 'PO_CREE').length,
+    pending: daList.filter(d => !['PO_CREE', 'REJETEE', 'VALIDEE'].includes(d.statut)).length,
+    valid:   daList.filter(d => d.statut === 'VALIDEE' || d.statut === 'PO_CREE').length,
     rejected:daList.filter(d => d.statut === 'REJETEE').length,
   };
 
+
+
   return (
-    <DashboardLayout title="Mon Espace — Suivi des Demandes" pendingCount={kpis.pending}>
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-        <KpiCard label="Mes demandes"     value={kpis.total}    icon="📄" color="from-indigo-500 to-blue-600" />
-        <KpiCard label="En cours"         value={kpis.pending}  icon="⏳" color="from-amber-500 to-orange-600" />
-        <KpiCard label="PO Créé"          value={kpis.done}     icon="✅" color="from-emerald-500 to-green-600" />
-        <KpiCard label="Rejetées"         value={kpis.rejected} icon="❌" color="from-red-500 to-rose-600" />
+    <DashboardLayout title="Espace Demandeur — Gestion des Achats BAG" pendingCount={kpis.pending}>
+      {/* KPI Section */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
+        <KpiCard label="Mes Demandes" value={kpis.total} icon="📦" color="from-blue-600 to-indigo-700" />
+        <KpiCard label="En Circuit" value={kpis.pending} icon="🔄" color="from-amber-500 to-orange-600" />
+        <KpiCard label="Validées / PO" value={kpis.valid} icon="✅" color="from-emerald-500 to-teal-600" />
+        <KpiCard label="Refusées" value={kpis.rejected} icon="❌" color="from-rose-500 to-red-700" />
       </div>
 
-      {/* Action bar */}
-      <div className="flex gap-3 mb-5">
-        <input
-          value={search} onChange={e => setSearch(e.target.value)}
-          placeholder="🔍 Rechercher..."
-          className="flex-1 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300"
-        />
+      {/* Action Header */}
+      <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm mb-6 flex flex-wrap items-center gap-4">
+        <div className="relative flex-1 min-w-[250px]">
+          <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
+          <input
+            value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Rechercher une demande (Code, Objet...)"
+            className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+          />
+        </div>
         <button
-          id="btn-new-da"
           onClick={() => setShowNewForm(true)}
-          className="px-5 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold text-sm hover:from-indigo-600 hover:to-violet-700 transition-all shadow-lg shadow-indigo-200"
+          className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none flex items-center gap-2"
         >
-          ➕ Nouvelle DA
+          <span>➕</span> Nouvelle Demande d'Achat
         </button>
       </div>
 
-      {/* Table */}
+      {/* Main Table */}
       <DaTable
         rows={daList}
         onRowClick={setSelectedDa}
         showRequester={false}
         loading={isLoading}
         searchQuery={search}
-        actionLabel={() => '👁 Voir'}
+        actionLabel={() => 'Voir Détails'}
+        showPrice={false}
       />
 
-      {/* Detail modal (read-only for demandeur) */}
+      {/* Detail Modal */}
       {selectedDa && (
-        <DaModal da={selectedDa} onClose={() => setSelectedDa(null)} title="📋 Suivi de ma Demande">
-          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-end">
-            <button onClick={() => setSelectedDa(null)} className="px-6 py-2 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-200 transition-colors">
+        <DaModal da={selectedDa} onClose={() => setSelectedDa(null)} title="Détails de la Demande" wide showPrice={false}>
+          <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
+            <button 
+              onClick={() => setSelectedDa(null)}
+              className="px-6 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-200"
+            >
               Fermer
             </button>
           </div>
         </DaModal>
       )}
 
-      {/* New DA form modal */}
+      {/* Create DA Form Modal */}
       {showNewForm && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-lg animate-fade-in-up">
-            <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-700">
-              <h2 className="font-bold text-slate-800 dark:text-white">➕ Nouvelle Demande d'Achat</h2>
-              <button onClick={() => { setShowNewForm(false); resetForm(); }} className="text-slate-400 hover:text-slate-600 text-xl">✕</button>
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col animate-scale-in">
+            <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-white">Nouvelle Demande de Besoins Internes</h2>
+                <p className="text-xs text-slate-400 mt-1">Équipements informatiques, mobilier, fournitures ou maintenance pour votre service.</p>
+              </div>
+              <button onClick={() => setShowNewForm(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400">✕</button>
             </div>
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+
+            <form id="da-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 space-y-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Catégorie *</label>
+                  <select 
+                    value={categorie} onChange={e => setCategorie(e.target.value)} required
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  >
+                    <option value="INFORMATIQUE">💻 Informatique</option>
+                    <option value="BUREAUTIQUE">📄 Bureautique</option>
+                    <option value="MOBILIER">🪑 Mobilier</option>
+                    <option value="CONSOMMABLE">🖊️ Consommable</option>
+                    <option value="AUTRE">📦 Autre</option>
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Urgence</label>
+                  <select 
+                    value={urgency} onChange={e => setUrgency(e.target.value)}
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  >
+                    <option value="NORMALE">🟢 Normale</option>
+                    <option value="URGENTE">🟠 Urgente</option>
+                    <option value="CRITIQUE">🔴 Critique</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="md:col-span-2 space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Désignation de l'article *</label>
+                  <input 
+                    value={designation} onChange={e => setDesignation(e.target.value)} required
+                    placeholder="Ex: Écran Dell 24 pouces"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Quantité *</label>
+                  <input 
+                    type="number" min={1} value={quantite} onChange={e => setQuantite(Number(e.target.value))} required
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Famille Budgétaire *</label>
+                  <select 
+                    value={budgetFamilleId} onChange={e => setBudgetFamilleId(e.target.value)} required
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  >
+                    <option value="">Sélectionner...</option>
+                    {families.map((f: any) => <option key={f.id} value={f.id}>{f.libelle || f.name}</option>)}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Sous-Famille *</label>
+                  <select 
+                    value={budgetSousFamilleId} onChange={e => setBudgetSousFamilleId(e.target.value)} required
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                  >
+                    <option value="">Sélectionner...</option>
+                    {subFamilies.map((sf: any) => <option key={sf.id} value={sf.id}>{sf.libelle || sf.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
               <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Objet *</label>
-                <input value={objet} onChange={e => setObjet(e.target.value)} required
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" placeholder="Ex: Achat de PC portables" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Famille *</label>
-                  <select value={familyId} onChange={e => { setFamilyId(e.target.value); setSubFamilyId(''); }} required
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                    <option value="">Toutes les familles...</option>
-                    {families.map((f: Family) => (
-                      <option key={f.id} value={f.id}>{f.name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Sous-famille *</label>
-                  <select value={subFamilyId} onChange={e => setSubFamilyId(e.target.value)} required
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                    <option value="">Choisir...</option>
-                    {subFamilies.map((sf: SubFamily) => (
-                      <option key={sf.id} value={sf.id}>{sf.name}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Quantité *</label>
-                  <input type="number" min={1} value={quantity} onChange={e => setQuantity(Number(e.target.value))} required
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-                </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Urgence</label>
-                  <select value={urgency} onChange={e => setUrgency(e.target.value)}
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300">
-                    <option value="NORMAL">Normal</option>
-                    <option value="URGENT">Urgent</option>
-                    <option value="CRITIQUE">Critique</option>
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-500 mb-1 block">Justification</label>
-                <textarea value={justification} onChange={e => setJustification(e.target.value)} rows={3}
-                  className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 resize-none"
-                  placeholder="Pourquoi cette demande est-elle nécessaire ?" />
-              </div>
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => { setShowNewForm(false); resetForm(); }}
-                  className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-colors">
-                  Annuler
-                </button>
-                <button type="submit" disabled={createMutation.isPending}
-                  className="px-6 py-2 rounded-xl bg-gradient-to-r from-indigo-500 to-violet-600 text-white font-semibold text-sm disabled:opacity-60 transition-all hover:from-indigo-600 hover:to-violet-700">
-                  {createMutation.isPending ? 'Envoi...' : '✅ Soumettre la DA'}
-                </button>
+                <label className="text-xs font-bold text-slate-500 uppercase ml-1">Justification Métier *</label>
+                <textarea 
+                  value={justification} onChange={e => setJustification(e.target.value)} rows={3} required
+                  placeholder="Expliquez pourquoi ce besoin est essentiel..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
+                />
               </div>
             </form>
+
+            {/* Footer Summary & Actions */}
+            <div className="p-8 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50 rounded-b-3xl">
+              <div>
+                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Récapitulatif</p>
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
+                  {quantite} x {designation || 'Article'} en cours de demande.
+                </p>
+              </div>
+              <div className="flex gap-4">
+                <button 
+                  type="button" onClick={() => setShowNewForm(false)}
+                  className="px-6 py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 transition-all"
+                >
+                  Annuler
+                </button>
+                <button 
+                  type="submit" form="da-form" disabled={createMutation.isPending}
+                  className="px-8 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm hover:bg-blue-700 disabled:opacity-50 shadow-xl shadow-blue-200 dark:shadow-none transition-all flex items-center gap-2"
+                >
+                  {createMutation.isPending ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : '🚀 Créer ma Demande'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}

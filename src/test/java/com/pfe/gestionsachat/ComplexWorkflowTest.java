@@ -28,7 +28,7 @@ class ComplexWorkflowTest {
 
         // 1. Setup Data
         User demandeur = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == Role.ROLE_DEMANDEUR)
+                .filter(u -> u.getRole() == Role.EMPLOYE)
                 .findFirst().orElseThrow();
         SubFamily sfHardware = subFamilyRepository.findAll().stream()
                 .filter(sf -> sf.getLibelle().contains("Matériel"))
@@ -36,12 +36,12 @@ class ComplexWorkflowTest {
         sfHardware.setBudgetRestant(java.math.BigDecimal.valueOf(2000.0));
         subFamilyRepository.save(sfHardware);
         
-        User n1 = userRepository.findAll().stream().filter(u -> u.getRole() == Role.ROLE_N1).findFirst().orElseThrow();
-        User tech = userRepository.findAll().stream().filter(u -> u.getRole() == Role.ROLE_TECHNICIEN).findFirst().orElseThrow();
-        User acheteur = userRepository.findAll().stream().filter(u -> u.getRole() == Role.ROLE_ACHETEUR).findFirst().orElseThrow();
-        User amg = userRepository.findAll().stream().filter(u -> u.getRole() == Role.ROLE_AMG).findFirst().orElseThrow();
-        User daf = userRepository.findAll().stream().filter(u -> u.getRole() == Role.ROLE_DAF).findFirst().orElseThrow();
-        User dg = userRepository.findAll().stream().filter(u -> u.getRole() == Role.ROLE_DG).findFirst().orElseThrow();
+        User n1 = userRepository.findAll().stream().filter(u -> u.getRole() == Role.MANAGER_N1).findFirst().orElseThrow();
+        User tech = userRepository.findAll().stream().filter(u -> u.getRole() == Role.TECHNICIEN).findFirst().orElseThrow();
+        User acheteur = userRepository.findAll().stream().filter(u -> u.getRole() == Role.ACHETEUR).findFirst().orElseThrow();
+        User amg = userRepository.findAll().stream().filter(u -> u.getRole() == Role.AMG).findFirst().orElseThrow();
+        User daf = userRepository.findAll().stream().filter(u -> u.getRole() == Role.DAF).findFirst().orElseThrow();
+        User dg = userRepository.findAll().stream().filter(u -> u.getRole() == Role.DG).findFirst().orElseThrow();
 
         // 2. Create DA with expensive item (3000.0) - Hardware budget is only 2000.0
         DaHeader da = new DaHeader("Achat Serveur Puissant", demandeur);

@@ -23,6 +23,9 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private DaDetailsRepository daDetailsRepository;
     @Autowired private ActionRepository actionRepository;
     @Autowired private BudgetTransferRepository budgetTransferRepository;
+    @Autowired private WarehouseRepository warehouseRepository;
+    @Autowired private PurchaseOrderRepository purchaseOrderRepository;
+    @Autowired private DemandeAchatInterneRepository demandeAchatInterneRepository;
     @Autowired private BCryptPasswordEncoder encoder;
 
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
@@ -33,17 +36,19 @@ public class DataInitializer implements CommandLineRunner {
         // On récupère ou on crée le demandeur
         User demandeur;
         if (userRepository.count() == 0) {
-            log.info("⏳ Création des utilisateurs...");
-            User n1       = new User("Manager N+1",       "n1@test.com",       encoder.encode("password"), Role.ROLE_N1);
-            User tech     = new User("Expert Technicien",  "tech@test.com",     encoder.encode("password"), Role.ROLE_TECHNICIEN);
-            User acheteur = new User("Acheteur Principal", "acheteur@test.com", encoder.encode("password"), Role.ROLE_ACHETEUR);
-            User amg      = new User("Responsable AMG",    "amg@test.com",      encoder.encode("password"), Role.ROLE_AMG);
-            User daf      = new User("Directeur DAF",      "daf@test.com",      encoder.encode("password"), Role.ROLE_DAF);
-            User dg       = new User("Directeur Général",  "dg@test.com",       encoder.encode("password"), Role.ROLE_DG);
-            User admin    = new User("Administrateur",     "admin@test.com",    encoder.encode("password"), Role.ROLE_ADMIN);
+            log.info("⏳ Création des utilisateurs (Encadrants: Abdelhamid Barakate & Ibtissame Saadalh)...");
             
-            demandeur = new User("Demandeur Test", "demandeur@test.com", encoder.encode("password"), Role.ROLE_DEMANDEUR);
-            demandeur.setService("IT");
+            // Distribution des acteurs
+            User n1       = new User("Younesse Filali",    "n1@test.com",       encoder.encode("password"), Role.MANAGER_N1);
+            User tech     = new User("Halim Mansouri",     "tech@test.com",     encoder.encode("password"), Role.TECHNICIEN);
+            User acheteur = new User("Abdsamad Alami",     "acheteur@test.com", encoder.encode("password"), Role.ACHETEUR);
+            User amg      = new User("Ilham Bennani",      "amg@test.com",      encoder.encode("password"), Role.AMG);
+            User daf      = new User("Ibtissame Saadalh",  "daf@test.com",      encoder.encode("password"), Role.DAF);
+            User dg       = new User("Abdelhamid Barakate", "dg@test.com",       encoder.encode("password"), Role.DG);
+            User admin    = new User("Zaid Ziani",         "admin@test.com",    encoder.encode("password"), Role.ADMINISTRATEUR);
+            
+            demandeur = new User("Mehdi Benjelloun", "demandeur@test.com", encoder.encode("password"), Role.EMPLOYE);
+            demandeur.setService("LOGISTIQUE BAG");
             demandeur.setN1(n1);
             
             userRepository.saveAll(List.of(n1, tech, acheteur, amg, daf, dg, admin, demandeur));
@@ -51,73 +56,157 @@ public class DataInitializer implements CommandLineRunner {
             demandeur = userRepository.findByEmail("demandeur@test.com").orElse(null);
         }
 
-        // Si on a encore les vieux noms "Budget IT", on vide et on recrée
-        if (familyRepository.count() > 0 && familyRepository.findAll().get(0).getLibelle().contains("Budget")) {
-            log.info("Sweep : Nettoyage des anciennes catégories...");
-            actionRepository.deleteAll();
-            budgetTransferRepository.deleteAll();
-            daDetailsRepository.deleteAll();
-            daHeaderRepository.deleteAll();
-            subFamilyRepository.deleteAll();
-            familyRepository.deleteAll();
+        // 2. Nettoyage si données obsolètes (Pièces auto ou Budget IT)
+        if (familyRepository.count() > 0) {
+            String firstLibelle = familyRepository.findAll().get(0).getLibelle();
+            if (firstLibelle.contains("Budget") || firstLibelle.contains("Pièces") || firstLibelle.contains("Automobiles")) {
+                log.info("Sweep : Nettoyage des anciennes catégories ({}) ...", firstLibelle);
+                actionRepository.deleteAll();
+                budgetTransferRepository.deleteAll();
+                daDetailsRepository.deleteAll();
+                daHeaderRepository.deleteAll();
+                subFamilyRepository.deleteAll();
+                familyRepository.deleteAll();
+            }
         }
+
 
         if (familyRepository.count() > 0) return;
 
-        // 3. Familles & Sous-familles (Noms fonctionnels pour le demandeur)
-        Family famIT  = new Family("Informatique",  BigDecimal.valueOf(15000.0));
-        Family famSG  = new Family("Services Généraux",  BigDecimal.valueOf(8000.0));
-        Family famRH  = new Family("Ressources Humaines",  BigDecimal.valueOf(5000.0));
-        familyRepository.saveAll(List.of(famIT, famSG, famRH));
+        // 3. Familles & Sous-familles (Besoins Internes BAG)
+        Family famIT     = new Family("Matériel Informatique",  BigDecimal.valueOf(500000.0));
+        Family famSoft   = new Family("Licences & Logiciels",   BigDecimal.valueOf(300000.0));
+        Family famBur    = new Family("Bureautique & Mobilier", BigDecimal.valueOf(200000.0));
+        Family famDivers = new Family("Fournitures & Services", BigDecimal.valueOf(100000.0));
+        familyRepository.saveAll(List.of(famIT, famSoft, famBur, famDivers));
 
-        SubFamily sfHardware = new SubFamily("Matériel (PC, Écrans)", BigDecimal.valueOf(5000.0), famIT);
-        SubFamily sfSoftware = new SubFamily("Logiciels & Licences", BigDecimal.valueOf(5000.0), famIT);
-        SubFamily sfInfra    = new SubFamily("Réseau & Infrastructure", BigDecimal.valueOf(5000.0), famIT);
+        SubFamily sfLaptop  = new SubFamily("PC Portables & Stations", BigDecimal.valueOf(250000.0), famIT);
+        SubFamily sfPeri    = new SubFamily("Périphériques (Écrans, Claviers)", BigDecimal.valueOf(150000.0), famIT);
+        SubFamily sfStock   = new SubFamily("Stockage & Serveurs", BigDecimal.valueOf(100000.0), famIT);
         
-        SubFamily sfFourn    = new SubFamily("Fournitures de bureau", BigDecimal.valueOf(4000.0), famSG);
-        SubFamily sfMobilier = new SubFamily("Mobilier & Aménagement", BigDecimal.valueOf(4000.0), famSG);
+        SubFamily sfCloud   = new SubFamily("Abonnements Cloud (Azure/AWS)", BigDecimal.valueOf(150000.0), famSoft);
+        SubFamily sfOffice  = new SubFamily("Suites Bureautiques (M365)", BigDecimal.valueOf(100000.0), famSoft);
+        SubFamily sfSpec    = new SubFamily("Logiciels Métiers", BigDecimal.valueOf(50000.0), famSoft);
         
-        SubFamily sfForm     = new SubFamily("Formation", BigDecimal.valueOf(2500.0), famRH);
-        SubFamily sfRecrut   = new SubFamily("Recrutement", BigDecimal.valueOf(2500.0), famRH);
+        SubFamily sfMobilier = new SubFamily("Bureaux & Chaises Ergonomiques", BigDecimal.valueOf(120000.0), famBur);
+        SubFamily sfClim     = new SubFamily("Climatisation & Aménagement", BigDecimal.valueOf(80000.0), famBur);
+        
+        SubFamily sfFourni   = new SubFamily("Fournitures de bureau", BigDecimal.valueOf(50000.0), famDivers);
+        SubFamily sfTraiteur = new SubFamily("Services Traiteur & Réception", BigDecimal.valueOf(50000.0), famDivers);
         
         subFamilyRepository.saveAll(List.of(
-            sfHardware, sfSoftware, sfInfra, 
-            sfFourn, sfMobilier, 
-            sfForm, sfRecrut
+            sfLaptop, sfPeri, sfStock, 
+            sfCloud, sfOffice, sfSpec,
+            sfMobilier, sfClim, 
+            sfFourni, sfTraiteur
         ));
 
-        // 4. Fournisseurs
-        Supplier sup1 = new Supplier("IT Pro B2B", "Ali Chérif", "Paris, France");
-        Supplier sup2 = new Supplier("TechWorld SA", "Marie Dupont", "Lyon, France");
-        Supplier sup3 = new Supplier("Bureau Express", "Jean Marc", "Marseille, France");
+        // 4. Fournisseurs (Noms professionnels adaptés)
+        Supplier sup1 = new Supplier("Alpha IT Solutions", "Mehdi Tazi", "Casablanca Tech Park");
+        Supplier sup2 = new Supplier("Global Office Systems", "Sami Alami", "Rabat Business Center");
+        Supplier sup3 = new Supplier("Elite Services Group", "Fatima Zahra", "Tanger Med");
         supplierRepository.saveAll(List.of(sup1, sup2, sup3));
 
-        // 5. Demandes d'achat (Différents statuts pour tester les dashboards)
+        // 5. Entrepôt par défaut
+        if (warehouseRepository.count() == 0) {
+            Warehouse w = new Warehouse();
+            w.setName("Magasin Central BAG");
+            w.setLocation("Casablanca - Siège");
+            w.setType(WarehouseType.CENTRAL);
+            warehouseRepository.save(w);
+        }
+
+        // 6. Demandes d'achat (Exemples Internes)
         
         // DA 1: En attente N1
-        DaHeader da1 = new DaHeader("Mise à niveau switches réseau", demandeur);
+        DaHeader da1 = new DaHeader("Renouvellement parc Laptops (Dev Team)", demandeur);
         da1.setStatut(StatutDA.EN_ATTENTE_N1);
         daHeaderRepository.save(da1);
-        daDetailsRepository.save(new DaDetails(da1, sfHardware, 2, "Switch Cisco", BigDecimal.valueOf(600.0)));
+        daDetailsRepository.save(new DaDetails(da1, sfLaptop, 3, "MacBook Pro M3", BigDecimal.valueOf(28000.0)));
 
         // DA 2: En attente Technicien
-        DaHeader da2 = new DaHeader("Licences Windows 11 Pro", demandeur);
+        DaHeader da2 = new DaHeader("Installation Climatisation Salle Réunion", demandeur);
         da2.setStatut(StatutDA.EN_ATTENTE_TECH);
         daHeaderRepository.save(da2);
-        daDetailsRepository.save(new DaDetails(da2, sfSoftware, 10, "License Win11", BigDecimal.valueOf(150.0)));
+        daDetailsRepository.save(new DaDetails(da2, sfClim, 1, "Split LG 24000 BTU", BigDecimal.valueOf(8500.0)));
 
-        // DA 3: En attente Acheteur (C'est celle-ci que vous verrez à traiter)
-        DaHeader da3 = new DaHeader("Renouvellement PC Portables", demandeur);
+        // DA 3: En attente Acheteur
+        DaHeader da3 = new DaHeader("Licences Microsoft 365 Business", demandeur);
         da3.setStatut(StatutDA.EN_ATTENTE_ACHAT);
         daHeaderRepository.save(da3);
-        daDetailsRepository.save(new DaDetails(da3, sfHardware, 5, "Laptop Dell Latitude", BigDecimal.valueOf(1200.0)));
+        daDetailsRepository.save(new DaDetails(da3, sfOffice, 50, "Abonnement Annuel E3", BigDecimal.valueOf(450.0)));
 
-        // DA 4: En attente AMG
-        DaHeader da4 = new DaHeader("Achat Serveur NAS", demandeur);
-        da4.setStatut(StatutDA.EN_ATTENTE_AMG);
-        daHeaderRepository.save(da4);
-        daDetailsRepository.save(new DaDetails(da4, sfHardware, 1, "NAS Synology", BigDecimal.valueOf(2500.0)));
+        // DA 4: VALIDÉE & PO GÉNÉRÉ (Pour tester la logistique)
+        if (purchaseOrderRepository.count() == 0) {
+            DaHeader da4 = new DaHeader("Fournitures de bureau (Stock)", demandeur);
+            da4.setStatut(StatutDA.PO_CREE);
+            daHeaderRepository.save(da4);
+            
+            DaDetails det4 = new DaDetails(da4, sfFourni, 100, "Papier A4 80g", BigDecimal.valueOf(65.0));
+            det4.setItemCode("PPR-A4");
+            det4.setItemName("Ramette Papier A4");
+            det4.setFournisseur(sup2);
+            daDetailsRepository.save(det4);
 
-        log.info("✅ Données initialisées avec succès !");
+            PurchaseOrder po = new PurchaseOrder();
+            po.setDaHeader(da4);
+            po.setStatut("VALIDEE");
+            po.setMontantTotal(BigDecimal.valueOf(6500.0));
+            po.setDateCreation(java.time.LocalDate.now());
+            purchaseOrderRepository.save(po);
+            log.info("📦 PO Seedé pour test logistique : PO-{}", po.getIdPo());
+        }
+        // 7. Demandes d'Achat Internes (flux principal)
+        if (demandeAchatInterneRepository.count() == 0) {
+            DemandeAchatInterne di1 = new DemandeAchatInterne();
+            di1.setDemandeur(demandeur);
+            di1.setDepartement("LOGISTIQUE BAG");
+            di1.setCategorie(CategorieDemande.INFORMATIQUE);
+            di1.setDesignation("Imprimante HP LaserJet Pro");
+            di1.setQuantite(2);
+            di1.setJustification("Imprimantes actuelles en panne depuis 2 semaines");
+            di1.setUrgence(UrgenceDemande.URGENTE);
+            di1.setStatut(StatutDemande.SOUMISE);
+            demandeAchatInterneRepository.save(di1);
+
+            DemandeAchatInterne di2 = new DemandeAchatInterne();
+            di2.setDemandeur(demandeur);
+            di2.setDepartement("LOGISTIQUE BAG");
+            di2.setCategorie(CategorieDemande.BUREAUTIQUE);
+            di2.setDesignation("Ramettes papier A4 80g");
+            di2.setQuantite(50);
+            di2.setJustification("Stock épuisé pour le trimestre");
+            di2.setUrgence(UrgenceDemande.NORMALE);
+            di2.setStatut(StatutDemande.VALIDEE_N1);
+            demandeAchatInterneRepository.save(di2);
+
+            DemandeAchatInterne di3 = new DemandeAchatInterne();
+            di3.setDemandeur(demandeur);
+            di3.setDepartement("LOGISTIQUE BAG");
+            di3.setCategorie(CategorieDemande.MOBILIER);
+            di3.setDesignation("Chaise ergonomique bureau");
+            di3.setQuantite(5);
+            di3.setJustification("Renouvellement mobilier open-space");
+            di3.setUrgence(UrgenceDemande.NORMALE);
+            di3.setStatut(StatutDemande.EN_VALIDATION_AMG);
+            di3.setMontantEstime(BigDecimal.valueOf(15000.0));
+            demandeAchatInterneRepository.save(di3);
+
+            DemandeAchatInterne di4 = new DemandeAchatInterne();
+            di4.setDemandeur(demandeur);
+            di4.setDepartement("LOGISTIQUE BAG");
+            di4.setCategorie(CategorieDemande.CONSOMMABLE);
+            di4.setDesignation("Cartouches encre HP 305XL");
+            di4.setQuantite(20);
+            di4.setJustification("Consommable courant");
+            di4.setUrgence(UrgenceDemande.NORMALE);
+            di4.setStatut(StatutDemande.BROUILLON);
+            demandeAchatInterneRepository.save(di4);
+
+            log.info("📋 4 Demandes d'achat internes seedées");
+        }
+
+        log.info("✅ Données BAG initialisées avec succès !");
+        log.info("Encadrants : M. Abdelhamid Barakate & Mme Ibtissame Saadalh");
     }
 }

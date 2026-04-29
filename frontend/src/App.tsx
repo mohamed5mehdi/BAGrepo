@@ -5,9 +5,9 @@ import { AuthProvider } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import DemandeurPage from './pages/DemandeurPage';
 import AcheteurPage from './pages/AcheteurPage';
-import DafPage from './pages/DafPage';
-import DgPage from './pages/DgPage';
 import AdminPage from './pages/AdminPage';
+import LogisticsPage from './pages/LogisticsPage';
+import ValidatorPage from './pages/ValidatorPage';
 import { N1Page, TechPage, AmgPage, ProtectedRoute } from './pages/RolePages';
 
 const qc = new QueryClient({
@@ -31,9 +31,10 @@ export default function App() {
             <Route path="/tech"          element={<ProtectedRoute><TechPage /></ProtectedRoute>} />
             <Route path="/acheteur"      element={<ProtectedRoute><AcheteurPage /></ProtectedRoute>} />
             <Route path="/amg"           element={<ProtectedRoute><AmgPage /></ProtectedRoute>} />
-            <Route path="/daf"           element={<ProtectedRoute><DafPage /></ProtectedRoute>} />
-            <Route path="/dg"            element={<ProtectedRoute><DgPage /></ProtectedRoute>} />
+            <Route path="/daf"           element={<ProtectedRoute><ValidatorPage role="DAF" myStatut="EN_VALIDATION_DAF" title="Dashboard DAF — Contrôle Budgétaire" icon="💰" color="from-fuchsia-500 to-purple-700" /></ProtectedRoute>} />
+            <Route path="/dg"            element={<ProtectedRoute><ValidatorPage role="DG" myStatut="EN_VALIDATION_DG" title="Dashboard DG — Direction Générale" icon="🏢" color="from-slate-600 to-slate-800" /></ProtectedRoute>} />
             <Route path="/admin"         element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+            <Route path="/logistics"     element={<ProtectedRoute><LogisticsPage /></ProtectedRoute>} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/login" replace />} />
@@ -52,3 +53,5 @@ export default function App() {
     </QueryClientProvider>
   );
 }
+
+

@@ -56,4 +56,12 @@ frontend/.env.local
 
 ### Logs ###
 logs.txt
+full_backend_logs.txt
+last_logs.txt
 *.log
+
+### Test files ###
+test_payload.json
+test_payload_budget.json
+payload.json
+payload_null.json

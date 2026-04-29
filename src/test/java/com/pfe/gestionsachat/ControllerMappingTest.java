@@ -29,7 +29,7 @@ public class ControllerMappingTest {
     @Test
     void testCreateDaHeader_JsonMapping() throws Exception {
         User d = userRepository.findAll().stream()
-                .filter(u -> u.getRole() == Role.ROLE_DEMANDEUR)
+                .filter(u -> u.getRole() == Role.EMPLOYE)
                 .findFirst().orElseThrow();
         SubFamily sf = subFamilyRepository.findAll().get(0);
 
