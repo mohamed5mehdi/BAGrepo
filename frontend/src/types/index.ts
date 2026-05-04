@@ -10,38 +10,38 @@ export type Role =
   | 'ADMINISTRATEUR';
 
 export type StatutDA =
-  | 'EN_ATTENTE_N1'
-  | 'EN_ATTENTE_TECH'
-  | 'EN_ATTENTE_ACHAT'
-  | 'EN_ATTENTE_AMG'
-  | 'EN_ATTENTE_DAF'
-  | 'EN_ATTENTE_DG'
-  | 'VALIDEE'
-  | 'PO_CREE'
-  | 'REJETEE';
+  | 'BROUILLON' | 'SOUMISE'
+  | 'EN_ATTENTE_N1' | 'VALIDEE_N1'
+  | 'EN_ATTENTE_TECH' | 'VALIDEE_TECH'
+  | 'EN_ATTENTE_ACHAT' | 'EN_TRAITEMENT' | 'A_COMMANDER'
+  | 'EN_ATTENTE_AMG' | 'EN_VALIDATION_AMG'
+  | 'EN_ATTENTE_DAF' | 'EN_VALIDATION_DAF' | 'AJUSTEMENT_DAF'
+  | 'EN_ATTENTE_DG' | 'EN_VALIDATION_DG' | 'AJUSTEMENT_DG'
+  | 'VALIDEE' | 'APPROUVEE' | 'PO_CREE' | 'REJETEE'
+  | 'EN_LIVRAISON' | 'AFFECTEE';
 
 export type ValidationDecision = 'ACCEPTE' | 'REJETE';
 
 // ── Entities ────────────────────────────────────────────────
 export type CategorieDemande = 'INFORMATIQUE' | 'BUREAUTIQUE' | 'MOBILIER' | 'CONSOMMABLE' | 'AUTRE';
 export type UrgenceDemande = 'NORMALE' | 'URGENTE' | 'CRITIQUE';
-export type StatutDemande = 
-  | 'BROUILLON' | 'SOUMISE' | 'VALIDEE_N1' | 'VALIDEE_TECH' | 'EN_TRAITEMENT'
-  | 'AJUSTEMENT_DAF' | 'AJUSTEMENT_DG' | 'EN_VALIDATION_AMG' | 'EN_VALIDATION_DAF' 
-  | 'EN_VALIDATION_DG' | 'APPROUVEE' | 'PO_CREE' | 'EN_LIVRAISON' | 'AFFECTEE' | 'REJETEE';
+export type StatutDemande = StatutDA;
 
 export interface DemandeAchatInterne {
   id: number;
+  oid_da?: number; // Alias pour compatibilité
   demandeur?: User;
   departement?: string;
   categorie: CategorieDemande;
   designation: string;
+  objet?: string; // Alias pour compatibilité
   quantite: number;
   justification?: string;
   urgence: UrgenceDemande;
+  urgencyLevel?: string; // Alias pour compatibilité
   budgetFamille?: Family;
   budgetSousFamille?: SubFamily;
-  statut: StatutDemande;
+  statut: StatutDA;
   typeAjustement?: 'SOUS_FAMILLE' | 'FAMILLE';
   montantEstime?: number;
   prixUnitaire?: number;
@@ -64,17 +64,26 @@ export interface User {
 
 export interface Family {
   id: number;
+  idFamily?: number; // Alias backend
   name: string;
+  libelle?: string; // Alias backend
   budget_initial: number;
   budget_restant: number;
+  budget_disponible?: number;
+  budgetEngage?: number;
 }
 
 export interface SubFamily {
   id: number;
+  oidSub?: number; // Alias backend
+  id_family?: number; // Alias backend
   name: string;
+  libelle?: string; // Alias backend
   budget_initial: number;
   budget_restant: number;
+  budget_disponible?: number;
   family?: Family;
+  budgetEngage?: number;
 }
 
 export interface Supplier {
@@ -82,6 +91,13 @@ export interface Supplier {
   nom: string;
   contact: string;
   adresse: string;
+  ice?: string;
+  email?: string;
+  phone?: string;
+  sector?: string;
+  rating?: number;
+  averageLeadTime?: number;
+  isCertified?: boolean;
 }
 
 export interface DaDetails {
@@ -97,14 +113,9 @@ export interface DaDetails {
   totalPrice?: number;
 }
 
-export interface DaHeader {
+export interface DaHeader extends DemandeAchatInterne {
   oid_da: number;
-  demandeur?: User;
-  dateCreation?: string;
-  statut: StatutDA;
   objet: string;
-  urgencyLevel?: string;
-  justification?: string;
   details?: DaDetails[];
 }
 
@@ -134,6 +145,14 @@ export type CreditNoteStatus = 'PENDING' | 'ISSUED' | 'RECONCILED';
 export type WarehouseType = 'CENTRAL' | 'REGIONAL' | 'LOCAL';
 export type MovementType = 'IN_RECEIPT' | 'OUT_RETURN' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'CONSUMPTION';
 export type TransferStatus = 'REQUESTED' | 'IN_TRANSIT' | 'DELIVERED';
+
+export interface SupplierOffer {
+  id: number;
+  fournisseur: Supplier;
+  prixPropose: number;
+  conditions: string;
+  delaiLivraisonOffert?: number;
+}
 
 // ── Logistics Entities ─────────────────────────────────────────
 export interface GrnHeader {
@@ -218,6 +237,7 @@ export interface StockItem {
   itemName: string;
   quantityAvailable: number;
   quantityReserved: number;
+  unitCost?: number;
   minStock?: number;
   reorderPoint?: number;
 }

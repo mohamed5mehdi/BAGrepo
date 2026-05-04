@@ -1,8 +1,18 @@
 package com.pfe.gestionsachat;
 
-import com.pfe.gestionsachat.model.*;
-import com.pfe.gestionsachat.repository.*;
-import com.pfe.gestionsachat.service.*;
+import com.pfe.gestionsachat.model.DemandeAchatInterne;
+import com.pfe.gestionsachat.model.User;
+import com.pfe.gestionsachat.model.Warehouse;
+import com.pfe.gestionsachat.model.StockItem;
+import com.pfe.gestionsachat.model.Supplier;
+import com.pfe.gestionsachat.model.UrgenceDemande;
+import com.pfe.gestionsachat.model.CategorieDemande;
+import com.pfe.gestionsachat.model.StatutDemande;
+import com.pfe.gestionsachat.repository.UserRepository;
+import com.pfe.gestionsachat.repository.StockItemRepository;
+import com.pfe.gestionsachat.repository.WarehouseRepository;
+import com.pfe.gestionsachat.repository.SupplierRepository;
+import com.pfe.gestionsachat.service.DemandeAchatInterneService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

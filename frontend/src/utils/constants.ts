@@ -1,27 +1,55 @@
 import type { StatutDA, Role } from '../types';
 
 export const STATUS_LABELS: Record<StatutDA, string> = {
-  EN_ATTENTE_N1:    'En attente N+1',
-  EN_ATTENTE_TECH:  'En attente Technicien',
-  EN_ATTENTE_ACHAT: 'En traitement Achat',
-  EN_ATTENTE_AMG:   'En attente AMG',
-  EN_ATTENTE_DAF:   'En attente DAF',
-  EN_ATTENTE_DG:    'En attente DG',
-  VALIDEE:          'Validée',
-  PO_CREE:          'Bon de commande créé',
-  REJETEE:          'Rejetée',
+  BROUILLON: 'Brouillon',
+  SOUMISE: 'Soumise',
+  EN_ATTENTE_N1: 'Attente N+1',
+  VALIDEE_N1: 'Validée N+1',
+  EN_ATTENTE_TECH: 'Attente Technicien',
+  VALIDEE_TECH: 'Validée Technicien',
+  EN_ATTENTE_ACHAT: 'Attente Achat',
+  EN_TRAITEMENT: 'En traitement',
+  A_COMMANDER: 'À commander',
+  EN_ATTENTE_AMG: 'Attente AMG',
+  EN_VALIDATION_AMG: 'Validation AMG',
+  EN_ATTENTE_DAF: 'Attente DAF',
+  EN_VALIDATION_DAF: 'Validation DAF',
+  AJUSTEMENT_DAF: 'Ajustement DAF',
+  EN_ATTENTE_DG: 'Attente DG',
+  EN_VALIDATION_DG: 'Validation DG',
+  AJUSTEMENT_DG: 'Ajustement DG',
+  VALIDEE: 'Validée',
+  APPROUVEE: 'Approuvée',
+  PO_CREE: 'PO Créé',
+  REJETEE: 'Rejetée',
+  EN_LIVRAISON: 'En livraison',
+  AFFECTEE: 'Affectée',
 };
 
 export const STATUS_COLORS: Record<StatutDA, string> = {
-  EN_ATTENTE_N1:    'bg-yellow-100 text-yellow-800',
-  EN_ATTENTE_TECH:  'bg-blue-100 text-blue-800',
-  EN_ATTENTE_ACHAT: 'bg-indigo-100 text-indigo-800',
-  EN_ATTENTE_AMG:   'bg-orange-100 text-orange-800',
-  EN_ATTENTE_DAF:   'bg-purple-100 text-purple-800',
-  EN_ATTENTE_DG:    'bg-pink-100 text-pink-800',
-  VALIDEE:          'bg-green-100 text-green-800',
-  PO_CREE:          'bg-emerald-100 text-emerald-800',
-  REJETEE:          'bg-red-100 text-red-800',
+  BROUILLON: 'bg-slate-100 text-slate-600',
+  SOUMISE: 'bg-blue-50 text-blue-600',
+  EN_ATTENTE_N1: 'bg-yellow-50 text-yellow-700',
+  VALIDEE_N1: 'bg-yellow-100 text-yellow-800',
+  EN_ATTENTE_TECH: 'bg-cyan-50 text-cyan-700',
+  VALIDEE_TECH: 'bg-cyan-100 text-cyan-800',
+  EN_ATTENTE_ACHAT: 'bg-indigo-50 text-indigo-700',
+  EN_TRAITEMENT: 'bg-indigo-100 text-indigo-800',
+  A_COMMANDER: 'bg-emerald-50 text-emerald-700',
+  EN_ATTENTE_AMG: 'bg-orange-50 text-orange-700',
+  EN_VALIDATION_AMG: 'bg-orange-100 text-orange-800',
+  EN_ATTENTE_DAF: 'bg-purple-50 text-purple-700',
+  EN_VALIDATION_DAF: 'bg-purple-100 text-purple-800',
+  AJUSTEMENT_DAF: 'bg-fuchsia-100 text-fuchsia-800',
+  EN_ATTENTE_DG: 'bg-pink-50 text-pink-700',
+  EN_VALIDATION_DG: 'bg-pink-100 text-pink-800',
+  AJUSTEMENT_DG: 'bg-rose-100 text-rose-800',
+  VALIDEE: 'bg-green-100 text-green-800',
+  APPROUVEE: 'bg-emerald-100 text-emerald-800',
+  PO_CREE: 'bg-teal-100 text-teal-800',
+  REJETEE: 'bg-red-100 text-red-800',
+  EN_LIVRAISON: 'bg-blue-100 text-blue-800',
+  AFFECTEE: 'bg-slate-200 text-slate-800',
 };
 
 export const ROLE_LABELS: Record<Role, string> = {
@@ -52,7 +80,7 @@ export function getDaTotal(da: { details?: { quantite: number; prix_unitaire: nu
 }
 
 export function formatCurrency(n: number): string {
-  return n.toLocaleString('fr-FR', { style: 'currency', currency: 'EUR' });
+  return n.toLocaleString('fr-FR', { style: 'currency', currency: 'MAD' }).replace('MAD', 'DHS');
 }
 
 export function formatDA(id: number): string {

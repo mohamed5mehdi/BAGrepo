@@ -26,6 +26,8 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private WarehouseRepository warehouseRepository;
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
     @Autowired private DemandeAchatInterneRepository demandeAchatInterneRepository;
+    @Autowired private com.pfe.gestionsachat.repository.OffreFournisseurRepository offreFournisseurRepository;
+    @Autowired private StatusHistoryRepository historyRepository;
     @Autowired private BCryptPasswordEncoder encoder;
 
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
@@ -58,16 +60,16 @@ public class DataInitializer implements CommandLineRunner {
 
         // 2. Nettoyage si données obsolètes (Pièces auto ou Budget IT)
         if (familyRepository.count() > 0) {
-            String firstLibelle = familyRepository.findAll().get(0).getLibelle();
-            if (firstLibelle.contains("Budget") || firstLibelle.contains("Pièces") || firstLibelle.contains("Automobiles")) {
-                log.info("Sweep : Nettoyage des anciennes catégories ({}) ...", firstLibelle);
-                actionRepository.deleteAll();
-                budgetTransferRepository.deleteAll();
-                daDetailsRepository.deleteAll();
-                daHeaderRepository.deleteAll();
-                subFamilyRepository.deleteAll();
-                familyRepository.deleteAll();
-            }
+            log.info("♻️ Nettoyage complet pour ré-initialisation BAG...");
+            offreFournisseurRepository.deleteAll();
+            historyRepository.deleteAll();
+            actionRepository.deleteAll();
+            budgetTransferRepository.deleteAll();
+            daDetailsRepository.deleteAll();
+            daHeaderRepository.deleteAll();
+            demandeAchatInterneRepository.deleteAll();
+            subFamilyRepository.deleteAll();
+            familyRepository.deleteAll();
         }
 
 
@@ -101,10 +103,19 @@ public class DataInitializer implements CommandLineRunner {
             sfFourni, sfTraiteur
         ));
 
-        // 4. Fournisseurs (Noms professionnels adaptés)
-        Supplier sup1 = new Supplier("Alpha IT Solutions", "Mehdi Tazi", "Casablanca Tech Park");
-        Supplier sup2 = new Supplier("Global Office Systems", "Sami Alami", "Rabat Business Center");
-        Supplier sup3 = new Supplier("Elite Services Group", "Fatima Zahra", "Tanger Med");
+        // 4. Fournisseurs (Noms professionnels adaptés avec détails enrichis)
+        Supplier sup1 = new Supplier("Alpha IT Solutions", "Mehdi Tazi", "Casablanca Tech Park", "INFORMATIQUE", 5, 3);
+        sup1.setEmail("contact@alpha-it.ma");
+        sup1.setPhone("0522-123456");
+        sup1.setIsCertified(true);
+
+        Supplier sup2 = new Supplier("Global Office Systems", "Sami Alami", "Rabat Business Center", "MOBILIER", 4, 7);
+        sup2.setEmail("sales@global-office.ma");
+        sup2.setPhone("0537-654321");
+
+        Supplier sup3 = new Supplier("Elite Services Group", "Fatima Zahra", "Tanger Med", "DIVERS", 3, 5);
+        sup3.setEmail("info@elite-services.ma");
+        
         supplierRepository.saveAll(List.of(sup1, sup2, sup3));
 
         // 5. Entrepôt par défaut
@@ -178,6 +189,8 @@ public class DataInitializer implements CommandLineRunner {
             di2.setJustification("Stock épuisé pour le trimestre");
             di2.setUrgence(UrgenceDemande.NORMALE);
             di2.setStatut(StatutDemande.VALIDEE_N1);
+            di2.setBudgetFamille(famBur);
+            di2.setBudgetSousFamille(sfMobilier);
             demandeAchatInterneRepository.save(di2);
 
             DemandeAchatInterne di3 = new DemandeAchatInterne();
@@ -188,9 +201,15 @@ public class DataInitializer implements CommandLineRunner {
             di3.setQuantite(5);
             di3.setJustification("Renouvellement mobilier open-space");
             di3.setUrgence(UrgenceDemande.NORMALE);
-            di3.setStatut(StatutDemande.EN_VALIDATION_AMG);
+            di3.setStatut(StatutDemande.VALIDEE_TECH); // Set to VALIDEE_TECH for Buyer processing
             di3.setMontantEstime(BigDecimal.valueOf(15000.0));
+            di3.setBudgetFamille(famBur);
+            di3.setBudgetSousFamille(sfMobilier);
             demandeAchatInterneRepository.save(di3);
+
+            di1.setBudgetFamille(famIT);
+            di1.setBudgetSousFamille(sfLaptop);
+            demandeAchatInterneRepository.save(di1);
 
             DemandeAchatInterne di4 = new DemandeAchatInterne();
             di4.setDemandeur(demandeur);
@@ -204,6 +223,14 @@ public class DataInitializer implements CommandLineRunner {
             demandeAchatInterneRepository.save(di4);
 
             log.info("📋 4 Demandes d'achat internes seedées");
+
+            // 8. Offres Fournisseurs (Pour DA-006 / di3)
+            log.info("💰 Création des offres comparatives...");
+            offreFournisseurRepository.saveAll(List.of(
+                new OffreFournisseur(di3, sup1, BigDecimal.valueOf(14500.0), "Garantie 3 ans incluse, Livraison Express (48h)", 2),
+                new OffreFournisseur(di3, sup2, BigDecimal.valueOf(13800.0), "Remise 5% sur volume, Livraison sous 1 semaine", 7),
+                new OffreFournisseur(di3, sup3, BigDecimal.valueOf(15200.0), "Service Premium, Installation et configuration sur site", 3)
+            ));
         }
 
         log.info("✅ Données BAG initialisées avec succès !");

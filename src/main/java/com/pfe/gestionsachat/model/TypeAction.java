@@ -8,5 +8,6 @@ public enum TypeAction {
     AJUST_BUDGET_SF,
     VALID_BUDGET_FAMILLE,
     TRANSFERT_BUDGET,
-    CREATION_PO
+    CREATION_PO,
+    ALERTE_RETARD
 }

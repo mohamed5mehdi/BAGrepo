@@ -1,8 +1,39 @@
 package com.pfe.gestionsachat;
 
-import com.pfe.gestionsachat.model.*;
-import com.pfe.gestionsachat.repository.*;
-import com.pfe.gestionsachat.service.*;
+import com.pfe.gestionsachat.model.DaHeader;
+import com.pfe.gestionsachat.model.DaDetails;
+import com.pfe.gestionsachat.model.Family;
+import com.pfe.gestionsachat.model.SubFamily;
+import com.pfe.gestionsachat.model.Warehouse;
+import com.pfe.gestionsachat.model.WarehouseType;
+import com.pfe.gestionsachat.model.StockItem;
+import com.pfe.gestionsachat.model.Supplier;
+import com.pfe.gestionsachat.model.User;
+import com.pfe.gestionsachat.model.StatutDA;
+import com.pfe.gestionsachat.model.ValidationDecision;
+import com.pfe.gestionsachat.model.PurchaseOrder;
+import com.pfe.gestionsachat.model.GrnHeader;
+import com.pfe.gestionsachat.model.GrnDetails;
+import com.pfe.gestionsachat.model.GrnStatus;
+import com.pfe.gestionsachat.model.QualityStatus;
+import com.pfe.gestionsachat.model.GrcHeader;
+import com.pfe.gestionsachat.model.GrcDetails;
+import com.pfe.gestionsachat.model.GrcStatus;
+import com.pfe.gestionsachat.model.Invoice;
+import com.pfe.gestionsachat.model.InvoiceStatus;
+import com.pfe.gestionsachat.repository.DaHeaderRepository;
+import com.pfe.gestionsachat.repository.DaDetailsRepository;
+import com.pfe.gestionsachat.repository.UserRepository;
+import com.pfe.gestionsachat.repository.SubFamilyRepository;
+import com.pfe.gestionsachat.repository.FamilyRepository;
+import com.pfe.gestionsachat.repository.WarehouseRepository;
+import com.pfe.gestionsachat.repository.StockItemRepository;
+import com.pfe.gestionsachat.repository.InvoiceRepository;
+import com.pfe.gestionsachat.repository.SupplierRepository;
+import com.pfe.gestionsachat.service.AchatWorkflowOrchestrator;
+import com.pfe.gestionsachat.service.GrnService;
+import com.pfe.gestionsachat.service.GrcService;
+import com.pfe.gestionsachat.service.MatchingService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -55,7 +86,7 @@ public class EndToEndProcurementTest {
         stockItem.setQuantityAvailable(10);
         stockItem = stockItemRepository.save(stockItem);
 
-        Supplier supplier = supplierRepository.save(new Supplier("Youssef Idrissi Parts", "Youssef", "Casa"));
+        Supplier supplier = supplierRepository.save(new Supplier("Youssef Idrissi Parts", "Youssef", "Casa", "MECANIQUE", 4, 3));
 
         User n1 = userRepository.findByEmail("n1@test.com").orElseThrow();
         User tech = userRepository.findByEmail("tech@test.com").orElseThrow();

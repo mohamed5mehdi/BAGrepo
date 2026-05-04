@@ -15,8 +15,8 @@ public class CreditNote {
     private GrnHeader grnHeader;
 
     private String creditNoteNumber;
-    private Date creditNoteDate;
-    private Double montant;
+    private java.util.Date creditNoteDate;
+    private java.math.BigDecimal montant;
 
     @Enumerated(EnumType.STRING)
     private CreditNoteStatus status;
@@ -30,8 +30,8 @@ public class CreditNote {
     public void setCreditNoteNumber(String creditNoteNumber) { this.creditNoteNumber = creditNoteNumber; }
     public Date getCreditNoteDate() { return creditNoteDate; }
     public void setCreditNoteDate(Date creditNoteDate) { this.creditNoteDate = creditNoteDate; }
-    public Double getMontant() { return montant; }
-    public void setMontant(Double montant) { this.montant = montant; }
+    public java.math.BigDecimal getMontant() { return montant; }
+    public void setMontant(java.math.BigDecimal montant) { this.montant = montant; }
     public CreditNoteStatus getStatus() { return status; }
     public void setStatus(CreditNoteStatus status) { this.status = status; }
 }

@@ -23,6 +23,8 @@ public class AuditLog {
 
     private LocalDateTime dateAction;
 
+    private String ipAddress;
+
     @Column(columnDefinition = "TEXT")
     private String valeurAvant;
 
@@ -31,6 +33,16 @@ public class AuditLog {
 
     public AuditLog() {
         this.dateAction = LocalDateTime.now();
+    }
+
+    public AuditLog(String action, String entite, Long entiteId, User utilisateur, String valeurAvant, String valeurApres) {
+        this();
+        this.action = action;
+        this.entite = entite;
+        this.entiteId = entiteId;
+        this.utilisateur = utilisateur;
+        this.valeurAvant = valeurAvant;
+        this.valeurApres = valeurApres;
     }
 
     // Getters and Setters
@@ -51,6 +63,9 @@ public class AuditLog {
 
     public LocalDateTime getDateAction() { return dateAction; }
     public void setDateAction(LocalDateTime dateAction) { this.dateAction = dateAction; }
+
+    public String getIpAddress() { return ipAddress; }
+    public void setIpAddress(String ipAddress) { this.ipAddress = ipAddress; }
 
     public String getValeurAvant() { return valeurAvant; }
     public void setValeurAvant(String valeurAvant) { this.valeurAvant = valeurAvant; }

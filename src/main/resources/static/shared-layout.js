@@ -14,6 +14,8 @@ document.addEventListener('DOMContentLoaded', () => {
     if (el('sidebarRole'))   el('sidebarRole').innerText = userRole.replace('ROLE_', '');
     if (el('sidebarAvatar')) el('sidebarAvatar').src =
         `https://ui-avatars.com/api/?name=${encodeURIComponent(userName)}&background=1976d2&color=fff`;
+    
+    console.log("Dashboard loaded for:", {userId, userName, userRole});
     loadRequests();
 });
 
@@ -81,9 +83,13 @@ function buildStepper(currentStatus) {
 let currentDa = null;
 
 function loadRequests() {
+    console.log("Fetching /api/da-headers...");
     fetch('/api/da-headers')
         .then(r => r.json())
-        .then(list => renderTable(list))
+        .then(list => {
+            console.log("Data received:", list);
+            renderTable(list);
+        })
         .catch(() => {
             const tb = document.getElementById('tbodyRequests') || document.getElementById('requestsTableBody');
             if (tb) tb.innerHTML = `<tr><td colspan="8" class="no-data">Unable to load data.</td></tr>`;
@@ -117,11 +123,13 @@ function renderTable(list) {
 
     tb.innerHTML = filtered.map(da => {
         const cat = getDaCategory(da);
+        const daId = da.oidDa || da.oid_da || da.id;
+        const demandeurNom = da.demandeur?.nom || da.demandeur?.name || '—';
         return `
         <tr class="table-row" onclick="openModal(${JSON.stringify(da).replace(/"/g,'&quot;')})">
-            <td>${da.oidDa}</td>
-            <td class="da-number">DA-${String(da.oidDa).padStart(3, '0')}</td>
-            <td>${da.demandeur?.nom || '—'}</td>
+            <td>${daId}</td>
+            <td class="da-number">DA-${String(daId).padStart(3, '0')}</td>
+            <td>${demandeurNom}</td>
             <td>${cat.split(' / ')[0]}</td>
             <td>${cat.split(' / ')[1] || '—'}</td>
             <td>${statusBadge(da.statut)}</td>
@@ -139,7 +147,10 @@ function filterByRole(list, role) {
     const r = (role || '').toUpperCase();
     switch(r) {
         case 'ROLE_DEMANDEUR':
-            return list.filter(d => String(d.demandeur?.id_demandeur || d.demandeur?.id) === String(userId));
+            return list.filter(d => {
+                const dId = d.demandeur?.oid_user || d.demandeur?.oidUser || d.demandeur?.id;
+                return String(dId) === String(userId);
+            });
         case 'ROLE_N1':
             return list.filter(d => d.statut === 'EN_ATTENTE_N1');
         case 'ROLE_TECHNICIEN':

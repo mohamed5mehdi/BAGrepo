@@ -12,10 +12,46 @@ public class GrnService {
     @Autowired
     private GrnHeaderRepository grnRepository;
     @Autowired
+    private PurchaseOrderRepository purchaseOrderRepository;
+    @Autowired
     private WarehouseService warehouseService;
 
     @Transactional
     public GrnHeader createGrn(GrnHeader grn) {
+        if (grn.getPurchaseOrder() == null || grn.getPurchaseOrder().getIdPo() == null) {
+            throw new IllegalArgumentException("Le Bon de Commande (PO) est requis pour la réception.");
+        }
+
+        Integer poId = grn.getPurchaseOrder().getIdPo();
+        if (poId == null) throw new IllegalArgumentException("ID PO manquant");
+        
+        PurchaseOrder po = purchaseOrderRepository.findById(poId)
+                .orElseThrow(() -> new RuntimeException("PO introuvable : " + poId));
+
+        // R5: 4-Way Matching Strict (Réception Partielle)
+        if (grn.getDetails() != null) {
+            for (GrnDetails newDetail : grn.getDetails()) {
+                String itemCode = newDetail.getItemCode();
+                
+                // 1. Quantité ordonnée (via DA liée)
+                Integer qtyOrdered = po.getDaHeader().getDetails().stream()
+                        .filter(d -> itemCode != null && itemCode.equals(d.getItemCode()))
+                        .mapToInt(DaDetails::getQuantite)
+                        .sum();
+
+                // 2. Somme des réceptions existantes pour ce PO (Optimisé)
+                Integer qtyAlreadyReceived = grnRepository.sumReceivedQuantityByPoIdAndItemCode(po.getIdPo(), itemCode);
+
+                if (qtyAlreadyReceived + newDetail.getReceivedQuantity() > qtyOrdered) {
+                    throw new com.pfe.gestionsachat.exception.ReceptionDoublonException(
+                        "Sur-réception détectée pour l'article " + itemCode + 
+                        " (Total reçu: " + (qtyAlreadyReceived + newDetail.getReceivedQuantity()) + 
+                        ", Commandé: " + qtyOrdered + ")"
+                    );
+                }
+            }
+        }
+
         grn.setStatus(GrnStatus.DRAFT);
         if (grn.getDetails() != null) {
             grn.getDetails().forEach(d -> d.setGrnHeader(grn));

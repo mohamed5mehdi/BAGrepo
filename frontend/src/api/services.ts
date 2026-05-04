@@ -4,7 +4,7 @@ import type {
   Supplier, PurchaseOrder, User,
   ValidationDecision, BudgetCheckResult,
   GrnHeader, GrcHeader, Invoice, CreditNote,
-  Warehouse, StockItem,
+  Warehouse, StockItem, SupplierOffer
 } from '../types';
 
 // ── Auth ─────────────────────────────────────────────────────
@@ -62,11 +62,17 @@ export const validerDGDemandeInterne = (id: number, valider: boolean, commentair
 export const creerPODemandeInterne = (id: number, userId: number) => 
   api.post(`/demandes/${id}/creer-po`, null, { params: { userId } });
 
+export const solliciterAjustementDemandeInterne = (id: number, type: 'SOUS_FAMILLE' | 'FAMILLE', userId: number) =>
+  api.post(`/demandes/${id}/ajustement`, null, { params: { type, userId } });
+
 export const getMesDemandesInternes = (userId: number) => 
   api.get('/demandes/mes-demandes', { params: { userId } });
 
 export const getDemandesAValiderInternes = (userId: number) => 
   api.get('/demandes/a-valider', { params: { userId } });
+
+export const getDemandeOffres = (id: number) => 
+  api.get<SupplierOffer[]>(`/demandes/${id}/offres`);
 
 // ── Workflow ──────────────────────────────────────────────────
 export const validateWorkflow = (daId: number, userId: number, decision: ValidationDecision, motif?: string) =>

@@ -4,7 +4,10 @@ import com.pfe.gestionsachat.model.DemandeAchatInterne;
 import com.pfe.gestionsachat.model.User;
 import com.pfe.gestionsachat.repository.DemandeAchatInterneRepository;
 import com.pfe.gestionsachat.repository.UserRepository;
+import com.pfe.gestionsachat.repository.OffreFournisseurRepository;
+import com.pfe.gestionsachat.model.OffreFournisseur;
 import com.pfe.gestionsachat.service.DemandeAchatInterneService;
+import org.springframework.lang.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -26,13 +29,16 @@ public class DemandeAchatInterneController {
     @Autowired
     private DemandeAchatInterneRepository demandeRepository;
 
+    @Autowired
+    private OffreFournisseurRepository offreRepository;
+
     @GetMapping
     public ResponseEntity<List<DemandeAchatInterne>> getAll() {
         return ResponseEntity.ok(demandeRepository.findAll());
     }
 
     @PostMapping
-    public ResponseEntity<DemandeAchatInterne> create(@RequestBody DemandeAchatInterne demande, @RequestParam Integer userId) {
+    public ResponseEntity<DemandeAchatInterne> create(@RequestBody @NonNull DemandeAchatInterne demande, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.createDemande(demande, user));
     }
@@ -43,13 +49,13 @@ public class DemandeAchatInterneController {
     }
 
     @PostMapping("/{id}/soumettre")
-    public ResponseEntity<DemandeAchatInterne> soumettre(@PathVariable Long id, @RequestParam Integer userId) {
+    public ResponseEntity<DemandeAchatInterne> soumettre(@PathVariable @NonNull Long id, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.soumettre(id, user));
     }
 
     @PutMapping("/{id}/valider-n1")
-    public ResponseEntity<DemandeAchatInterne> validerN1(@PathVariable Long id, @RequestBody Map<String, Object> payload, @RequestParam Integer userId) {
+    public ResponseEntity<DemandeAchatInterne> validerN1(@PathVariable @NonNull Long id, @RequestBody @NonNull Map<String, Object> payload, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         boolean valider = (boolean) payload.get("valider");
         String commentaire = (String) payload.get("commentaire");
@@ -57,7 +63,7 @@ public class DemandeAchatInterneController {
     }
 
     @PutMapping("/{id}/valider-technicien")
-    public ResponseEntity<DemandeAchatInterne> validerTechnicien(@PathVariable Long id, @RequestBody Map<String, Object> payload, @RequestParam Integer userId) {
+    public ResponseEntity<DemandeAchatInterne> validerTechnicien(@PathVariable @NonNull Long id, @RequestBody @NonNull Map<String, Object> payload, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         boolean valider = (boolean) payload.get("valider");
         String commentaire = (String) payload.get("commentaire");
@@ -73,13 +79,13 @@ public class DemandeAchatInterneController {
     }
 
     @PutMapping("/{id}/traiter-achat")
-    public ResponseEntity<DemandeAchatInterne> traiterAchat(@PathVariable Long id, @RequestParam Integer userId) {
+    public ResponseEntity<DemandeAchatInterne> traiterAchat(@PathVariable @NonNull Long id, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.traiterAchat(id, user));
     }
 
     @PutMapping("/{id}/valider-amg")
-    public ResponseEntity<DemandeAchatInterne> validerAMG(@PathVariable Long id, @RequestBody Map<String, Object> payload, @RequestParam Integer userId) {
+    public ResponseEntity<DemandeAchatInterne> validerAMG(@PathVariable @NonNull Long id, @RequestBody @NonNull Map<String, Object> payload, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         boolean valider = (boolean) payload.get("valider");
         String commentaire = (String) payload.get("commentaire");
@@ -87,7 +93,7 @@ public class DemandeAchatInterneController {
     }
 
     @PutMapping("/{id}/valider-daf")
-    public ResponseEntity<DemandeAchatInterne> validerDAF(@PathVariable Long id, @RequestBody Map<String, Object> payload, @RequestParam Integer userId) {
+    public ResponseEntity<DemandeAchatInterne> validerDAF(@PathVariable @NonNull Long id, @RequestBody @NonNull Map<String, Object> payload, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         boolean valider = (boolean) payload.get("valider");
         String commentaire = (String) payload.get("commentaire");
@@ -95,7 +101,7 @@ public class DemandeAchatInterneController {
     }
 
     @PutMapping("/{id}/valider-dg")
-    public ResponseEntity<DemandeAchatInterne> validerDG(@PathVariable Long id, @RequestBody Map<String, Object> payload, @RequestParam Integer userId) {
+    public ResponseEntity<DemandeAchatInterne> validerDG(@PathVariable @NonNull Long id, @RequestBody @NonNull Map<String, Object> payload, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         boolean valider = (boolean) payload.get("valider");
         String commentaire = (String) payload.get("commentaire");
@@ -103,26 +109,30 @@ public class DemandeAchatInterneController {
     }
 
     @PostMapping("/{id}/ajustement")
-    public ResponseEntity<DemandeAchatInterne> ajustement(@PathVariable Long id, @RequestParam com.pfe.gestionsachat.model.TypeAjustement type, @RequestParam Integer userId) {
+    public ResponseEntity<DemandeAchatInterne> ajustement(@PathVariable @NonNull Long id, @RequestParam @NonNull com.pfe.gestionsachat.model.TypeAjustement type, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.ajustementBudget(id, type, user));
     }
 
     @PostMapping("/{id}/creer-po")
-    public ResponseEntity<DemandeAchatInterne> creerPO(@PathVariable Long id, @RequestParam Integer userId) {
+    public ResponseEntity<DemandeAchatInterne> creerPO(@PathVariable @NonNull Long id, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.creerPO(id, user));
     }
 
     @GetMapping("/mes-demandes")
-    public ResponseEntity<List<DemandeAchatInterne>> getMesDemandes(@RequestParam Integer userId) {
+    public ResponseEntity<List<DemandeAchatInterne>> getMesDemandes(@RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.getMesDemandes(user));
     }
 
     @GetMapping("/a-valider")
-    public ResponseEntity<List<DemandeAchatInterne>> getAValider(@RequestParam Integer userId) {
+    public ResponseEntity<List<DemandeAchatInterne>> getAValider(@RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.getDemandesAValider(user));
+    }
+    @GetMapping("/{id}/offres")
+    public ResponseEntity<List<OffreFournisseur>> getOffres(@PathVariable Long id) {
+        return ResponseEntity.ok(offreRepository.findByDa_Id(id));
     }
 }

@@ -4,6 +4,7 @@ import com.pfe.gestionsachat.model.User;
 import com.pfe.gestionsachat.model.BudgetFamille;
 import com.pfe.gestionsachat.repository.BudgetFamilleRepository;
 import com.pfe.gestionsachat.service.UserService;
+import org.springframework.lang.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -29,12 +30,12 @@ public class AdminController {
     }
 
     @PostMapping("/users")
-    public ResponseEntity<User> createUser(@RequestBody User user) {
+    public ResponseEntity<User> createUser(@RequestBody @NonNull User user) {
         return ResponseEntity.ok(userService.createUser(user));
     }
 
     @PutMapping("/budgets")
-    public ResponseEntity<BudgetFamille> updateBudget(@RequestBody BudgetFamille budget) {
+    public ResponseEntity<BudgetFamille> updateBudget(@RequestBody @NonNull BudgetFamille budget) {
         return ResponseEntity.ok(budgetFamilleRepository.save(budget));
     }
 

@@ -7,6 +7,7 @@ import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
 import { useAuth } from '../context/AuthContext';
 import { getMesDemandesInternes, createDemandeInterne, soumettreDemandeInterne, getFamilies, getSubFamiliesByFamily } from '../api/services';
+import { formatCurrency } from '../utils/constants';
 import type { DemandeAchatInterne, Family, SubFamily } from '../types';
 
 interface DaLine {
@@ -93,9 +94,9 @@ export default function DemandeurPage() {
 
   const kpis = {
     total:   daList.length,
-    pending: daList.filter(d => !['PO_CREE', 'REJETEE', 'VALIDEE'].includes(d.statut)).length,
-    valid:   daList.filter(d => d.statut === 'VALIDEE' || d.statut === 'PO_CREE').length,
-    rejected:daList.filter(d => d.statut === 'REJETEE').length,
+    pending: daList.filter((d: DemandeAchatInterne) => !['PO_CREE', 'REJETEE', 'APPROUVEE'].includes(d.statut)).length,
+    valid:   daList.filter((d: DemandeAchatInterne) => d.statut === 'APPROUVEE' || d.statut === 'PO_CREE' || d.statut === 'EN_LIVRAISON').length,
+    rejected:daList.filter((d: DemandeAchatInterne) => d.statut === 'REJETEE').length,
   };
 
 
@@ -219,7 +220,11 @@ export default function DemandeurPage() {
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   >
                     <option value="">Sélectionner...</option>
-                    {families.map((f: any) => <option key={f.id} value={f.id}>{f.libelle || f.name}</option>)}
+                    {families.map((f: any) => (
+                      <option key={f.id} value={f.id}>
+                        {f.name || f.libelle} — Restant: {formatCurrency(f.budget_restant || 0)}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div className="space-y-1">
@@ -229,7 +234,11 @@ export default function DemandeurPage() {
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
                   >
                     <option value="">Sélectionner...</option>
-                    {subFamilies.map((sf: any) => <option key={sf.id} value={sf.id}>{sf.libelle || sf.name}</option>)}
+                    {subFamilies.map((sf: any) => (
+                      <option key={sf.id} value={sf.id}>
+                        {sf.name || sf.libelle} — Restant: {formatCurrency(sf.budget_restant || 0)}
+                      </option>
+                    ))}
                   </select>
                 </div>
               </div>

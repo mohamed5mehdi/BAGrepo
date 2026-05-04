@@ -14,6 +14,9 @@ public class DaDetails {
     @com.fasterxml.jackson.annotation.JsonProperty("oid_detail")
     private Integer oidDetail;
 
+    @com.fasterxml.jackson.annotation.JsonProperty("id")
+    public Integer getId() { return oidDetail; }
+
     @ManyToOne
     @JoinColumn(name = "id_da")
     @com.fasterxml.jackson.annotation.JsonIgnore
@@ -48,6 +51,7 @@ public class DaDetails {
         this.prixUnitaire = prixUnitaire;
     }
 
+    @com.fasterxml.jackson.annotation.JsonProperty("totalPrice")
     public BigDecimal getTotalPrice() {
         if (prixUnitaire == null || quantite == null) return BigDecimal.ZERO;
         return prixUnitaire.multiply(BigDecimal.valueOf(quantite));

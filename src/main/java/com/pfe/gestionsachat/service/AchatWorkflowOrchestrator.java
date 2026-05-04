@@ -2,8 +2,11 @@ package com.pfe.gestionsachat.service;
 
 import com.pfe.gestionsachat.model.*;
 import com.pfe.gestionsachat.repository.*;
+import com.pfe.gestionsachat.event.WorkflowNotificationEvent;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
 import java.util.List;
+import java.math.BigDecimal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -19,6 +22,19 @@ public class AchatWorkflowOrchestrator {
     @Autowired private SubFamilyRepository subFamilyRepository;
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
     @Autowired private BudgetTransferRepository budgetTransferRepository;
+    @Autowired private StatusHistoryRepository historyRepository;
+    @Autowired private AuditLogRepository auditLogRepository;
+    @Autowired private DemandeAjustementService demandeAjustementService;
+    @Autowired private FamilyRepository familyRepository;
+    @Autowired private ApplicationEventPublisher eventPublisher;
+
+    private void saveHistory(DaHeader da, String avant, String apres, User utilisateur, String commentaire) {
+        StatusHistory history = new StatusHistory("DaHeader", Long.valueOf(da.getOidDa()), avant, apres, utilisateur, commentaire);
+        historyRepository.save(history);
+        
+        AuditLog log = new AuditLog("CHANGEMENT_STATUT", "DaHeader", Long.valueOf(da.getOidDa()), utilisateur, avant, apres);
+        auditLogRepository.save(log);
+    }
 
     /**
      * Traite la validation d'une DA selon le rôle de l'utilisateur.
@@ -40,9 +56,14 @@ public class AchatWorkflowOrchestrator {
 
         // Appliquer la transition de statut
         if (ValidationDecision.REJETE.equals(decision)) {
+            String statutAvant = da.getStatut().name();
             da.setStatut(StatutDA.REJETEE);
-            return daHeaderRepository.save(da);
+            DaHeader saved = daHeaderRepository.save(da);
+            saveHistory(saved, statutAvant, StatutDA.REJETEE.name(), user, "Rejet: " + motif);
+            return saved;
         }
+
+        String statutAvant = da.getStatut().name();
 
         switch (role) {
             case MANAGER_N1:
@@ -93,7 +114,13 @@ public class AchatWorkflowOrchestrator {
                 throw new RuntimeException("Rôle non autorisé dans ce workflow : " + role);
         }
 
-        return daHeaderRepository.save(da);
+        DaHeader saved = daHeaderRepository.save(da);
+        saveHistory(saved, statutAvant, saved.getStatut().name(), user, motif);
+        
+        // Notification asynchrone
+        eventPublisher.publishEvent(new WorkflowNotificationEvent(this, saved, "Transition vers " + saved.getStatut(), saved.getDemandeur()));
+        
+        return saved;
     }
 
     public BudgetCheckResult verifierBudget(Integer daId, Integer acheteurId) {
@@ -129,61 +156,11 @@ public class AchatWorkflowOrchestrator {
     public DaHeader ajusterBudgetSousFamille(Integer daId, Integer dafId,
                                                Integer subSourceId, Integer subCibleId,
                                                java.math.BigDecimal montant) {
-        if (daId == null || dafId == null || subSourceId == null || subCibleId == null) {
-            throw new IllegalArgumentException("IDs cannot be null");
-        }
-        DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
-        User daf = userRepository.findById(dafId).orElseThrow();
-        SubFamily source = subFamilyRepository.findById(subSourceId).orElseThrow();
-        SubFamily cible = subFamilyRepository.findById(subCibleId).orElseThrow();
-
-        if (!source.hasEnoughBudget(montant)) {
-            throw new RuntimeException("Budget insuffisant");
-        }
-
-        source.deductBudget(montant);
-        if (source.getFamily() != null) {
-            source.getFamily().deductBudget(montant);
-        }
-        
-        cible.setBudgetRestant(cible.getBudgetRestant().add(montant));
-        if (cible.getFamily() != null) {
-            cible.getFamily().addBudget(montant);
-        }
-
-        subFamilyRepository.save(source);
-        subFamilyRepository.save(cible);
-
-        BudgetTransfer transfer = new BudgetTransfer(da, source, cible, montant, daf);
-        budgetTransferRepository.save(transfer);
-
-        Action action = new Action(daf, da, TypeAction.AJUST_BUDGET_SF);
-        actionRepository.save(action);
-
-        da.setStatut(StatutDA.EN_ATTENTE_AMG); // Return to AMG for final review after DAF adjustment
-        return daHeaderRepository.save(da);
+        return demandeAjustementService.legacyAjusterBudgetSousFamille(daId, dafId, subSourceId, subCibleId, montant);
     }
 
     public DaHeader ajusterBudgetFamille(Integer daId, Integer dgId, Integer subCibleId, java.math.BigDecimal montant) {
-        if (daId == null || dgId == null || subCibleId == null) throw new IllegalArgumentException("IDs cannot be null");
-        DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
-        User dg = userRepository.findById(dgId).orElseThrow();
-        SubFamily cible = subFamilyRepository.findById(subCibleId).orElseThrow();
-
-        cible.setBudgetRestant(cible.getBudgetRestant().add(montant));
-        if (cible.getFamily() != null) {
-            cible.getFamily().addBudget(montant);
-        }
-        subFamilyRepository.save(cible);
-
-        BudgetTransfer transfer = new BudgetTransfer(da, null, cible, montant, dg);
-        budgetTransferRepository.save(transfer);
-
-        Action action = new Action(dg, da, TypeAction.VALID_BUDGET_FAMILLE);
-        actionRepository.save(action);
-
-        da.setStatut(StatutDA.VALIDEE); // DG validation is final
-        return daHeaderRepository.save(da);
+        return demandeAjustementService.legacyAjusterBudgetFamille(daId, dgId, subCibleId, montant);
     }
 
     public PurchaseOrder manualCreatePO(Integer daId, Integer acheteurId) {
@@ -209,21 +186,44 @@ public class AchatWorkflowOrchestrator {
         da.setStatut(StatutDA.PO_CREE);
         daHeaderRepository.save(da);
 
+        // Anti-Deadlock: Trier les IDs des sous-familles avant le lock
+        List<Integer> sortedSfIds = da.getDetails().stream()
+                .map(d -> d.getSubFamily() != null ? d.getSubFamily().getOidSub() : null)
+                .filter(java.util.Objects::nonNull)
+                .distinct()
+                .sorted()
+                .collect(java.util.stream.Collectors.toList());
+
+        // Chargement avec LOCK pessimiste
+        java.util.Map<Integer, SubFamily> lockedSfs = new java.util.HashMap<>();
+        for (Integer sfId : sortedSfIds) {
+            lockedSfs.put(sfId, subFamilyRepository.findByIdWithLock(sfId)
+                    .orElseThrow(() -> new RuntimeException("Sous-famille introuvable pour lock: " + sfId)));
+        }
+
         // Déduire le budget au moment de la commande ferme
         da.getDetails().forEach(detail -> {
             SubFamily sf = detail.getSubFamily();
             if (sf != null) {
-                sf.deductBudget(detail.getTotalPrice());
-                if (sf.getFamily() != null) {
-                    sf.getFamily().deductBudget(detail.getTotalPrice());
+                SubFamily lockedSf = lockedSfs.get(sf.getOidSub());
+                lockedSf.deductBudget(detail.getTotalPrice());
+                if (lockedSf.getFamily() != null) {
+                    Family family = lockedSf.getFamily();
+                    family.deductBudget(detail.getTotalPrice());
+                    familyRepository.save(family);
                 }
-                subFamilyRepository.save(sf);
+                subFamilyRepository.save(lockedSf);
             }
         });
 
         Action action = new Action(acheteur, da, TypeAction.VALIDATION);
         action.setMetadata("Génération du Bon de Commande (PO)");
         actionRepository.save(action);
+
+        saveHistory(da, StatutDA.VALIDEE.name(), StatutDA.PO_CREE.name(), acheteur, "Génération du Bon de Commande (PO)");
+
+        // Notification asynchrone
+        eventPublisher.publishEvent(new WorkflowNotificationEvent(this, da, "Bon de Commande (PO) généré", da.getDemandeur()));
 
         return po;
     }
@@ -233,33 +233,33 @@ public class AchatWorkflowOrchestrator {
         DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
         User acheteur = userRepository.findById(acheteurId).orElseThrow();
 
-        // Enregistrer l'intention dans un transfert
-        BudgetTransfer transfer = new BudgetTransfer();
-        transfer.setDaHeader(da);
-        transfer.setDaf(acheteur);
-        transfer.setMontant(java.math.BigDecimal.ZERO);
+        TypeAjustement typeAjust = "SUBFAMILY".equals(type) ? TypeAjustement.SOUS_FAMILLE : TypeAjustement.FAMILLE;
+        BigDecimal montant = da.getDetails().stream().map(DaDetails::getTotalPrice).reduce(BigDecimal.ZERO, BigDecimal::add); // Total amount needed for DA
         
-        // On utilise la sous-famille de la première ligne de la DA comme cible par défaut
-        if (!da.getDetails().isEmpty()) {
-            transfer.setSubCible(da.getDetails().get(0).getSubFamily());
-        }
-
-        if ("SUBFAMILY".equals(type)) {
-            // Pour indiquer le circuit DAF, on s'assure que subSource n'est PAS null
-            // On peut mettre la cible comme source temporairement pour marquer le coup
-            transfer.setSubSource(transfer.getSubCible()); 
+        if (da.getDetails().isEmpty()) throw new RuntimeException("La DA ne contient aucun article");
+        
+        // Use the new service to initiate a structured adjustment request
+        if (typeAjust == TypeAjustement.FAMILLE) {
+            SubFamily firstSf = da.getDetails().get(0).getSubFamily();
+            if (firstSf != null && firstSf.getFamily() != null) {
+                demandeAjustementService.soumettreAjustementFamille(daId, firstSf.getFamily().getIdFamily(), montant, motif, Long.valueOf(acheteurId));
+            }
         } else {
-            // subSource = null -> Circuit DG (Famille)
-            transfer.setSubSource(null);
+            SubFamily firstSf = da.getDetails().get(0).getSubFamily();
+            if (firstSf != null) {
+                Integer sfId = firstSf.getOidSub();
+                demandeAjustementService.soumettreAjustementSousFamille(daId, sfId, sfId, montant, motif, Long.valueOf(acheteurId));
+            }
         }
-        budgetTransferRepository.saveAndFlush(transfer);
 
         Action action = new Action(acheteur, da, TypeAction.AJUST_BUDGET_SF);
         action.setMetadata("Demande d'ajustement " + type + " : " + motif);
         actionRepository.save(action);
 
         da.setStatut(StatutDA.EN_ATTENTE_AMG);
-        return daHeaderRepository.save(da);
+        DaHeader saved = daHeaderRepository.save(da);
+        saveHistory(saved, saved.getStatut().name(), saved.getStatut().name(), acheteur, "Sollicitation ajustement " + type + ": " + motif);
+        return saved;
     }
 
     public enum BudgetCheckResult {

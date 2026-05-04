@@ -30,7 +30,7 @@ export default function DafPage() {
     queryFn: () => getSubFamilies().then(r => r.data),
   });
 
-  const mine = all.filter(d => d.statut === 'EN_ATTENTE_DAF');
+  const mine = all.filter(d => ['EN_VALIDATION_DAF', 'AJUSTEMENT_DAF'].includes(d.statut));
 
   const adjustMutation = useMutation({
     mutationFn: () => adjustSubFamily(
@@ -49,7 +49,7 @@ export default function DafPage() {
   const kpis = {
     total:   all.length,
     mine:    mine.length,
-    done:    all.filter(d => d.statut === 'PO_CREE').length,
+    done:    all.filter(d => ['APPROUVEE', 'PO_CREE', 'EN_LIVRAISON'].includes(d.statut)).length,
     rejected:all.filter(d => d.statut === 'REJETEE').length,
   };
 
@@ -69,7 +69,7 @@ export default function DafPage() {
           className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 transition-colors">🔄 Actualiser</button>
       </div>
 
-      <DaTable rows={mine} onRowClick={setSelectedDa} loading={isLoading} searchQuery={search} />
+      <DaTable rows={mine as any} onRowClick={(da) => setSelectedDa(da as DaHeader)} loading={isLoading} searchQuery={search} />
 
       {selectedDa && (
         <DaModal da={selectedDa} onClose={() => setSelectedDa(null)} title="💰 Ajustement Budgétaire — DAF">

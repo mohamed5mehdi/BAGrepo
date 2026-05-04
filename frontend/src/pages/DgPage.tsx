@@ -30,7 +30,7 @@ export default function DgPage() {
     queryFn: () => getSubFamilies().then(r => r.data),
   });
 
-  const mine = all.filter(d => d.statut === 'EN_ATTENTE_DG');
+  const mine = all.filter(d => ['EN_VALIDATION_DG', 'AJUSTEMENT_DG'].includes(d.statut));
 
   const validateMutation = useMutation({
     mutationFn: ({ decision }: { decision: ValidationDecision }) =>
@@ -53,7 +53,7 @@ export default function DgPage() {
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Erreur'),
   });
 
-  const kpis = { total: all.length, mine: mine.length, done: all.filter(d => d.statut === 'PO_CREE').length, rejected: all.filter(d => d.statut === 'REJETEE').length };
+  const kpis = { total: all.length, mine: mine.length, done: all.filter(d => ['APPROUVEE', 'PO_CREE', 'EN_LIVRAISON'].includes(d.statut)).length, rejected: all.filter(d => d.statut === 'REJETEE').length };
 
   return (
     <DashboardLayout title="Direction Générale — Arbitrage Final" pendingCount={kpis.mine}>
@@ -71,7 +71,7 @@ export default function DgPage() {
           className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 transition-colors">🔄 Actualiser</button>
       </div>
 
-      <DaTable rows={mine} onRowClick={da => { setSelectedDa(da); setComment(''); setCibleId(''); setMontant(''); }} loading={isLoading} searchQuery={search} />
+      <DaTable rows={mine as any} onRowClick={da => { setSelectedDa(da as DaHeader); setComment(''); setCibleId(''); setMontant(''); }} loading={isLoading} searchQuery={search} />
 
       {selectedDa && (
         <DaModal da={selectedDa} onClose={() => setSelectedDa(null)} title="🏢 Arbitrage DG">

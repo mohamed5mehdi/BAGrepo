@@ -62,13 +62,15 @@ export default function DaTable({
               const total = da.montantEstime || 0;
               const label = actionLabel ? actionLabel(da) : '✏️ Traiter';
               return (
-                <tr
-                  key={da.id}
+                 <tr
+                  key={da.id || (da as any).oid_da}
                   className="da-row border-b border-slate-50 dark:border-slate-700/50 last:border-0"
                   onClick={() => onRowClick(da)}
                 >
-                  <td className="px-4 py-3">
-                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">{formatDA(da.id)}</span>
+                   <td className="px-4 py-3">
+                    <span className="font-mono font-bold text-indigo-600 dark:text-indigo-400">
+                        {formatDA(da.id || (da as any).oid_da)}
+                    </span>
                   </td>
                   <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 max-w-[200px] truncate">{da.designation}</td>
                   {showRequester && (

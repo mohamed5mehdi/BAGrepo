@@ -24,6 +24,7 @@ public class NotificationService {
     private TemplateEngine templateEngine;
 
     public void notifyUser(User user, String title, String message) {
+        if (user == null || user.getEmail() == null) return;
         // Real-time WebSocket notification
         messagingTemplate.convertAndSendToUser(user.getEmail(), "/topic/notifications", message);
         
@@ -32,6 +33,7 @@ public class NotificationService {
     }
 
     public void notifyTopic(String topic, String message) {
+        if (topic == null) return;
         messagingTemplate.convertAndSend("/topic/" + topic, message);
     }
 
@@ -48,9 +50,9 @@ public class NotificationService {
             context.setVariable("message", content);
             String html = templateEngine.process("email-template", context);
             
-            helper.setText(html, true);
-            helper.setTo(to);
-            helper.setSubject(subject);
+            helper.setText(html != null ? html : "", true);
+            if (to != null) helper.setTo(to);
+            if (subject != null) helper.setSubject(subject);
             helper.setFrom("pfe.gestionsachat@bag-group.com");
             
             // mailSender.send(mimeMessage); // Commuté en commentaire car pas de serveur SMTP configuré

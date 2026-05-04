@@ -233,7 +233,7 @@ public class DemandeAchatInterneService {
             case TECHNICIEN:
                 return demandeRepository.findByStatut(StatutDemande.VALIDEE_N1);
             case ACHETEUR:
-                return demandeRepository.findByStatut(StatutDemande.VALIDEE_TECH);
+                return demandeRepository.findByStatutIn(List.of(StatutDemande.VALIDEE_TECH, StatutDemande.EN_TRAITEMENT));
             case AMG:
                 return demandeRepository.findByStatut(StatutDemande.EN_VALIDATION_AMG);
             case DAF:

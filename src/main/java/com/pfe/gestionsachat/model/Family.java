@@ -17,6 +17,9 @@ public class Family {
     @com.fasterxml.jackson.annotation.JsonAlias({"id_family", "familyId", "oid_family"})
     private Integer idFamily;
 
+    @Version
+    private Long version;
+
     @com.fasterxml.jackson.annotation.JsonProperty("name")
     @com.fasterxml.jackson.annotation.JsonAlias({"libelle", "label"})
     private String libelle;
@@ -28,6 +31,10 @@ public class Family {
     @Column(name = "budget_restant")
     @com.fasterxml.jackson.annotation.JsonProperty("budget_restant")
     private BigDecimal budgetRestant;
+
+    @Column(name = "budget_engage")
+    @com.fasterxml.jackson.annotation.JsonProperty("budget_engage")
+    private BigDecimal budgetEngage = BigDecimal.ZERO;
 
     @OneToMany(mappedBy = "family", cascade = CascadeType.ALL, orphanRemoval = true)
     @JsonIgnore
@@ -58,6 +65,14 @@ public class Family {
     public String getLibelle() { return libelle; }
     public BigDecimal getBudgetInitial() { return budgetInitial; }
     public BigDecimal getBudgetRestant() { return budgetRestant; }
+    public BigDecimal getBudgetEngage() { return budgetEngage; }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("budget_disponible")
+    @Transient
+    public BigDecimal getBudgetDisponible() {
+        if (budgetRestant == null) return BigDecimal.ZERO;
+        return budgetEngage == null ? budgetRestant : budgetRestant.subtract(budgetEngage);
+    }
     public List<SubFamily> getSubFamilies() { return subFamilies; }
 
     // Setters
@@ -65,5 +80,6 @@ public class Family {
     public void setLibelle(String libelle) { this.libelle = libelle; }
     public void setBudgetInitial(BigDecimal budgetInitial) { this.budgetInitial = budgetInitial; }
     public void setBudgetRestant(BigDecimal budgetRestant) { this.budgetRestant = budgetRestant; }
+    public void setBudgetEngage(BigDecimal budgetEngage) { this.budgetEngage = budgetEngage; }
     public void setSubFamilies(List<SubFamily> subFamilies) { this.subFamilies = subFamilies; }
 }

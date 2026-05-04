@@ -7,6 +7,7 @@ import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
 import { useAuth } from '../context/AuthContext';
 import { getDemandesAValiderInternes, validerN1DemandeInterne, validerTechDemandeInterne, validerAMGDemandeInterne, validerDAFDemandeInterne, validerDGDemandeInterne } from '../api/services';
+import { formatCurrency } from '../utils/constants';
 
 interface Props {
   role: 'MANAGER_N1' | 'TECHNICIEN' | 'AMG' | 'DAF' | 'DG';
@@ -80,8 +81,65 @@ export default function ValidatorPage({ role, myStatut, title, icon, color }: Pr
       <DaTable rows={mine} onRowClick={setSelectedDa} loading={isLoading} searchQuery={search} showRequester={true} />
 
       {selectedDa && (
-        <DaModal da={selectedDa} onClose={() => { setSelectedDa(null); setComment(''); setDecision(null); }} title="Décision de Validation">
-          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 space-y-5">
+        <DaModal da={selectedDa} onClose={() => { setSelectedDa(null); setComment(''); setDecision(null); }} title="Décision de Validation" wide>
+          <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-700 space-y-6">
+            
+            {/* Surveillance Budget pour Valideurs */}
+            <div className="bg-slate-50 dark:bg-slate-900/50 rounded-2xl border border-slate-100 dark:border-slate-800 p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <span className="w-6 h-6 rounded-lg bg-indigo-600 text-white flex items-center justify-center text-[10px] font-black">B</span>
+                <h4 className="text-xs font-black text-slate-500 uppercase tracking-widest">Surveillance Budgétaire</h4>
+              </div>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Sous-Famille Monitor */}
+                <div className={`p-4 rounded-xl border ${((selectedDa.montantEstime || 0) > (selectedDa.budgetSousFamille?.budget_disponible || selectedDa.budgetSousFamille?.budget_restant || 0)) ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Sous-Famille: {selectedDa.budgetSousFamille?.name || '—'}</p>
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-[9px] text-slate-400 uppercase">Disponible</p>
+                      <p className="text-sm font-black text-slate-700">{formatCurrency(selectedDa.budgetSousFamille?.budget_disponible || selectedDa.budgetSousFamille?.budget_restant || 0)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] text-slate-400 uppercase">Impact DA</p>
+                      <p className="text-sm font-black text-slate-800">-{formatCurrency(selectedDa.montantEstime || 0)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-2 w-full h-1 bg-slate-200 rounded-full overflow-hidden">
+                    <div 
+                      className={`h-full transition-all duration-500 ${((selectedDa.montantEstime || 0) > (selectedDa.budgetSousFamille?.budget_disponible || selectedDa.budgetSousFamille?.budget_restant || 0)) ? 'bg-rose-500' : 'bg-emerald-500'}`} 
+                      style={{ width: `${Math.min(100, ((selectedDa.montantEstime || 0) / (selectedDa.budgetSousFamille?.budget_disponible || selectedDa.budgetSousFamille?.budget_restant || 1)) * 100)}%` }}
+                    />
+                  </div>
+                </div>
+
+                {/* Famille Monitor */}
+                <div className="p-4 rounded-xl border bg-slate-100 border-slate-200">
+                  <p className="text-[10px] font-bold text-slate-400 uppercase mb-1">Famille: {selectedDa.budgetFamille?.name || '—'}</p>
+                  <div className="flex justify-between items-end">
+                    <div>
+                      <p className="text-[9px] text-slate-400 uppercase">Restant Global</p>
+                      <p className="text-sm font-black text-slate-700">{formatCurrency(selectedDa.budgetFamille?.budget_restant || 0)}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-[9px] text-slate-400 uppercase">Nouv. Solde</p>
+                      <p className="text-sm font-black text-indigo-600">{formatCurrency((selectedDa.budgetFamille?.budget_restant || 0) - (selectedDa.montantEstime || 0))}</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {(selectedDa.montantEstime || 0) > (selectedDa.budgetSousFamille?.budget_disponible || selectedDa.budgetSousFamille?.budget_restant || 0) && (
+                <div className="mt-3 p-3 bg-rose-500/10 border border-rose-500/20 rounded-lg flex items-center gap-3">
+                  <span className="text-xl">⚠️</span>
+                  <p className="text-[11px] font-bold text-rose-700 leading-tight">
+                    Attention : Cette demande dépasse le budget disponible de la sous-famille. 
+                    Une validation entraînera un blocage au niveau de l'acheteur sauf ajustement.
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="space-y-3">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wide">Votre décision *</p>
               <div className="flex gap-6">

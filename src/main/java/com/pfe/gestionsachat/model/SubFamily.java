@@ -17,6 +17,9 @@ public class SubFamily {
     @com.fasterxml.jackson.annotation.JsonAlias({"oid_sub", "id_sous_famille", "subFamilyId", "oidSub"})
     private Integer oidSub;
 
+    @Version
+    private Long version;
+
     @ManyToOne
     @JoinColumn(name = "id_family")
     @JsonIgnore
@@ -33,6 +36,10 @@ public class SubFamily {
     @Column(name = "budget_restant")
     @com.fasterxml.jackson.annotation.JsonProperty("budget_restant")
     private BigDecimal budgetRestant;
+
+    @Column(name = "budget_engage")
+    @com.fasterxml.jackson.annotation.JsonProperty("budget_engage")
+    private BigDecimal budgetEngage = BigDecimal.ZERO;
 
     @OneToMany(mappedBy = "subFamily")
     @JsonIgnore
@@ -71,6 +78,14 @@ public class SubFamily {
     public String getLibelle() { return libelle; }
     public BigDecimal getBudgetInitial() { return budgetInitial; }
     public BigDecimal getBudgetRestant() { return budgetRestant; }
+    public BigDecimal getBudgetEngage() { return budgetEngage; }
+
+    @com.fasterxml.jackson.annotation.JsonProperty("budget_disponible")
+    @Transient
+    public BigDecimal getBudgetDisponible() {
+        if (budgetRestant == null) return BigDecimal.ZERO;
+        return budgetEngage == null ? budgetRestant : budgetRestant.subtract(budgetEngage);
+    }
     public List<DaDetails> getDetails() { return details; }
     public List<BudgetTransfer> getTransfersSource() { return transfersSource; }
     public List<BudgetTransfer> getTransfersCible() { return transfersCible; }
@@ -81,6 +96,7 @@ public class SubFamily {
     public void setLibelle(String libelle) { this.libelle = libelle; }
     public void setBudgetInitial(BigDecimal budgetInitial) { this.budgetInitial = budgetInitial; }
     public void setBudgetRestant(BigDecimal budgetRestant) { this.budgetRestant = budgetRestant; }
+    public void setBudgetEngage(BigDecimal budgetEngage) { this.budgetEngage = budgetEngage; }
     public void setDetails(List<DaDetails> details) { this.details = details; }
     public void setTransfersSource(List<BudgetTransfer> transfersSource) { this.transfersSource = transfersSource; }
     public void setTransfersCible(List<BudgetTransfer> transfersCible) { this.transfersCible = transfersCible; }

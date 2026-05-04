@@ -48,7 +48,7 @@ public class LogisticsFlowTest {
         stockItem.setWarehouse(warehouse);
         stockItem = stockItemRepository.save(java.util.Objects.requireNonNull(stockItem));
 
-        Supplier supplier = new Supplier("BAG Supplier", "Contact", "Adresse");
+        Supplier supplier = new Supplier("BAG Supplier", "Contact", "Adresse", "LOGISTIQUE", 5, 2);
         supplier = supplierRepository.save(supplier);
 
         po = new PurchaseOrder();
@@ -137,7 +137,7 @@ public class LogisticsFlowTest {
 
         // Adjust PO amount to match GRC for the test
         po.setMontantTotal(java.math.BigDecimal.valueOf(800.0));
-        purchaseOrderRepository.save(po);
+        purchaseOrderRepository.save(java.util.Objects.requireNonNull(po));
 
         // 3-Way Match
         Invoice matchedInvoice = matchingService.matchInvoice(java.util.Objects.requireNonNull(invoice.getId()));

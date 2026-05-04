@@ -16,6 +16,9 @@ public class DaHeader {
     @com.fasterxml.jackson.annotation.JsonProperty("oid_da")
     private Integer oidDa;
 
+    @com.fasterxml.jackson.annotation.JsonProperty("id")
+    public Integer getId() { return oidDa; }
+
     @ManyToOne
     @JoinColumn(name = "id_demandeur")
     private User demandeur;
@@ -25,6 +28,7 @@ public class DaHeader {
 
     @Enumerated(EnumType.STRING)
     @Column(name = "statut")
+    @com.fasterxml.jackson.annotation.JsonProperty("statut")
     private StatutDA statut;
 
     private String objet;

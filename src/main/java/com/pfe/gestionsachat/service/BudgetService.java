@@ -7,6 +7,7 @@ import com.pfe.gestionsachat.repository.BudgetSousFamilleRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.lang.NonNull;
 
 import java.math.BigDecimal;
 
@@ -19,13 +20,13 @@ public class BudgetService {
     @Autowired
     private BudgetSousFamilleRepository budgetSousFamilleRepository;
 
-    public boolean verifierBudgetSousFamille(Long sousFamilleId, BigDecimal montant) {
+    public boolean verifierBudgetSousFamille(@NonNull Long sousFamilleId, @NonNull BigDecimal montant) {
         BudgetSousFamille bsf = budgetSousFamilleRepository.findById(sousFamilleId).orElseThrow();
         return bsf.getMontantDisponible().compareTo(montant) >= 0;
     }
 
     @Transactional
-    public void consommerBudget(Long sousFamilleId, BigDecimal montant) {
+    public void consommerBudget(@NonNull Long sousFamilleId, @NonNull BigDecimal montant) {
         BudgetSousFamille bsf = budgetSousFamilleRepository.findById(sousFamilleId).orElseThrow();
         BudgetFamille bf = bsf.getBudgetFamille();
 
@@ -39,7 +40,7 @@ public class BudgetService {
     }
     
     @Transactional
-    public void ajusterBudgetSousFamille(Long sousFamilleId, BigDecimal nouveauMontant) {
+    public void ajusterBudgetSousFamille(@NonNull Long sousFamilleId, @NonNull BigDecimal nouveauMontant) {
         BudgetSousFamille bsf = budgetSousFamilleRepository.findById(sousFamilleId).orElseThrow();
         bsf.setMontantAlloue(nouveauMontant);
         bsf.setMontantDisponible(bsf.getMontantAlloue().subtract(bsf.getMontantConsomme()));
@@ -47,7 +48,7 @@ public class BudgetService {
     }
 
     @Transactional
-    public void ajusterBudgetFamille(Long familleId, BigDecimal nouveauMontant) {
+    public void ajusterBudgetFamille(@NonNull Long familleId, @NonNull BigDecimal nouveauMontant) {
         BudgetFamille bf = budgetFamilleRepository.findById(familleId).orElseThrow();
         bf.setMontantAlloue(nouveauMontant);
         bf.setMontantDisponible(bf.getMontantAlloue().subtract(bf.getMontantConsomme()));

@@ -11,6 +11,10 @@ import java.util.List;
 @Repository
 public interface DemandeAchatInterneRepository extends JpaRepository<DemandeAchatInterne, Long> {
     List<DemandeAchatInterne> findByDemandeur(User demandeur);
+    
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"budgetFamille", "budgetSousFamille"})
     List<DemandeAchatInterne> findByStatut(StatutDemande statut);
+    
+    @org.springframework.data.jpa.repository.EntityGraph(attributePaths = {"budgetFamille", "budgetSousFamille"})
     List<DemandeAchatInterne> findByStatutIn(List<StatutDemande> statuts);
 }
