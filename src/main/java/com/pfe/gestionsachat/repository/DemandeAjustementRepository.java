@@ -15,5 +15,5 @@ public interface DemandeAjustementRepository extends JpaRepository<DemandeAjuste
     List<DemandeAjustement> findByStatut(StatutAjustement statut);
 
     @Query("SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END FROM DemandeAjustement d WHERE d.da.oidDa = :daId AND d.statut IN :statuts")
-    boolean existsByDaIdAndStatutIn(Long daId, List<StatutAjustement> statuts);
+    boolean existsByDaIdAndStatutIn(@org.springframework.data.repository.query.Param("daId") Integer daId, java.util.List<StatutAjustement> statuts);
 }

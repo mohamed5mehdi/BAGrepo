@@ -32,11 +32,38 @@ public class DemandeAchatInterneService {
     @Autowired
     private SupplierRepository supplierRepository;
 
+    @Autowired
+    private FamilyRepository familyRepository;
+
+    @Autowired
+    private SubFamilyRepository subFamilyRepository;
+
+    @Transactional
     public DemandeAchatInterne createDemande(DemandeAchatInterne demande, User demandeur) {
         demande.setDemandeur(demandeur);
         demande.setDepartement(demandeur.getService());
         demande.setStatut(StatutDemande.BROUILLON);
-        demande.setDateCreation(LocalDateTime.now());
+        demande.setDateCreation(java.time.LocalDateTime.now());
+
+        // Récupération des objets complets pour garantir la cohérence (Catégorie, Budget)
+        if (demande.getBudgetFamille() != null) {
+            demande.setBudgetFamille(familyRepository.findById(demande.getBudgetFamille().getIdFamily()).orElse(null));
+        }
+        if (demande.getBudgetSousFamille() != null) {
+            demande.setBudgetSousFamille(subFamilyRepository.findById(demande.getBudgetSousFamille().getOidSub()).orElse(null));
+        }
+        
+        // Calcul de la quantité totale et liaison des détails
+        if (demande.getDetails() != null && !demande.getDetails().isEmpty()) {
+            int totalQty = 0;
+            for (DaDetails detail : demande.getDetails()) {
+                detail.setDemandeAchatInterne(demande);
+                detail.setSubFamily(demande.getBudgetSousFamille());
+                if (detail.getQuantite() != null) totalQty += detail.getQuantite();
+            }
+            demande.setQuantite(totalQty);
+        }
+
         DemandeAchatInterne saved = demandeRepository.save(demande);
         saveHistory(saved, null, saved.getStatut().name(), demandeur, "Création de la demande");
         return saved;
@@ -93,18 +120,32 @@ public class DemandeAchatInterneService {
         DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
         demande.setPrixUnitaire(prixUnitaire);
         demande.setFournisseur(supplierRepository.findById(supplierId).orElseThrow());
-        demande.setMontantEstime(java.math.BigDecimal.valueOf(prixUnitaire * demande.getQuantite())); 
+        demande.setMontantEstime(java.math.BigDecimal.valueOf(prixUnitaire * (demande.getQuantite() != null ? demande.getQuantite() : 1))); 
+        
+        // Sécurité : si la sous-famille est manquante, on essaie de la récupérer depuis le fournisseur ou de garder l'existante
         return demandeRepository.save(demande);
     }
 
     @Transactional
     public DemandeAchatInterne traiterAchat(Long id, User acheteur) {
         DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-        updateStatut(demande, StatutDemande.EN_TRAITEMENT, acheteur, "Analyse du marché et devis");
         
         SubFamily bsf = demande.getBudgetSousFamille();
-        if (bsf != null && bsf.getBudgetRestant() != null && bsf.getBudgetRestant().compareTo(demande.getMontantEstime()) >= 0) {
-            updateStatut(demande, StatutDemande.EN_VALIDATION_AMG, acheteur, "Budget suffisant, passage au circuit final");
+        if (bsf == null) {
+            throw new RuntimeException("Erreur : La sous-famille budgétaire n'est pas définie pour cette demande.");
+        }
+
+        java.math.BigDecimal montant = demande.getMontantEstime();
+        if (montant == null) {
+            throw new RuntimeException("Erreur : Le montant estimé n'a pas été défini.");
+        }
+
+        // Si budget suffisant -> Circuit de validation financière
+        if (bsf.getBudgetRestant() != null && bsf.getBudgetRestant().compareTo(montant) >= 0) {
+            updateStatut(demande, StatutDemande.EN_VALIDATION_AMG, acheteur, "Budget suffisant, transmission au circuit de validation AMG/DAF/DG");
+        } else {
+            // Sinon, on reste en traitement pour que l'acheteur sollicite un ajustement
+            updateStatut(demande, StatutDemande.EN_TRAITEMENT, acheteur, "Budget insuffisant détecté (Dispo: " + bsf.getBudgetRestant() + "). Ajustement requis.");
         }
         
         return demandeRepository.save(demande);
@@ -229,7 +270,7 @@ public class DemandeAchatInterneService {
         Role role = utilisateur.getRole();
         switch (role) {
             case MANAGER_N1:
-                return demandeRepository.findByStatut(StatutDemande.SOUMISE);
+                return demandeRepository.findByStatutAndDemandeur_N1(StatutDemande.SOUMISE, utilisateur);
             case TECHNICIEN:
                 return demandeRepository.findByStatut(StatutDemande.VALIDEE_N1);
             case ACHETEUR:

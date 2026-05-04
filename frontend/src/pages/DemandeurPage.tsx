@@ -6,16 +6,16 @@ import KpiCard from '../components/KpiCard';
 import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
 import { useAuth } from '../context/AuthContext';
-import { getMesDemandesInternes, createDemandeInterne, soumettreDemandeInterne, getFamilies, getSubFamiliesByFamily } from '../api/services';
+import { getMesDemandesInternes, createDemandeInterne, getFamilies, getSubFamiliesByFamily, downloadPOByDA } from '../api/services';
 import { formatCurrency } from '../utils/constants';
-import type { DemandeAchatInterne, Family, SubFamily } from '../types';
+import type { DemandeAchatInterne, SubFamily, DaDetails } from '../types';
 
-interface DaLine {
+interface ItemRow {
   id: string;
   itemName: string;
-  subFamilyId: string;
+  description: string;
   quantite: number;
-  prix_unitaire: number;
+  justification: string;
 }
 
 export default function DemandeurPage() {
@@ -25,14 +25,16 @@ export default function DemandeurPage() {
   const [showNewForm, setShowNewForm] = useState(false);
   const [search, setSearch] = useState('');
 
-  // Form Header State
-  const [designation, setDesignation] = useState('');
-  const [categorie, setCategorie] = useState('INFORMATIQUE');
-  const [quantite, setQuantite] = useState(1);
-  const [justification, setJustification] = useState('');
+  // Form Global State
   const [urgency, setUrgency] = useState('NORMALE');
   const [budgetFamilleId, setBudgetFamilleId] = useState<string>('');
   const [budgetSousFamilleId, setBudgetSousFamilleId] = useState<string>('');
+  const [globalJustification, setGlobalJustification] = useState('');
+
+  // Form Items State (Multi-items logic)
+  const [items, setItems] = useState<ItemRow[]>([
+    { id: crypto.randomUUID(), itemName: '', description: '', quantite: 1, justification: '' }
+  ]);
 
   // Data Fetching
   const { data: daList = [], isLoading } = useQuery({
@@ -55,51 +57,92 @@ export default function DemandeurPage() {
   const createMutation = useMutation({
     mutationFn: (payload: any) => createDemandeInterne(payload, user!.userId),
     onSuccess: () => {
-      toast.success('Demande d\'achat interne créée !');
+      toast.success('Demande d\'achat créée avec succès !');
       qc.invalidateQueries({ queryKey: ['da', 'mes-demandes'] });
       setShowNewForm(false);
       resetForm();
     },
-    onError: (err: any) => {
+    onError: () => {
       toast.error('Erreur lors de la création de la demande');
     },
   });
 
   const resetForm = () => {
-    setDesignation('');
-    setCategorie('INFORMATIQUE');
-    setQuantite(1);
-    setJustification('');
     setUrgency('NORMALE');
     setBudgetFamilleId('');
     setBudgetSousFamilleId('');
+    setGlobalJustification('');
+    setItems([{ id: crypto.randomUUID(), itemName: '', description: '', quantite: 1, justification: '' }]);
+  };
+
+  const addItem = () => {
+    setItems([...items, { id: crypto.randomUUID(), itemName: '', description: '', quantite: 1, justification: '' }]);
+  };
+
+  const removeItem = (id: string) => {
+    if (items.length > 1) {
+      setItems(items.filter(i => i.id !== id));
+    }
+  };
+
+  const handleItemChange = (id: string, field: keyof ItemRow, value: any) => {
+    setItems(items.map(item => item.id === id ? { ...item, [field]: value } : item));
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!user) return;
 
+    // Transformation pour le backend (DemandeAchatInterne)
     const payload = {
-      designation,
-      categorie,
-      quantite,
-      justification,
+      designation: items[0]?.itemName || 'Nouvelle Demande', 
+      quantite: items.reduce((acc, it) => acc + it.quantite, 0),
+      justification: globalJustification || items[0]?.justification,
       urgence: urgency,
       budgetFamille: { id: Number(budgetFamilleId) },
-      budgetSousFamille: { id: Number(budgetSousFamilleId) }
+      budgetSousFamille: { id: Number(budgetSousFamilleId) },
+      // On garde les détails au cas où le backend évolue, mais le root est ce qui compte pour l'entité actuelle
+      details: items.map(item => ({
+        itemName: item.itemName,
+        description: item.description,
+        quantite: item.quantite,
+        justification: item.justification,
+        subFamily: { id: Number(budgetSousFamilleId) },
+        prix_unitaire: 0 
+      }))
     };
 
     createMutation.mutate(payload);
   };
 
-  const kpis = {
-    total:   daList.length,
-    pending: daList.filter((d: DemandeAchatInterne) => !['PO_CREE', 'REJETEE', 'APPROUVEE'].includes(d.statut)).length,
-    valid:   daList.filter((d: DemandeAchatInterne) => d.statut === 'APPROUVEE' || d.statut === 'PO_CREE' || d.statut === 'EN_LIVRAISON').length,
-    rejected:daList.filter((d: DemandeAchatInterne) => d.statut === 'REJETEE').length,
+  const handleDownloadPo = async (daId: number) => {
+    try {
+      toast.loading('Génération du PDF...', { id: 'download-po' });
+      const response = await downloadPOByDA(daId);
+      
+      const blob = new Blob([response.data], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `Bon_Commande_${daId}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      
+      toast.success('Bon de Commande téléchargé !', { id: 'download-po' });
+    } catch (error) {
+      console.error('Download error:', error);
+      toast.error('Erreur lors du téléchargement du BC', { id: 'download-po' });
+    }
   };
 
-
+  const kpis = {
+    total:   daList.length,
+    pending: daList.filter((d: any) => !['PO_CREE', 'REJETEE', 'APPROUVEE'].includes(d.statut)).length,
+    valid:   daList.filter((d: any) => d.statut === 'APPROUVEE' || d.statut === 'PO_CREE').length,
+    rejected:daList.filter((d: any) => d.statut === 'REJETEE').length,
+  };
 
   return (
     <DashboardLayout title="Espace Demandeur — Gestion des Achats BAG" pendingCount={kpis.pending}>
@@ -143,10 +186,18 @@ export default function DemandeurPage() {
       {/* Detail Modal */}
       {selectedDa && (
         <DaModal da={selectedDa} onClose={() => setSelectedDa(null)} title="Détails de la Demande" wide showPrice={false}>
-          <div className="flex justify-end pt-4 border-t border-slate-100 dark:border-slate-800">
+          <div className="flex justify-end items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+            {selectedDa.statut === 'PO_CREE' && (
+              <button 
+                onClick={() => handleDownloadPo(selectedDa.oid_da || selectedDa.id)}
+                className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 dark:shadow-none flex items-center gap-2"
+              >
+                <span>📄</span> Télécharger le BC
+              </button>
+            )}
             <button 
               onClick={() => setSelectedDa(null)}
-              className="px-6 py-2 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-200"
+              className="px-6 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-200 transition-all"
             >
               Fermer
             </button>
@@ -154,10 +205,11 @@ export default function DemandeurPage() {
         </DaModal>
       )}
 
-      {/* Create DA Form Modal */}
+      {/* Create DA Form Modal - MULTI-ITEMS VERSION */}
       {showNewForm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl max-h-[95vh] flex flex-col animate-scale-in">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col animate-scale-in">
+            {/* Header */}
             <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 dark:text-white">Nouvelle Demande de Besoins Internes</h2>
@@ -166,115 +218,161 @@ export default function DemandeurPage() {
               <button onClick={() => setShowNewForm(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400">✕</button>
             </div>
 
-            <form id="da-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-8 space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Catégorie *</label>
-                  <select 
-                    value={categorie} onChange={e => setCategorie(e.target.value)} required
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  >
-                    <option value="INFORMATIQUE">💻 Informatique</option>
-                    <option value="BUREAUTIQUE">📄 Bureautique</option>
-                    <option value="MOBILIER">🪑 Mobilier</option>
-                    <option value="CONSOMMABLE">🖊️ Consommable</option>
-                    <option value="AUTRE">📦 Autre</option>
-                  </select>
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Urgence</label>
+            <form id="da-form" onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-10 space-y-10">
+              {/* Global Settings */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-10 bg-slate-50 dark:bg-slate-800/50 p-8 rounded-3xl border border-slate-100 dark:border-slate-700 shadow-inner">
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Urgence *</label>
                   <select 
                     value={urgency} onChange={e => setUrgency(e.target.value)}
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
                   >
                     <option value="NORMALE">🟢 Normale</option>
                     <option value="URGENTE">🟠 Urgente</option>
                     <option value="CRITIQUE">🔴 Critique</option>
                   </select>
                 </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Désignation de l'article *</label>
-                  <input 
-                    value={designation} onChange={e => setDesignation(e.target.value)} required
-                    placeholder="Ex: Écran Dell 24 pouces"
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Quantité *</label>
-                  <input 
-                    type="number" min={1} value={quantite} onChange={e => setQuantite(Number(e.target.value))} required
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Famille Budgétaire *</label>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Catégorie / Famille *</label>
                   <select 
                     value={budgetFamilleId} onChange={e => setBudgetFamilleId(e.target.value)} required
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
                   >
-                    <option value="">Sélectionner...</option>
+                    <option value="">Sélectionner une catégorie...</option>
                     {families.map((f: any) => (
                       <option key={f.id} value={f.id}>
-                        {f.name || f.libelle} — Restant: {formatCurrency(f.budget_restant || 0)}
+                        {f.name || f.libelle} (Dispo: {formatCurrency(f.budget_restant || 0)})
                       </option>
                     ))}
                   </select>
                 </div>
-                <div className="space-y-1">
-                  <label className="text-xs font-bold text-slate-500 uppercase ml-1">Sous-Famille *</label>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Sous-Famille *</label>
                   <select 
                     value={budgetSousFamilleId} onChange={e => setBudgetSousFamilleId(e.target.value)} required
-                    className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all"
+                    className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-blue-500 outline-none transition-all shadow-sm"
                   >
-                    <option value="">Sélectionner...</option>
+                    <option value="">Sélectionner une sous-famille...</option>
                     {subFamilies.map((sf: any) => (
                       <option key={sf.id} value={sf.id}>
-                        {sf.name || sf.libelle} — Restant: {formatCurrency(sf.budget_restant || 0)}
+                        {sf.name || sf.libelle} (Dispo: {formatCurrency(sf.budget_restant || 0)})
                       </option>
                     ))}
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="text-xs font-bold text-slate-500 uppercase ml-1">Justification Métier *</label>
+              {/* Items Section */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    📦 3 — ITEMS (DETAIL LINES)
+                  </h3>
+                </div>
+
+                {/* Info Note */}
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-100 dark:border-amber-900/30 p-4 rounded-xl flex items-start gap-3">
+                  <span className="text-amber-500">ℹ️</span>
+                  <p className="text-xs text-amber-800 dark:text-amber-200 leading-relaxed">
+                    <span className="font-bold">Note:</span> Unit prices are <span className="font-bold text-amber-600 dark:text-amber-400">not filled by the requester</span>. 
+                    They will be negotiated and defined by the Buyer (AMG) during the purchase treatment phase.
+                  </p>
+                </div>
+
+                {/* Items Table */}
+                <div className="overflow-x-auto border border-slate-100 dark:border-slate-800 rounded-2xl">
+                  <table className="w-full text-left border-collapse">
+                    <thead className="bg-slate-50 dark:bg-slate-800/80">
+                      <tr>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">Item Code (Auto)</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">Item Name *</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">Details / Specs</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase w-20">Qty *</th>
+                        <th className="px-4 py-3 text-[10px] font-bold text-slate-400 uppercase">Justification</th>
+                        <th className="px-4 py-3 w-10"></th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+                      {items.map((item, index) => (
+                        <tr key={item.id} className="group">
+                          <td className="px-4 py-3">
+                            <span className="text-[10px] font-black text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/40 px-2.5 py-1.5 rounded-lg border border-blue-100 dark:border-blue-800 shadow-sm">
+                              REQ-{(index + 1).toString().padStart(4, '0')}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3">
+                            <input 
+                              value={item.itemName} onChange={e => handleItemChange(item.id, 'itemName', e.target.value)}
+                              placeholder="e.g. Laptop HP..." required
+                              className="w-full bg-transparent text-sm outline-none focus:text-blue-600 dark:focus:text-blue-400"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input 
+                              value={item.description} onChange={e => handleItemChange(item.id, 'description', e.target.value)}
+                              placeholder="Technical specs..."
+                              className="w-full bg-transparent text-sm outline-none focus:text-blue-600 dark:focus:text-blue-400"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input 
+                              type="number" min={1} value={item.quantite} onChange={e => handleItemChange(item.id, 'quantite', Number(e.target.value))} required
+                              className="w-full bg-transparent text-sm outline-none font-bold"
+                            />
+                          </td>
+                          <td className="px-4 py-3">
+                            <input 
+                              value={item.justification} onChange={e => handleItemChange(item.id, 'justification', e.target.value)}
+                              placeholder="Why this item?"
+                              className="w-full bg-transparent text-sm outline-none focus:text-blue-600 dark:focus:text-blue-400"
+                            />
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <button 
+                              type="button" onClick={() => removeItem(item.id)}
+                              className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-all"
+                            >
+                              ✕
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <button 
+                  type="button" onClick={addItem}
+                  className="w-full py-3 border-2 border-dashed border-slate-200 dark:border-slate-800 rounded-2xl text-slate-400 text-sm font-bold hover:border-blue-400 hover:text-blue-500 transition-all"
+                >
+                  + Add Item
+                </button>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider ml-1">Justification Globale (Optionnelle)</label>
                 <textarea 
-                  value={justification} onChange={e => setJustification(e.target.value)} rows={3} required
-                  placeholder="Expliquez pourquoi ce besoin est essentiel..."
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none transition-all resize-none"
+                  value={globalJustification} onChange={e => setGlobalJustification(e.target.value)} rows={2}
+                  placeholder="Informations complémentaires sur l'ensemble de la demande..."
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm focus:ring-2 focus:ring-blue-500 outline-none resize-none"
                 />
               </div>
             </form>
 
-            {/* Footer Summary & Actions */}
+            {/* Footer */}
             <div className="p-8 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between bg-slate-50/50 dark:bg-slate-800/50 rounded-b-3xl">
-              <div>
-                <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">Récapitulatif</p>
-                <p className="text-sm font-medium text-slate-600 dark:text-slate-400">
-                  {quantite} x {designation || 'Article'} en cours de demande.
-                </p>
-              </div>
               <div className="flex gap-4">
                 <button 
                   type="button" onClick={() => setShowNewForm(false)}
-                  className="px-6 py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 transition-all"
+                  className="px-8 py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 transition-all"
                 >
-                  Annuler
+                  Cancel
                 </button>
                 <button 
                   type="submit" form="da-form" disabled={createMutation.isPending}
-                  className="px-8 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm hover:bg-blue-700 disabled:opacity-50 shadow-xl shadow-blue-200 dark:shadow-none transition-all flex items-center gap-2"
+                  className="px-10 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm hover:bg-blue-700 disabled:opacity-50 shadow-xl shadow-blue-200 dark:shadow-none transition-all flex items-center gap-2"
                 >
-                  {createMutation.isPending ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : '🚀 Créer ma Demande'}
+                  {createMutation.isPending ? '...' : '💾 Submit Request'}
                 </button>
               </div>
             </div>

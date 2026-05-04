@@ -15,7 +15,7 @@
       </jdbc-additional-properties>
       <working-dir>$ProjectFileDir$</working-dir>
     </data-source>
-    <data-source source="LOCAL" name="gestionsachat" uuid="cddb7622-0393-494a-8a7b-3be43128c69c">
+    <data-source source="LOCAL" name="gestionsachat" uuid="0ce1bb22-140b-49be-810b-be92663e5784">
       <driver-ref>h2.unified</driver-ref>
       <synchronize>true</synchronize>
       <imported>true</imported>

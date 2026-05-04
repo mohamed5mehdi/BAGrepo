@@ -249,7 +249,7 @@
 
         <div class="modal-foot">
             <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-            <button class="btn btn-danger" id="btnRefuser" onclick="processAction('REJECT')">✖ Reject</button>
+            <button class="btn btn-danger" id="btnRefuser" onclick="processAction('REJETE')">✖ Reject</button>
             <button class="btn btn-success" id="btnValider" onclick="submitPurchaseOrder()">🛒 Create PO &amp; Validate</button>
         </div>
     </div>
@@ -535,7 +535,7 @@ function submitPurchaseOrder() {
     .then(r => { if(!r.ok) throw new Error('Update failed '+r.status); return r.json(); })
     // 2. Validate workflow
     .then(() => fetch(
-        `/api/workflow/validate?daId=${daId}&userId=${userId}&decision=ACCEPT&motif=${encodeURIComponent(comment)}`,
+        `/api/workflow/validate?daId=${daId}&userId=${userId}&decision=ACCEPTE&motif=${encodeURIComponent(comment)}`,
         { method:'POST' }
     ))
     .then(r => { if(!r.ok) throw new Error('Workflow failed '+r.status); return r.json(); })

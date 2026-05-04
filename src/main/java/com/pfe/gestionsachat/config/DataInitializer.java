@@ -28,7 +28,10 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private DemandeAchatInterneRepository demandeAchatInterneRepository;
     @Autowired private com.pfe.gestionsachat.repository.OffreFournisseurRepository offreFournisseurRepository;
     @Autowired private StatusHistoryRepository historyRepository;
+    @Autowired private JustificationRepository justificationRepository;
+    @Autowired private AuditLogRepository auditLogRepository;
     @Autowired private BCryptPasswordEncoder encoder;
+    @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
 
@@ -58,29 +61,41 @@ public class DataInitializer implements CommandLineRunner {
             demandeur = userRepository.findByEmail("demandeur@test.com").orElse(null);
         }
 
-        // 2. Nettoyage si données obsolètes (Pièces auto ou Budget IT)
-        if (familyRepository.count() > 0) {
-            log.info("♻️ Nettoyage complet pour ré-initialisation BAG...");
-            offreFournisseurRepository.deleteAll();
-            historyRepository.deleteAll();
-            actionRepository.deleteAll();
-            budgetTransferRepository.deleteAll();
-            daDetailsRepository.deleteAll();
-            daHeaderRepository.deleteAll();
-            demandeAchatInterneRepository.deleteAll();
-            subFamilyRepository.deleteAll();
-            familyRepository.deleteAll();
+        // 2. Nettoyage complet et robuste (Ordre inverse des dépendances)
+        if (familyRepository.count() > 0 || daHeaderRepository.count() > 0 || demandeAchatInterneRepository.count() > 0) {
+            log.info("♻️ Nettoyage complet via TRUNCATE CASCADE (BAG)...");
+            try {
+                jdbcTemplate.execute("TRUNCATE TABLE audit_log, status_history, justification, action, budget_transfer, purchase_order, offre_fournisseur, da_details, da_header, demande_achat_interne, demande_ajustement, sub_family, family, warehouse, stock_item, stock_movement, grn_details, grn_header, grc_details, grc_header, credit_note, invoice, transfer_request CASCADE");
+                log.info("✅ Nettoyage par TRUNCATE terminé.");
+            } catch (Exception e) {
+                log.warn("⚠️ Échec du TRUNCATE, tentative via repository : {}", e.getMessage());
+                // Fallback (déjà implémenté précédemment mais on simplifie ici)
+                familyRepository.deleteAll(); 
+            }
         }
 
 
-        if (familyRepository.count() > 0) return;
+        if (familyRepository.count() > 0) {
+            log.info("ℹ️ Données déjà présentes (Familles > 0). Fin de l'initialisation.");
+            return;
+        }
+
+        log.info("🏗️ Début du seeding des données...");
 
         // 3. Familles & Sous-familles (Besoins Internes BAG)
         Family famIT     = new Family("Matériel Informatique",  BigDecimal.valueOf(500000.0));
+        famIT.setCategorie(CategorieDemande.INFORMATIQUE);
+
         Family famSoft   = new Family("Licences & Logiciels",   BigDecimal.valueOf(300000.0));
+        famSoft.setCategorie(CategorieDemande.INFORMATIQUE);
+
         Family famBur    = new Family("Bureautique & Mobilier", BigDecimal.valueOf(200000.0));
+        famBur.setCategorie(CategorieDemande.BUREAUTIQUE);
+
         Family famDivers = new Family("Fournitures & Services", BigDecimal.valueOf(100000.0));
+        famDivers.setCategorie(CategorieDemande.AUTRE);
         familyRepository.saveAll(List.of(famIT, famSoft, famBur, famDivers));
+        log.info("📂 4 Familles créées.");
 
         SubFamily sfLaptop  = new SubFamily("PC Portables & Stations", BigDecimal.valueOf(250000.0), famIT);
         SubFamily sfPeri    = new SubFamily("Périphériques (Écrans, Claviers)", BigDecimal.valueOf(150000.0), famIT);
@@ -102,6 +117,7 @@ public class DataInitializer implements CommandLineRunner {
             sfMobilier, sfClim, 
             sfFourni, sfTraiteur
         ));
+        log.info("📂 10 Sous-Familles créées.");
 
         // 4. Fournisseurs (Noms professionnels adaptés avec détails enrichis)
         Supplier sup1 = new Supplier("Alpha IT Solutions", "Mehdi Tazi", "Casablanca Tech Park", "INFORMATIQUE", 5, 3);
@@ -117,6 +133,7 @@ public class DataInitializer implements CommandLineRunner {
         sup3.setEmail("info@elite-services.ma");
         
         supplierRepository.saveAll(List.of(sup1, sup2, sup3));
+        log.info("🚚 3 Fournisseurs créés.");
 
         // 5. Entrepôt par défaut
         if (warehouseRepository.count() == 0) {
@@ -132,8 +149,9 @@ public class DataInitializer implements CommandLineRunner {
         // DA 1: En attente N1
         DaHeader da1 = new DaHeader("Renouvellement parc Laptops (Dev Team)", demandeur);
         da1.setStatut(StatutDA.EN_ATTENTE_N1);
-        daHeaderRepository.save(da1);
+        da1 = daHeaderRepository.save(da1);
         daDetailsRepository.save(new DaDetails(da1, sfLaptop, 3, "MacBook Pro M3", BigDecimal.valueOf(28000.0)));
+        log.info("📄 DA-1 créée.");
 
         // DA 2: En attente Technicien
         DaHeader da2 = new DaHeader("Installation Climatisation Salle Réunion", demandeur);

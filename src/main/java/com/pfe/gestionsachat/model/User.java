@@ -6,12 +6,14 @@ import java.util.List;
 
 @Entity
 @Table(name = "users")
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class User {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @Column(name = "oid_user")
     @com.fasterxml.jackson.annotation.JsonProperty("oid_user")
+    @com.fasterxml.jackson.annotation.JsonAlias({"id", "id_demandeur", "userId", "idDemandeur"})
     private Integer oidUser;
 
     private String nom;

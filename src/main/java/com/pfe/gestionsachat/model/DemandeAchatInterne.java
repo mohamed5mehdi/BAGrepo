@@ -6,6 +6,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "demande_achat_interne")
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
 public class DemandeAchatInterne {
 
     @Id
@@ -60,6 +61,9 @@ public class DemandeAchatInterne {
     @Column(columnDefinition = "TEXT")
     private String commentaireRejet;
 
+    @OneToMany(mappedBy = "demandeAchatInterne", cascade = CascadeType.ALL, orphanRemoval = true)
+    private java.util.List<DaDetails> details = new java.util.ArrayList<>();
+
     public DemandeAchatInterne() {
         this.dateCreation = LocalDateTime.now();
         this.statut = StatutDemande.BROUILLON;
@@ -78,6 +82,14 @@ public class DemandeAchatInterne {
     public CategorieDemande getCategorie() { return categorie; }
     public void setCategorie(CategorieDemande categorie) { this.categorie = categorie; }
 
+    @PrePersist
+    @PreUpdate
+    private void syncCategorie() {
+        if (this.budgetFamille != null && this.budgetFamille.getCategorie() != null) {
+            this.categorie = this.budgetFamille.getCategorie();
+        }
+    }
+
     public String getDesignation() { return designation; }
     public void setDesignation(String designation) { this.designation = designation; }
 
@@ -91,7 +103,12 @@ public class DemandeAchatInterne {
     public void setUrgence(UrgenceDemande urgence) { this.urgence = urgence; }
 
     public Family getBudgetFamille() { return budgetFamille; }
-    public void setBudgetFamille(Family budgetFamille) { this.budgetFamille = budgetFamille; }
+    public void setBudgetFamille(Family budgetFamille) { 
+        this.budgetFamille = budgetFamille;
+        if (budgetFamille != null && budgetFamille.getCategorie() != null) {
+            this.categorie = budgetFamille.getCategorie();
+        }
+    }
 
     public SubFamily getBudgetSousFamille() { return budgetSousFamille; }
     public void setBudgetSousFamille(SubFamily budgetSousFamille) { this.budgetSousFamille = budgetSousFamille; }
@@ -119,4 +136,7 @@ public class DemandeAchatInterne {
 
     public String getCommentaireRejet() { return commentaireRejet; }
     public void setCommentaireRejet(String commentaireRejet) { this.commentaireRejet = commentaireRejet; }
+
+    public java.util.List<DaDetails> getDetails() { return details; }
+    public void setDetails(java.util.List<DaDetails> details) { this.details = details; }
 }

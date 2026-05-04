@@ -104,6 +104,10 @@ export const getSuppliers = () => api.get<Supplier[]>('/suppliers');
 
 // ── Purchase Orders ───────────────────────────────────────────
 export const getPurchaseOrders = () => api.get<PurchaseOrder[]>('/purchase-orders');
+export const downloadPO = (id: number) => 
+  api.get(`/purchase-orders/${id}/download`, { responseType: 'blob' });
+export const downloadPOByDA = (daId: number) => 
+  api.get(`/purchase-orders/da/${daId}/download`, { responseType: 'blob' });
 
 // ── GRN (Good Receipt Note) ───────────────────────────────────
 export const createGrn = (grn: Partial<GrnHeader>) => api.post<GrnHeader>('/grn', grn);

@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 
 @Entity
 @Table(name = "family")
-@com.fasterxml.jackson.annotation.JsonIgnoreProperties(ignoreUnknown = true)
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler", "ignoreUnknown"})
 public class Family {
 
     @Id
@@ -16,6 +16,10 @@ public class Family {
     @com.fasterxml.jackson.annotation.JsonProperty("id")
     @com.fasterxml.jackson.annotation.JsonAlias({"id_family", "familyId", "oid_family"})
     private Integer idFamily;
+    
+    @Enumerated(EnumType.STRING)
+    @Column(name = "categorie")
+    private CategorieDemande categorie;
 
     @Version
     private Long version;
@@ -81,5 +85,9 @@ public class Family {
     public void setBudgetInitial(BigDecimal budgetInitial) { this.budgetInitial = budgetInitial; }
     public void setBudgetRestant(BigDecimal budgetRestant) { this.budgetRestant = budgetRestant; }
     public void setBudgetEngage(BigDecimal budgetEngage) { this.budgetEngage = budgetEngage; }
+
+    public CategorieDemande getCategorie() { return categorie; }
+    public void setCategorie(CategorieDemande categorie) { this.categorie = categorie; }
+
     public void setSubFamilies(List<SubFamily> subFamilies) { this.subFamilies = subFamilies; }
 }

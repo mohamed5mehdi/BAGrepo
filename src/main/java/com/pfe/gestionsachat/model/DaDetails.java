@@ -23,6 +23,11 @@ public class DaDetails {
     private DaHeader daHeader;
 
     @ManyToOne
+    @JoinColumn(name = "id_demande_interne")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private DemandeAchatInterne demandeAchatInterne;
+
+    @ManyToOne
     @JoinColumn(name = "id_sous_famille")
     private SubFamily subFamily;
 
@@ -80,4 +85,6 @@ public class DaDetails {
     public void setJustification(String justification) { this.justification = justification; }
     public void setPrixUnitaire(BigDecimal prixUnitaire) { this.prixUnitaire = prixUnitaire; }
     public void setFournisseur(Supplier fournisseur) { this.fournisseur = fournisseur; }
+    public DemandeAchatInterne getDemandeAchatInterne() { return demandeAchatInterne; }
+    public void setDemandeAchatInterne(DemandeAchatInterne demandeAchatInterne) { this.demandeAchatInterne = demandeAchatInterne; }
 }

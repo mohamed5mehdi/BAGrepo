@@ -1,8 +1,7 @@
 package com.pfe.gestionsachat.controller;
 
 import com.pfe.gestionsachat.model.User;
-import com.pfe.gestionsachat.model.BudgetFamille;
-import com.pfe.gestionsachat.repository.BudgetFamilleRepository;
+import com.pfe.gestionsachat.repository.FamilyRepository;
 import com.pfe.gestionsachat.service.UserService;
 import org.springframework.lang.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,7 +21,7 @@ public class AdminController {
     private UserService userService;
 
     @Autowired
-    private BudgetFamilleRepository budgetFamilleRepository;
+    private FamilyRepository familyRepository;
 
     @GetMapping("/users")
     public ResponseEntity<List<User>> getUsers() {
@@ -34,16 +33,11 @@ public class AdminController {
         return ResponseEntity.ok(userService.createUser(user));
     }
 
-    @PutMapping("/budgets")
-    public ResponseEntity<BudgetFamille> updateBudget(@RequestBody @NonNull BudgetFamille budget) {
-        return ResponseEntity.ok(budgetFamilleRepository.save(budget));
-    }
-
     @GetMapping("/dashboard")
     public ResponseEntity<Map<String, Object>> getDashboard() {
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalUsers", userService.getAllUsers().size());
-        stats.put("totalBudgets", budgetFamilleRepository.count());
+        stats.put("totalFamilies", familyRepository.count());
         // Add more KPIs
         return ResponseEntity.ok(stats);
     }

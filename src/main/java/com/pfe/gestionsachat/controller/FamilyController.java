@@ -28,7 +28,7 @@ public class FamilyController {
         List<Family> families = familyService.getAllFamilies();
         if ("DEMANDEUR".equalsIgnoreCase(role)) {
             List<FamilyDtoPublic> dtoList = families.stream()
-                .map(f -> new FamilyDtoPublic(f.getIdFamily(), f.getLibelle()))
+                .map(f -> new FamilyDtoPublic(f.getIdFamily(), f.getLibelle(), f.getBudgetRestant()))
                 .collect(Collectors.toList());
             return ResponseEntity.ok(dtoList);
         } else {

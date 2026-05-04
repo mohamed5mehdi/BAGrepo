@@ -137,7 +137,7 @@
         const tb = document.getElementById('tbodyRequests');
         if (!tb) return;
         const myList = list.filter(d => {
-            const dId = d.demandeur?.id_demandeur || d.demandeur?.idDemandeur || d.demandeur?.id;
+            const dId = d.demandeur?.oid_user || d.demandeur?.oidUser || d.demandeur?.id;
             return String(dId) === String(userId);
         });
 

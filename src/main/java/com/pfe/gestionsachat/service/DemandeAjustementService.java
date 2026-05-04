@@ -34,7 +34,7 @@ public class DemandeAjustementService {
     }
 
     private void checkActiveAjustement(Integer daId) {
-        if (demandeAjustementRepository.existsByDaIdAndStatutIn(Long.valueOf(daId), List.of(StatutAjustement.EN_ATTENTE_DG, StatutAjustement.EN_ATTENTE_DAF, StatutAjustement.EN_ATTENTE_ACHETEUR))) {
+        if (demandeAjustementRepository.existsByDaIdAndStatutIn(daId, List.of(StatutAjustement.EN_ATTENTE_DG, StatutAjustement.EN_ATTENTE_DAF, StatutAjustement.EN_ATTENTE_ACHETEUR))) {
             throw new RuntimeException("Ajustement déjà en cours pour cette DA");
         }
     }

@@ -15,6 +15,9 @@ public class PurchaseOrderController {
     @Autowired
     private PurchaseOrderService purchaseOrderService;
 
+    @Autowired
+    private com.pfe.gestionsachat.service.PdfExportService pdfExportService;
+
     @GetMapping
     public ResponseEntity<List<PurchaseOrder>> getAllPurchaseOrders() {
         return ResponseEntity.ok(purchaseOrderService.getAllPurchaseOrders());
@@ -33,5 +36,28 @@ public class PurchaseOrderController {
     @GetMapping("/status/{statut}")
     public ResponseEntity<List<PurchaseOrder>> getPurchaseOrdersByStatus(@PathVariable @org.springframework.lang.NonNull String statut) {
         return ResponseEntity.ok(purchaseOrderService.getPurchaseOrdersByStatus(statut));
+    }
+
+    @GetMapping("/{id}/download")
+    public ResponseEntity<byte[]> downloadPo(@PathVariable Integer id) {
+        PurchaseOrder po = purchaseOrderService.getPurchaseOrderById(id);
+        return generatePdfResponse(po);
+    }
+
+    @GetMapping("/da/{oidDa}/download")
+    public ResponseEntity<byte[]> downloadPoByDa(@PathVariable Integer oidDa) {
+        PurchaseOrder po = purchaseOrderService.getPurchaseOrderByDa(oidDa);
+        if (po == null) {
+            return ResponseEntity.notFound().build();
+        }
+        return generatePdfResponse(po);
+    }
+
+    private ResponseEntity<byte[]> generatePdfResponse(PurchaseOrder po) {
+        byte[] pdfBytes = pdfExportService.generatePurchaseOrderPdf(po);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=BC_" + po.getIdPo() + ".pdf")
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
     }
 }
