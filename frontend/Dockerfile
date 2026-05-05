@@ -1,9 +1,14 @@
+FROM node:20-alpine as build
+WORKDIR /app
+COPY package*.json ./
+RUN npm install
+COPY . .
+RUN npm run build
+
 FROM nginx:alpine
+RUN rm /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
 
-# Copie des fichiers compilés (dist) vers le dossier par défaut de Nginx
-COPY dist/ /usr/share/nginx/html
-
-# Configuration Nginx Expert : Serveur statique + Reverse Proxy pour l'API
 RUN echo 'server { \
     listen 80; \
     location / { \

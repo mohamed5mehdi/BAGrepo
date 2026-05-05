@@ -36,6 +36,8 @@ services:
     container_name: gestionsachat-frontend
     ports:
       - "3000:80"
+    healthcheck:
+      disable: true
     depends_on:
       - gestionsachat
 
