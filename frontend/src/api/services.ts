@@ -60,7 +60,7 @@ export const validerDGDemandeInterne = (id: number, valider: boolean, commentair
   api.put(`/demandes/${id}/valider-dg`, { valider, commentaire }, { params: { userId } });
 
 export const creerPODemandeInterne = (id: number, userId: number) => 
-  api.post(`/demandes/${id}/creer-po`, null, { params: { userId } });
+  api.post<PurchaseOrder>(`/demandes/${id}/creer-po`, null, { params: { userId } });
 
 export const solliciterAjustementDemandeInterne = (id: number, type: 'SOUS_FAMILLE' | 'FAMILLE', userId: number) =>
   api.post(`/demandes/${id}/ajustement`, null, { params: { type, userId } });
@@ -94,7 +94,7 @@ export const createPO = (daId: number, acheteurId: number) =>
   api.post<PurchaseOrder>('/workflow/create-po', null, { params: { daId, acheteurId } });
 
 // ── Families & SubFamilies ────────────────────────────────────
-export const getFamilies = () => api.get<Family[]>('/families');
+export const getFamilies = () => api.get<Family[]>('/families', { params: { role: 'FINANCIER' } });
 export const getSubFamilies = () => api.get<SubFamily[]>('/sub-families');
 export const getSubFamiliesByFamily = (familyId: number) =>
   api.get<SubFamily[]>(`/sub-families/family/${familyId}`);
@@ -111,15 +111,18 @@ export const downloadPOByDA = (daId: number) =>
 
 // ── GRN (Good Receipt Note) ───────────────────────────────────
 export const createGrn = (grn: Partial<GrnHeader>) => api.post<GrnHeader>('/grn', grn);
-export const validateGrn = (id: number) => api.put<GrnHeader>(`/grn/${id}/validate`);
+export const validateGrn = (id: number) => api.put<GrnHeader>(`/grn/${id}/valider`);
+export const downloadGRN = (id: number) => api.get(`/grn/${id}/download`, { responseType: 'blob' });
 
 // ── GRC (Good Receipt Costing) ────────────────────────────────
 export const createGrc = (grc: Partial<GrcHeader>) => api.post<GrcHeader>('/grc', grc);
-export const validateGrc = (id: number) => api.put<GrcHeader>(`/grc/${id}/validate`);
+export const validateGrc = (id: number) => api.put<GrcHeader>(`/grc/${id}/valider`);
+export const downloadGRC = (id: number) => api.get(`/grc/${id}/download`, { responseType: 'blob' });
 
 // ── Invoices ──────────────────────────────────────────────────
 export const createInvoice = (invoice: Partial<Invoice>) => api.post<Invoice>('/invoice', invoice);
 export const matchInvoice = (id: number) => api.post<Invoice>(`/invoice/${id}/match`);
+export const downloadInvoice = (poId: number) => api.get(`/invoice/${poId}/download`, { responseType: 'blob' });
 
 // ── Credit Notes ──────────────────────────────────────────────
 export const createCreditNote = (cn: Partial<CreditNote>) => api.post<CreditNote>('/creditnote', cn);

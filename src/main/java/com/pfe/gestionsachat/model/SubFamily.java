@@ -70,6 +70,7 @@ public class SubFamily {
         if (this.budgetRestant != null) {
             this.budgetRestant = this.budgetRestant.subtract(amount);
         }
+        this.budgetEngage = (this.budgetEngage != null ? this.budgetEngage : BigDecimal.ZERO).add(amount);
     }
 
     // Getters
@@ -83,8 +84,7 @@ public class SubFamily {
     @com.fasterxml.jackson.annotation.JsonProperty("budget_disponible")
     @Transient
     public BigDecimal getBudgetDisponible() {
-        if (budgetRestant == null) return BigDecimal.ZERO;
-        return budgetEngage == null ? budgetRestant : budgetRestant.subtract(budgetEngage);
+        return budgetRestant != null ? budgetRestant : BigDecimal.ZERO;
     }
     public List<DaDetails> getDetails() { return details; }
     public List<BudgetTransfer> getTransfersSource() { return transfersSource; }

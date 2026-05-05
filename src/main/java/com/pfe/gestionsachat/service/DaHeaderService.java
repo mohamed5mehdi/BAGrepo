@@ -14,6 +14,12 @@ public class DaHeaderService {
 
     @Autowired
     private DaHeaderRepository daHeaderRepository;
+    
+    @Autowired
+    private com.pfe.gestionsachat.repository.SubFamilyRepository subFamilyRepository;
+    
+    @Autowired
+    private com.pfe.gestionsachat.repository.UserRepository userRepository;
 
     public DaHeader createPurchaseRequest(@NonNull DaHeader request) {
         // Forcer le statut initial selon le diagramme
@@ -24,10 +30,17 @@ public class DaHeaderService {
             request.setDateCreation(java.time.LocalDate.now());
         }
 
-        // Liaison bidirectionnelle pour les détails
+        // Liaison bidirectionnelle pour les détails et attachement des entités
+        if (request.getDemandeur() != null && request.getDemandeur().getOidUser() != null) {
+            request.setDemandeur(userRepository.findById(request.getDemandeur().getOidUser()).orElse(request.getDemandeur()));
+        }
+
         if (request.getDetails() != null) {
             for (DaDetails detail : request.getDetails()) {
                 detail.setDaHeader(request);
+                if (detail.getSubFamily() != null && detail.getSubFamily().getOidSub() != null) {
+                    detail.setSubFamily(subFamilyRepository.findById(detail.getSubFamily().getOidSub()).orElse(detail.getSubFamily()));
+                }
             }
         }
         

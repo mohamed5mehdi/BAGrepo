@@ -59,7 +59,9 @@ export default function DaModal({ da, onClose, title, children, wide = false, sh
               { label: 'Date',       value: da.dateCreation ?? '—' },
               { label: 'Objet',      value: da.designation },
               { label: 'Demandeur',  value: da.demandeur?.nom ?? '—' },
-              ...(showPrice ? [{ label: 'Montant Est.', value: total > 0 ? formatCurrency(total) : '—' }] : []),
+              ...(showPrice ? [{ label: 'Montant HT', value: total > 0 ? formatCurrency(total) : '—' }] : []),
+              ...(showPrice ? [{ label: 'Montant TTC (20%)', value: total > 0 ? formatCurrency(total * 1.20) : '—' }] : []),
+              { label: 'Fournisseur', value: da.fournisseur?.nom ?? (da as any).fournisseur_nom ?? '—' },
               { label: 'Statut',     value: <StatusBadge statut={da.statut} /> },
             ].map(({ label, value }) => (
               <div key={label} className="bg-slate-50 dark:bg-slate-800 rounded-xl p-3">
@@ -105,8 +107,8 @@ export default function DaModal({ da, onClose, title, children, wide = false, sh
                         <td className="px-3 py-2 text-center">{da.quantite}</td>
                         {showPrice && (
                           <>
-                            <td className="px-3 py-2 text-right">{formatCurrency(da.prixUnitaire ?? 0)}</td>
-                            <td className="px-3 py-2 text-right font-semibold text-amber-600">
+                            <td className="px-3 py-2 text-right font-mono">{formatCurrency(da.prixUnitaire ?? 0)}</td>
+                            <td className="px-3 py-2 text-right font-black text-indigo-600">
                               {formatCurrency((da.quantite ?? 0) * (da.prixUnitaire ?? 0))}
                             </td>
                           </>

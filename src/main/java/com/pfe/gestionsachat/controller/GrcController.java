@@ -1,6 +1,7 @@
 package com.pfe.gestionsachat.controller;
 
 import com.pfe.gestionsachat.model.GrcHeader;
+import com.pfe.gestionsachat.model.GrnHeader;
 import com.pfe.gestionsachat.service.GrcService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -22,5 +23,25 @@ public class GrcController {
     @PutMapping("/{id}/valider")
     public ResponseEntity<GrcHeader> validateGrc(@PathVariable Long id) {
         return ResponseEntity.ok(grcService.validateGrc(java.util.Objects.requireNonNull(id)));
+    }
+    @Autowired
+    private com.pfe.gestionsachat.service.PdfExportService pdfExportService;
+    @Autowired
+    private com.pfe.gestionsachat.repository.GrcHeaderRepository grcRepository;
+
+    @Autowired
+    private com.pfe.gestionsachat.repository.GrnHeaderRepository grnRepository;
+
+    @GetMapping("/{poId}/download")
+    public ResponseEntity<byte[]> downloadGrc(@PathVariable Integer poId) {
+        GrnHeader grn = grnRepository.findByPurchaseOrder_IdPo(poId).stream().findFirst().orElseThrow(() -> new RuntimeException("GRN introuvable"));
+        GrcHeader grc = grn.getGrcHeader();
+        if (grc == null) throw new RuntimeException("GRC introuvable pour ce PO");
+        
+        byte[] pdfBytes = pdfExportService.generateGrcPdf(grc);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=GRC_" + grc.getId() + ".pdf")
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
     }
 }

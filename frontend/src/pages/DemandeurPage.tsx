@@ -35,6 +35,7 @@ export default function DemandeurPage() {
   const [items, setItems] = useState<ItemRow[]>([
     { id: crypto.randomUUID(), itemName: '', description: '', quantite: 1, justification: '' }
   ]);
+  const [submissionToken, setSubmissionToken] = useState(crypto.randomUUID());
 
   // Data Fetching
   const { data: daList = [], isLoading } = useQuery({
@@ -73,6 +74,7 @@ export default function DemandeurPage() {
     setBudgetSousFamilleId('');
     setGlobalJustification('');
     setItems([{ id: crypto.randomUUID(), itemName: '', description: '', quantite: 1, justification: '' }]);
+    setSubmissionToken(crypto.randomUUID());
   };
 
   const addItem = () => {
@@ -109,7 +111,8 @@ export default function DemandeurPage() {
         justification: item.justification,
         subFamily: { id: Number(budgetSousFamilleId) },
         prix_unitaire: 0 
-      }))
+      })),
+      submissionToken
     };
 
     createMutation.mutate(payload);
@@ -165,7 +168,7 @@ export default function DemandeurPage() {
           />
         </div>
         <button
-          onClick={() => setShowNewForm(true)}
+          onClick={() => { resetForm(); setShowNewForm(true); }}
           className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none flex items-center gap-2"
         >
           <span>➕</span> Nouvelle Demande d'Achat

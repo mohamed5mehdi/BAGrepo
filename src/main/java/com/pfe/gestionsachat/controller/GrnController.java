@@ -24,5 +24,18 @@ public class GrnController {
         return ResponseEntity.ok(grnService.validateGrn(java.util.Objects.requireNonNull(id)));
     }
     
-    // Autres endpoints CRUD si nécessaire...
+    @Autowired
+    private com.pfe.gestionsachat.service.PdfExportService pdfExportService;
+    @Autowired
+    private com.pfe.gestionsachat.repository.GrnHeaderRepository grnRepository;
+
+    @GetMapping("/{poId}/download")
+    public ResponseEntity<byte[]> downloadGrn(@PathVariable Integer poId) {
+        GrnHeader grn = grnRepository.findByPurchaseOrder_IdPo(poId).stream().findFirst().orElseThrow(() -> new RuntimeException("GRN introuvable pour ce PO"));
+        byte[] pdfBytes = pdfExportService.generateGrnPdf(grn);
+        return ResponseEntity.ok()
+                .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=GRN_" + grn.getId() + ".pdf")
+                .contentType(org.springframework.http.MediaType.APPLICATION_PDF)
+                .body(pdfBytes);
+    }
 }

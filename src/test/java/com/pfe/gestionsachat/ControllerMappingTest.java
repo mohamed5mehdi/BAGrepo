@@ -40,8 +40,8 @@ public class ControllerMappingTest {
                 "  {" +
                 "    \"quantite\": 2," +
                 "    \"description\": \"Item Test\"," +
-                "    \"prix_unitaire\": 150.0," +
-                "    \"subFamily\": {\"oid_sub\": " + sf.getOidSub() + "}" +
+                "    \"prixUnitaire\": 150.0," +
+                "    \"subFamily\": {\"oidSub\": " + sf.getOidSub() + "}" +
                 "  }" +
                 "]" +
                 "}";

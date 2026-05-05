@@ -107,13 +107,24 @@ public class EndToEndProcurementTest {
         da.setDetails(new ArrayList<>(List.of(daDetail)));
 
         Integer daId = Objects.requireNonNull(da.getOidDa());
-        // 3. Workflow de Validation
+        // 3. Workflow de Validation complet : N1 -> TECH -> Budget(AMG) -> DAF -> DG -> VALIDEE
         orchestrator.processValidation(daId, Objects.requireNonNull(n1.getOidUser()), ValidationDecision.ACCEPTE, "Approuvé N1");
-        orchestrator.processValidation(daId, Objects.requireNonNull(tech.getOidUser()), ValidationDecision.ACCEPTE, "Approuvé Tech");
-        orchestrator.verifierBudget(daId, Objects.requireNonNull(acheteur.getOidUser()));
-        orchestrator.processValidation(daId, Objects.requireNonNull(amg.getOidUser()), ValidationDecision.ACCEPTE, "Approuvé AMG");
-        orchestrator.processValidation(daId, Objects.requireNonNull(dg.getOidUser()), ValidationDecision.ACCEPTE, "Approuvé DG (Superviseur Abdelhamid)");
+        assertEquals(StatutDA.EN_ATTENTE_TECH, daHeaderRepository.findById(daId).orElseThrow().getStatut());
 
+        orchestrator.processValidation(daId, Objects.requireNonNull(tech.getOidUser()), ValidationDecision.ACCEPTE, "Approuvé Tech");
+        assertEquals(StatutDA.EN_ATTENTE_ACHAT, daHeaderRepository.findById(daId).orElseThrow().getStatut());
+
+        orchestrator.verifierBudget(daId, Objects.requireNonNull(acheteur.getOidUser()));
+        assertEquals(StatutDA.EN_ATTENTE_AMG, daHeaderRepository.findById(daId).orElseThrow().getStatut());
+
+        orchestrator.processValidation(daId, Objects.requireNonNull(amg.getOidUser()), ValidationDecision.ACCEPTE, "Approuvé AMG");
+        assertEquals(StatutDA.EN_ATTENTE_DAF, daHeaderRepository.findById(daId).orElseThrow().getStatut());
+
+        User daf = userRepository.findByEmail("daf@test.com").orElseThrow();
+        orchestrator.processValidation(daId, Objects.requireNonNull(daf.getOidUser()), ValidationDecision.ACCEPTE, "Approuvé DAF");
+        assertEquals(StatutDA.EN_ATTENTE_DG, daHeaderRepository.findById(daId).orElseThrow().getStatut());
+
+        orchestrator.processValidation(daId, Objects.requireNonNull(dg.getOidUser()), ValidationDecision.ACCEPTE, "Approuvé DG (Superviseur Abdelhamid)");
         assertEquals(StatutDA.VALIDEE, daHeaderRepository.findById(daId).orElseThrow().getStatut());
         System.out.println("✅ Étape 1 : DA validée par le circuit complet.");
 
@@ -131,7 +142,7 @@ public class EndToEndProcurementTest {
         grn.setDeliveryNoteNumber("BL-2024-001");
         grn.setReceiptDate(java.time.LocalDate.now());
         grn.setStatus(GrnStatus.DRAFT);
-        
+
         GrnDetails grnDetail = new GrnDetails();
         grnDetail.setGrnHeader(grn);
         grnDetail.setItemCode("PIST-001");
@@ -141,10 +152,10 @@ public class EndToEndProcurementTest {
         grnDetail.setAcceptedQuantity(10);
         grnDetail.setQualityStatus(QualityStatus.APPROVED);
         grn.setDetails(new ArrayList<>(List.of(grnDetail)));
-        
+
         grn = grnService.createGrn(grn);
         GrnHeader validatedGrn = grnService.validateGrn(Objects.requireNonNull(grn.getId()));
-        
+
         assertEquals(GrnStatus.VALIDATED, validatedGrn.getStatus());
         assertEquals(20, stockItemRepository.findByItemCode("PIST-001").get(0).getQuantityAvailable()); // 10 initial + 10 reçus
         System.out.println("✅ Étape 3 : Réception physique (GRN) effectuée et stock mis à jour (Total: 20).");
@@ -154,7 +165,7 @@ public class EndToEndProcurementTest {
         grc.setGrnHeader(validatedGrn);
         grc.setStatus(GrcStatus.DRAFT);
         grc.setCostingDate(java.time.LocalDate.now());
-        
+
         GrcDetails grcDetail = new GrcDetails();
         grcDetail.setGrcHeader(grc);
         grcDetail.setItemCode("PIST-001");
@@ -162,10 +173,10 @@ public class EndToEndProcurementTest {
         grcDetail.setUnitCost(100.0);
         grcDetail.setTaxRate(20.0); // 20% tax to make total 1200.0
         grc.setDetails(new ArrayList<>(List.of(grcDetail)));
-        
+
         grc = grcService.createGrc(grc);
         GrcHeader validatedGrc = grcService.validateGrc(Objects.requireNonNull(grc.getId()));
-        
+
         assertEquals(GrcStatus.VALIDATED, validatedGrc.getStatus());
         assertEquals(java.math.BigDecimal.valueOf(1200.0).setScale(2), validatedGrc.getTotalAmount().setScale(2));
         System.out.println("✅ Étape 4 : Valorisation financière (GRC) terminée.");
@@ -180,11 +191,13 @@ public class EndToEndProcurementTest {
         invoice.setMontantTTC(java.math.BigDecimal.valueOf(1200.0));
         invoice.setStatus(InvoiceStatus.RECEIVED);
         invoice = invoiceRepository.save(invoice);
-        
+
         Invoice matchedInvoice = matchingService.matchInvoice(Objects.requireNonNull(invoice.getId()));
-        
-        assertEquals(InvoiceStatus.APPROVED, matchedInvoice.getStatus());
-        System.out.println("✅ Étape 5 : Facture reçue et approuvée via 3-Way Matching (BC == GRC == Facture).");
+        assertEquals(InvoiceStatus.MATCHED, matchedInvoice.getStatus());
+
+        Invoice approvedInvoice = matchingService.approveInvoice(invoice.getId());
+        assertEquals(InvoiceStatus.APPROVED, approvedInvoice.getStatus());
+        System.out.println("✅ Étape 5 : Facture reçue, matchée et approuvée via le circuit financier complet.");
 
         System.out.println("🏁 FIN DU TEST : Flux complet BAG validé de A à Z !");
     }

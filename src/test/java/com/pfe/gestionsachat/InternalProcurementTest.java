@@ -82,8 +82,8 @@ public class InternalProcurementTest {
         assertEquals(StatutDemande.VALIDEE_N1, valideeN1.getStatut());
 
         // 5. Valorisation par l'acheteur
-        DemandeAchatInterne valorisee = demandeService.valoriserDemande(valideeN1.getId(), 15000.0, supplier.getOidSupplier());
-        assertEquals(15000.0, valorisee.getPrixUnitaire());
-        assertEquals(BigDecimal.valueOf(150000.0).setScale(2), valorisee.getMontantEstime().setScale(2));
+        DemandeAchatInterne valorisee = demandeService.valoriserDemande(valideeN1.getId(), java.math.BigDecimal.valueOf(15000.0), supplier.getOidSupplier());
+        assertEquals(java.math.BigDecimal.valueOf(15000.0), valorisee.getPrixUnitaire());
+        assertEquals(java.math.BigDecimal.valueOf(150000.0).setScale(2), valorisee.getMontantEstime().setScale(2));
     }
 }

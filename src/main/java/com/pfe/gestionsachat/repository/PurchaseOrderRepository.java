@@ -20,7 +20,7 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, In
 
     @Query("SELECT p FROM PurchaseOrder p WHERE p.montantTotal > :amount")
     List<PurchaseOrder> findByMontantTotalGreaterThan(@Param("amount") Double amount);
-    @Query("SELECT p FROM PurchaseOrder p WHERE p.statut = 'VALIDE' AND p.dateCreation < :dateLimite " +
+    @Query("SELECT p FROM PurchaseOrder p WHERE p.statut = 'VALIDEE' AND p.dateCreation < :dateLimite " +
            "AND NOT EXISTS (SELECT g FROM GrnHeader g WHERE g.purchaseOrder = p)")
     List<PurchaseOrder> findGhostPurchaseOrders(@Param("dateLimite") LocalDate dateLimite);
 }

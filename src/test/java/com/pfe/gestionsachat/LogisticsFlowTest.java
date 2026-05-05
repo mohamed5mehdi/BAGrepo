@@ -139,9 +139,13 @@ public class LogisticsFlowTest {
         po.setMontantTotal(java.math.BigDecimal.valueOf(800.0));
         purchaseOrderRepository.save(java.util.Objects.requireNonNull(po));
 
-        // 3-Way Match
+        // 3-Way Match -> MATCHED
         Invoice matchedInvoice = matchingService.matchInvoice(java.util.Objects.requireNonNull(invoice.getId()));
-        assertEquals(InvoiceStatus.APPROVED, matchedInvoice.getStatus());
+        assertEquals(InvoiceStatus.MATCHED, matchedInvoice.getStatus());
+
+        // DAF/Finance Approval -> APPROVED
+        Invoice approvedInvoice = matchingService.approveInvoice(invoice.getId());
+        assertEquals(InvoiceStatus.APPROVED, approvedInvoice.getStatus());
 
         System.out.println("TEST SUCCESS: Flux 1 et Flux 2 validés étape par étape.");
     }

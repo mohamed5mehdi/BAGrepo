@@ -73,7 +73,7 @@ public class DemandeAchatInterneController {
     @PutMapping("/{id}/valoriser-achat")
     public ResponseEntity<DemandeAchatInterne> valoriserDemande(
             @PathVariable Long id, 
-            @RequestParam Double prixUnitaire, 
+            @RequestParam java.math.BigDecimal prixUnitaire, 
             @RequestParam Integer supplierId) {
         return ResponseEntity.ok(demandeService.valoriserDemande(id, prixUnitaire, supplierId));
     }
@@ -115,7 +115,7 @@ public class DemandeAchatInterneController {
     }
 
     @PostMapping("/{id}/creer-po")
-    public ResponseEntity<DemandeAchatInterne> creerPO(@PathVariable @NonNull Long id, @RequestParam @NonNull Integer userId) {
+    public ResponseEntity<com.pfe.gestionsachat.model.PurchaseOrder> creerPO(@PathVariable @NonNull Long id, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.creerPO(id, user));
     }

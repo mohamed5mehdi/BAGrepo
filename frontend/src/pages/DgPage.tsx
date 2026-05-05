@@ -106,6 +106,34 @@ export default function DgPage() {
               </button>
             </div>
 
+            {/* Récapitulatif Audit Financier pour DG */}
+            <div className="p-4 rounded-2xl bg-slate-900 text-white shadow-xl space-y-3">
+               <div className="flex justify-between items-center border-b border-white/10 pb-2">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Audit Décisionnel</h4>
+                  <span className="text-[10px] font-bold bg-indigo-500 px-2 py-0.5 rounded">TVA 20% incluse</span>
+               </div>
+               <div className="grid grid-cols-2 gap-4">
+                  <div>
+                     <p className="text-[9px] text-slate-500 uppercase font-bold">Fournisseur Sélectionné</p>
+                     <p className="text-sm font-bold text-indigo-300">{selectedDa?.fournisseur?.nom || '—'}</p>
+                  </div>
+                  <div className="text-right">
+                     <p className="text-[9px] text-slate-500 uppercase font-bold">Total TTC à décaisser</p>
+                     <p className="text-lg font-black text-emerald-400">{formatCurrency((selectedDa?.montantEstime || 0) * 1.20)}</p>
+                  </div>
+               </div>
+               <div className="pt-2 border-t border-white/10 flex justify-between items-center">
+                  <p className="text-[9px] text-slate-500 uppercase font-bold">Impact Budget Sous-Famille</p>
+                  <p className="text-xs font-mono">
+                     {formatCurrency(selectedDa?.budgetSousFamille?.budget_restant || 0)} 
+                     <span className="text-rose-400 mx-1">→</span>
+                     <span className="text-emerald-400 font-bold">
+                        {formatCurrency((selectedDa?.budgetSousFamille?.budget_restant || 0) - (selectedDa?.montantEstime || 0))}
+                     </span>
+                  </p>
+               </div>
+            </div>
+
             {/* Standard validation */}
             <div>
               <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Décision Finale</p>

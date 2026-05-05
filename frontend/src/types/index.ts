@@ -68,7 +68,9 @@ export interface Family {
   name: string;
   libelle?: string; // Alias backend
   budget_initial: number;
+  budgetTotal?: number; // Alias DtoFinancier
   budget_restant: number;
+  budgetRestant?: number; // Alias DtoFinancier
   budget_disponible?: number;
   budgetEngage?: number;
 }

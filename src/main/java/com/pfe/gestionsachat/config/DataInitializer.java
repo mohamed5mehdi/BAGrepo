@@ -21,15 +21,10 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private SupplierRepository supplierRepository;
     @Autowired private DaHeaderRepository daHeaderRepository;
     @Autowired private DaDetailsRepository daDetailsRepository;
-    @Autowired private ActionRepository actionRepository;
-    @Autowired private BudgetTransferRepository budgetTransferRepository;
     @Autowired private WarehouseRepository warehouseRepository;
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
     @Autowired private DemandeAchatInterneRepository demandeAchatInterneRepository;
-    @Autowired private com.pfe.gestionsachat.repository.OffreFournisseurRepository offreFournisseurRepository;
-    @Autowired private StatusHistoryRepository historyRepository;
-    @Autowired private JustificationRepository justificationRepository;
-    @Autowired private AuditLogRepository auditLogRepository;
+    @Autowired private OffreFournisseurRepository offreFournisseurRepository;
     @Autowired private BCryptPasswordEncoder encoder;
     @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
 
@@ -124,13 +119,16 @@ public class DataInitializer implements CommandLineRunner {
         sup1.setEmail("contact@alpha-it.ma");
         sup1.setPhone("0522-123456");
         sup1.setIsCertified(true);
+        sup1.setIce("001524879654123");
 
         Supplier sup2 = new Supplier("Global Office Systems", "Sami Alami", "Rabat Business Center", "MOBILIER", 4, 7);
         sup2.setEmail("sales@global-office.ma");
         sup2.setPhone("0537-654321");
+        sup2.setIce("002365478965412");
 
         Supplier sup3 = new Supplier("Elite Services Group", "Fatima Zahra", "Tanger Med", "DIVERS", 3, 5);
         sup3.setEmail("info@elite-services.ma");
+        sup3.setIce("003147852369874");
         
         supplierRepository.saveAll(List.of(sup1, sup2, sup3));
         log.info("🚚 3 Fournisseurs créés.");

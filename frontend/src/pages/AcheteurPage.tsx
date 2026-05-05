@@ -52,9 +52,6 @@ export default function AcheteurPage() {
     setPrixUnitaire(da.prixUnitaire ?? 0);
   };
 
-  const totalHT  = (selectedDa?.quantite || 0) * prixUnitaire;
-  const totalTax = totalHT * VAT;
-  const totalTTC = totalHT + totalTax;
 
   const submitTreatmentMutation = useMutation({
     mutationFn: async () => {
@@ -102,10 +99,16 @@ export default function AcheteurPage() {
   const currentSubFamily = selectedDa?.budgetSousFamille || firstDetail?.subFamily || selectedDa?.subFamily;
   const currentFamily = selectedDa?.budgetFamille || firstDetail?.subFamily?.family || currentSubFamily?.family;
 
+  const totalHT  = (selectedDa?.quantite || 0) * prixUnitaire;
+  const totalTax = totalHT * VAT;
+  const totalTTC = Number((totalHT + totalTax).toFixed(2));
+
   // Normalisation des noms et montants
   const sfName = currentSubFamily?.name || currentSubFamily?.libelle || '—';
   const fName = currentFamily?.name || currentFamily?.libelle || '—';
-  const budgetRestant = currentSubFamily?.budget_disponible ?? currentSubFamily?.budget_restant ?? currentSubFamily?.budgetRestant ?? 0;
+  
+  // Utilisation du nouveau champ budget_disponible corrigé (Back-end)
+  const budgetRestant = currentSubFamily?.budget_disponible ?? 0;
   
   const isBudgetExceeded = totalTTC > budgetRestant;
 
@@ -114,7 +117,7 @@ export default function AcheteurPage() {
       {/* KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
         <KpiCard label="DA à traiter" value={myDAs.filter((d: any) => d.statut === 'VALIDEE_TECH').length} icon="⏳" color="from-blue-600 to-indigo-700" />
-        <KpiCard label="Prêt pour PO" value={myDAs.filter((d: any) => d.statut === 'A_COMMANDER').length} icon="📜" color="from-emerald-500 to-teal-600" />
+        <KpiCard label="Prêt pour PO" value={myDAs.filter((d: any) => d.statut === 'APPROUVEE').length} icon="📜" color="from-emerald-500 to-teal-600" />
         <KpiCard label="Total en cours" value={myDAs.length} icon="📦" color="from-slate-600 to-slate-800" />
       </div>
 
@@ -127,7 +130,7 @@ export default function AcheteurPage() {
         <button onClick={() => qc.invalidateQueries({ queryKey: ['da'] })} className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm">🔄 Actualiser</button>
       </div>
 
-      <DaTable rows={myDAs} onRowClick={openDa} loading={isLoading} searchQuery={search} showRequester={true} actionLabel={(d: any) => d.statut === 'A_COMMANDER' ? '📜 Créer PO' : '✏️ Traiter'} />
+      <DaTable rows={myDAs} onRowClick={openDa} loading={isLoading} searchQuery={search} showRequester={true} actionLabel={(d: any) => d.statut === 'APPROUVEE' ? '📜 Créer PO' : '✏️ Traiter'} />
 
       {selectedDa && (
         <DaModal da={selectedDa} onClose={() => setSelectedDa(null)} title="🛒 Traitement du Dossier Achat" wide>
@@ -347,7 +350,7 @@ export default function AcheteurPage() {
                         </button>
                     </div>
                 )}
-                {selectedDa.statut === 'A_COMMANDER' && (
+                {selectedDa.statut === 'APPROUVEE' && (
                     <button 
                         onClick={() => createPOMutation.mutate()}
                         className="px-8 py-3 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-700 text-white font-black text-sm hover:from-indigo-700 hover:to-blue-800 shadow-xl shadow-indigo-200"

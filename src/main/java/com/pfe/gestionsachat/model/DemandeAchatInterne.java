@@ -48,7 +48,7 @@ public class DemandeAchatInterne {
 
     private BigDecimal montantEstime;
 
-    private Double prixUnitaire;
+    private BigDecimal prixUnitaire;
 
     @ManyToOne
     @JoinColumn(name = "fournisseur_id")
@@ -60,6 +60,9 @@ public class DemandeAchatInterne {
 
     @Column(columnDefinition = "TEXT")
     private String commentaireRejet;
+
+    @Column(unique = true)
+    private String submissionToken;
 
     @OneToMany(mappedBy = "demandeAchatInterne", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<DaDetails> details = new java.util.ArrayList<>();
@@ -122,8 +125,8 @@ public class DemandeAchatInterne {
     public BigDecimal getMontantEstime() { return montantEstime; }
     public void setMontantEstime(BigDecimal montantEstime) { this.montantEstime = montantEstime; }
 
-    public Double getPrixUnitaire() { return prixUnitaire; }
-    public void setPrixUnitaire(Double prixUnitaire) { this.prixUnitaire = prixUnitaire; }
+    public BigDecimal getPrixUnitaire() { return prixUnitaire; }
+    public void setPrixUnitaire(BigDecimal prixUnitaire) { this.prixUnitaire = prixUnitaire; }
 
     public Supplier getFournisseur() { return fournisseur; }
     public void setFournisseur(Supplier fournisseur) { this.fournisseur = fournisseur; }
@@ -139,4 +142,7 @@ public class DemandeAchatInterne {
 
     public java.util.List<DaDetails> getDetails() { return details; }
     public void setDetails(java.util.List<DaDetails> details) { this.details = details; }
+
+    public String getSubmissionToken() { return submissionToken; }
+    public void setSubmissionToken(String submissionToken) { this.submissionToken = submissionToken; }
 }

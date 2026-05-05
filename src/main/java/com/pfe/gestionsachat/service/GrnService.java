@@ -32,25 +32,37 @@ public class GrnService {
         if (grn.getDetails() != null) {
             for (GrnDetails newDetail : grn.getDetails()) {
                 String itemCode = newDetail.getItemCode();
-                
-                // 1. Quantité ordonnée (via DA liée)
-                Integer qtyOrdered = po.getDaHeader().getDetails().stream()
-                        .filter(d -> itemCode != null && itemCode.equals(d.getItemCode()))
-                        .mapToInt(DaDetails::getQuantite)
-                        .sum();
 
-                // 2. Somme des réceptions existantes pour ce PO (Optimisé)
+                // Quantité ordonnée selon la source du PO (DA classique ou Demande Interne)
+                Integer qtyOrdered = 0;
+                if (po.getDaHeader() != null && po.getDaHeader().getDetails() != null) {
+                    qtyOrdered = po.getDaHeader().getDetails().stream()
+                            .filter(d -> itemCode != null && itemCode.equals(d.getItemCode()))
+                            .mapToInt(d -> d.getQuantite() != null ? d.getQuantite() : 0)
+                            .sum();
+                } else if (po.getDemandeInterne() != null) {
+                    // Circuit interne : pas de détails multi-items, on utilise la quantité globale
+                    qtyOrdered = po.getDemandeInterne().getQuantite() != null
+                            ? po.getDemandeInterne().getQuantite() : 0;
+                }
+
+                if (qtyOrdered == 0) {
+                    throw new IllegalArgumentException("Article introuvable dans le PO : " + itemCode);
+                }
+
+                // Somme des réceptions existantes pour ce PO (Optimisé)
                 Integer qtyAlreadyReceived = grnRepository.sumReceivedQuantityByPoIdAndItemCode(po.getIdPo(), itemCode);
 
                 if (qtyAlreadyReceived + newDetail.getReceivedQuantity() > qtyOrdered) {
                     throw new com.pfe.gestionsachat.exception.ReceptionDoublonException(
-                        "Sur-réception détectée pour l'article " + itemCode + 
-                        " (Total reçu: " + (qtyAlreadyReceived + newDetail.getReceivedQuantity()) + 
+                        "Sur-réception détectée pour l'article " + itemCode +
+                        " (Total reçu: " + (qtyAlreadyReceived + newDetail.getReceivedQuantity()) +
                         ", Commandé: " + qtyOrdered + ")"
                     );
                 }
             }
         }
+
 
         grn.setStatus(GrnStatus.DRAFT);
         if (grn.getDetails() != null) {

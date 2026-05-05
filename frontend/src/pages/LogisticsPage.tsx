@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KpiCard from '../components/KpiCard';
-import { getPurchaseOrders, createGrn, validateGrn, createGrc, validateGrc, createInvoice, matchInvoice, getSuppliers, getStockItems } from '../api/services';
+import { getPurchaseOrders, createGrn, validateGrn, createGrc, validateGrc, createInvoice, matchInvoice, getSuppliers, getStockItems, downloadPO, downloadGRN, downloadGRC, downloadInvoice } from '../api/services';
 import type { PurchaseOrder, GrnHeader, GrcHeader, Invoice, Supplier, GrnDetails, GrcDetails } from '../types';
 import { formatDA, formatCurrency } from '../utils/constants';
 
@@ -27,39 +27,50 @@ export default function LogisticsPage() {
   const grnMutation = useMutation({
     mutationFn: (payload: Partial<GrnHeader>) => createGrn(payload),
     onSuccess: (res) => {
-      validateGrn(res.data.id).then(() => {
-        toast.success('✅ Réception validée et stock mis à jour !');
-        qc.invalidateQueries({ queryKey: ['pos'] });
-        setSelectedPo(null);
-        setActiveTab('GRN');
-      });
-    }
+      validateGrn(res.data.id)
+        .then(() => {
+          toast.success('✅ Réception validée et stock mis à jour !');
+          qc.invalidateQueries({ queryKey: ['pos'] });
+          setSelectedPo(null);
+          setActiveTab('GRN');
+        })
+        .catch(err => toast.error('Erreur lors de la validation de la réception: ' + (err.response?.data?.message || err.message)));
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Erreur lors de la création de la réception')
   });
 
   const grcMutation = useMutation({
     mutationFn: (payload: Partial<GrcHeader>) => createGrc(payload),
     onSuccess: (res) => {
-      validateGrc(res.data.id).then(() => {
-        toast.success('💰 Valorisation financière effectuée !');
-        setActiveTab('GRC');
-      });
-    }
+      validateGrc(res.data.id)
+        .then(() => {
+          toast.success('💰 Valorisation financière effectuée !');
+          qc.invalidateQueries({ queryKey: ['pos'] });
+          setActiveTab('GRC');
+        })
+        .catch(err => toast.error('Erreur lors de la validation GRC: ' + (err.response?.data?.message || err.message)));
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Erreur lors de la valorisation')
   });
 
   const invoiceMutation = useMutation({
     mutationFn: (payload: Partial<Invoice>) => createInvoice(payload),
     onSuccess: (res) => {
-      matchInvoice(res.data.id).then(() => {
-        toast.success('📑 Facture rapprochée et approuvée !');
-        setActiveTab('INVOICE');
-      });
-    }
+      matchInvoice(res.data.id)
+        .then(() => {
+          toast.success('📑 Facture rapprochée et approuvée !');
+          qc.invalidateQueries({ queryKey: ['pos'] });
+          setActiveTab('INVOICE');
+        })
+        .catch(err => toast.error('Erreur lors du rapprochement facture: ' + (err.response?.data?.message || err.message)));
+    },
+    onError: (err: any) => toast.error(err.response?.data?.message || 'Erreur lors de la facturation')
   });
 
   const handleCreateGrn = (po: PurchaseOrder) => {
     const payload: Partial<GrnHeader> = {
       purchaseOrder: { id_po: po.id_po } as any,
-      supplier: po.daHeader?.details?.[0]?.fournisseur || undefined,
+      supplier: po.daHeader?.details?.[0]?.fournisseur || po.fournisseur,
       deliveryNoteNumber: `BL-${Math.floor(Math.random()*10000)}`,
       receiptDate: new Date().toISOString().split('T')[0],
       status: 'DRAFT',
@@ -77,13 +88,13 @@ export default function LogisticsPage() {
 
   const handleCreateGrc = (po: PurchaseOrder) => {
     const payload: Partial<GrcHeader> = {
-      grnHeader: { id: po.id_po } as any, 
+      grnHeader: { id: po.id_po } as any, // Le backend cherchera par PO ID
       costingDate: new Date().toISOString().split('T')[0],
       status: 'VALIDATED',
       totalAmount: po.montant_total,
       devise: 'MAD',
       details: po.daHeader?.details?.map(d => ({
-        itemCode: d.itemCode,
+        itemCode: d.itemCode || 'ART-BAG',
         acceptedQuantity: d.quantite,
         unitCost: Number(d.prix_unitaire)
       })) as any
@@ -154,22 +165,106 @@ export default function LogisticsPage() {
                     </td>
                     <td className="px-6 py-4 text-right">
                       {activeTab === 'PO' && (
-                        <button onClick={() => handleCreateGrn(po)} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
-                          🚚 Réceptionner
-                        </button>
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const res = await downloadPO(po.id_po);
+                                const url = window.URL.createObjectURL(new Blob([res.data]));
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', `BC_${po.id_po}.pdf`);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              } catch (e) {
+                                toast.error('Erreur lors du téléchargement du PDF');
+                              }
+                            }} 
+                            className="px-4 py-2 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-bold hover:bg-indigo-100 transition-all border border-indigo-200"
+                          >
+                            📥 Télécharger PDF
+                          </button>
+                          <button onClick={() => handleCreateGrn(po)} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
+                            🚚 Réceptionner
+                          </button>
+                        </div>
                       )}
                       {activeTab === 'GRN' && (
-                        <button onClick={() => handleCreateGrc(po)} className="px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition-all">
-                          💰 Valoriser
-                        </button>
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const res = await downloadGRN(po.id_po);
+                                const url = window.URL.createObjectURL(new Blob([res.data]));
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', `GRN_${po.id_po}.pdf`);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              } catch (e) {
+                                toast.error('Erreur lors du téléchargement du PDF de réception');
+                              }
+                            }} 
+                            className="px-4 py-2 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-bold hover:bg-indigo-100 transition-all border border-indigo-200"
+                          >
+                            📥 Télécharger PDF
+                          </button>
+                          <button onClick={() => handleCreateGrc(po)} className="px-4 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 transition-all shadow-lg shadow-amber-100">
+                            💰 Valoriser
+                          </button>
+                        </div>
                       )}
                       {activeTab === 'GRC' && (
-                        <button onClick={() => handleCreateInvoice(po)} className="px-4 py-2 rounded-xl bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-all">
-                          📑 Facturer
-                        </button>
+                        <div className="flex justify-end gap-2">
+                          <button 
+                            onClick={async () => {
+                              try {
+                                const res = await downloadGRC(po.id_po);
+                                const url = window.URL.createObjectURL(new Blob([res.data]));
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', `GRC_${po.id_po}.pdf`);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              } catch (e) {
+                                toast.error('Erreur lors du téléchargement du PDF de valorisation');
+                              }
+                            }} 
+                            className="px-4 py-2 rounded-xl bg-indigo-50 text-indigo-600 text-xs font-bold hover:bg-indigo-100 transition-all border border-indigo-200"
+                          >
+                            📥 Télécharger PDF
+                          </button>
+                          <button onClick={() => handleCreateInvoice(po)} className="px-4 py-2 rounded-xl bg-emerald-500 text-white text-xs font-bold hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-100">
+                            📑 Facturer
+                          </button>
+                        </div>
                       )}
                       {activeTab === 'INVOICE' && (
-                        <span className="text-emerald-500 font-black text-xs">✅ TERMINÉ</span>
+                        <div className="flex justify-end gap-2">
+                           <button 
+                            onClick={async () => {
+                              try {
+                                const res = await downloadInvoice(po.id_po);
+                                const url = window.URL.createObjectURL(new Blob([res.data]));
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.setAttribute('download', `INV_${po.id_po}.pdf`);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              } catch (e) {
+                                toast.error('Erreur lors du téléchargement de la facture');
+                              }
+                            }} 
+                            className="px-4 py-2 rounded-xl bg-emerald-50 text-emerald-600 text-xs font-bold hover:bg-emerald-100 transition-all border border-emerald-200"
+                          >
+                            📥 Télécharger Facture
+                          </button>
+                          <span className="text-emerald-500 font-black text-xs flex items-center">✅ TERMINÉ</span>
+                        </div>
                       )}
                     </td>
                   </tr>

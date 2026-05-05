@@ -3,7 +3,7 @@ package com.pfe.gestionsachat;
 import com.pfe.gestionsachat.model.*;
 import com.pfe.gestionsachat.repository.*;
 import com.pfe.gestionsachat.service.AchatWorkflowOrchestrator;
-
+import com.pfe.gestionsachat.repository.DemandeAjustementRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -39,31 +39,59 @@ public class DaValidationCorrectedFlowTest {
 
     @BeforeEach
     public void cleanup() {
+        // Ne pas supprimer 'users' : les utilisateurs seedés par DataInitializer sont nécessaires aux tests
         String[] tables = {
-            "stock_movement", "grc_details", "grc_header", "grn_details", "grn_header",
-            "credit_note", "invoice", "purchase_order", "offre_fournisseur",
-            "da_details", "da_header", "demande_ajustement", "budget_sous_famille",
-            "budget_famille", "sub_family", "family", "users"
+            "action", "status_history", "audit_log", "stock_movement", "grc_details", "grc_header",
+            "grn_details", "grn_header", "credit_note", "invoice", "purchase_order",
+            "offre_fournisseur", "da_details", "da_header", "demande_ajustement",
+            "demande_achat_interne", "sub_family", "family"
         };
         for (String table : tables) {
             jdbcTemplate.execute("DELETE FROM " + table);
         }
     }
 
+    private User getOrCreateUser(String email, Role role) {
+        return userRepository.findByEmail(email).orElseGet(() -> {
+            User u = new User("Test " + role.name(), email, "pass", role);
+            u.setActif(true);
+            u.setService("TEST");
+            return userRepository.save(u);
+        });
+    }
+
     @Test
     @Transactional
     public void testValidationDa_MultiFamilles_Success() {
-        DaHeader da = preparerDaMultiFamilles(1000, 2000); 
-        
-        orchestrator.processValidation(da.getOidDa(), getN1Actif().getOidUser(), ValidationDecision.ACCEPTE, "Test Validation");
+        DaHeader da = preparerDaMultiFamilles(1000, 2000);
+        Integer daId = da.getOidDa();
 
-        Integer sfAId = java.util.Objects.requireNonNull(da.getDetails().get(0).getSubFamily().getOidSub());
+        User n1 = getN1Actif();
+        User tech = getOrCreateUser("tech@test.com", Role.TECHNICIEN);
+        User acheteur = getOrCreateUser("acheteur@test.com", Role.ACHETEUR);
+        User amg = getOrCreateUser("amg@test.com", Role.AMG);
+        User daf = getOrCreateUser("daf@test.com", Role.DAF);
+        User dg = getOrCreateUser("dg@test.com", Role.DG);
+
+        orchestrator.processValidation(daId, n1.getOidUser(), ValidationDecision.ACCEPTE, "N1");
+        orchestrator.processValidation(daId, tech.getOidUser(), ValidationDecision.ACCEPTE, "Tech");
+        orchestrator.verifierBudget(daId, acheteur.getOidUser());
+        orchestrator.processValidation(daId, amg.getOidUser(), ValidationDecision.ACCEPTE, "AMG");
+        orchestrator.processValidation(daId, daf.getOidUser(), ValidationDecision.ACCEPTE, "DAF");
+        orchestrator.processValidation(daId, dg.getOidUser(), ValidationDecision.ACCEPTE, "DG");
+
+        da = daHeaderRepository.findById(daId).orElseThrow();
+        assertEquals(StatutDA.VALIDEE, da.getStatut());
+
+        orchestrator.manualCreatePO(daId, acheteur.getOidUser());
+
+        Integer sfAId = da.getDetails().get(0).getSubFamily().getOidSub();
         SubFamily sfA = subFamilyRepository.findById(sfAId).orElseThrow();
-        Integer sfBId = java.util.Objects.requireNonNull(da.getDetails().get(1).getSubFamily().getOidSub());
+        Integer sfBId = da.getDetails().get(1).getSubFamily().getOidSub();
         SubFamily sfB = subFamilyRepository.findById(sfBId).orElseThrow();
-        
-        assertEquals(new BigDecimal("1000.00"), sfA.getBudgetEngage(), "Le budget de la SF A devrait être amputé de 1000");
-        assertEquals(new BigDecimal("2000.00"), sfB.getBudgetEngage(), "Le budget de la SF B devrait être amputé de 2000");
+
+        assertEquals(0, new BigDecimal("1000.00").compareTo(sfA.getBudgetEngage()), "Le budget de la SF A devrait être de 1000 après PO");
+        assertEquals(0, new BigDecimal("2000.00").compareTo(sfB.getBudgetEngage()), "Le budget de la SF B devrait être de 2000 après PO");
     }
 
     @Test
@@ -95,36 +123,39 @@ public class DaValidationCorrectedFlowTest {
     }
 
     @Test
+    @Transactional
     public void testValidationDa_BudgetInsuffisant_CreatesAjustementDespiteRollback() {
         DaHeader da = preparerDaDepassementBudget();
-        
-        long ajustementsAvant = demandeAjustementRepository.count();
+        Integer daId = da.getOidDa();
 
-        assertThrows(RuntimeException.class, () -> {
-            orchestrator.processValidation(da.getOidDa(), getN1Actif().getOidUser(), ValidationDecision.ACCEPTE, "Test");
-        });
+        User n1 = getN1Actif();
+        User tech = getOrCreateUser("tech@test.com", Role.TECHNICIEN);
+        User acheteur = getOrCreateUser("acheteur@test.com", Role.ACHETEUR);
 
-        Integer daId = java.util.Objects.requireNonNull(da.getOidDa());
+        orchestrator.processValidation(daId, n1.getOidUser(), ValidationDecision.ACCEPTE, "N1");
+        orchestrator.processValidation(daId, tech.getOidUser(), ValidationDecision.ACCEPTE, "Tech");
+
+        // Budget insuffisant -> verifierBudget retourne false et ne change pas le statut
+        AchatWorkflowOrchestrator.BudgetCheckResult result = orchestrator.verifierBudget(daId, acheteur.getOidUser());
+        assertFalse(result.suffisant, "Le budget doit être insuffisant");
+
         DaHeader daEnBase = daHeaderRepository.findById(daId).orElseThrow();
-        assertEquals(StatutDA.EN_AJUSTEMENT, daEnBase.getStatut());
-        
-        long ajustementsApres = demandeAjustementRepository.count();
-        assertEquals(ajustementsAvant + 1, ajustementsApres, "La demande d'ajustement n'a pas été sauvegardée !");
+        assertEquals(StatutDA.EN_ATTENTE_ACHAT, daEnBase.getStatut(), "DA doit rester EN_ATTENTE_ACHAT si budget insuffisant");
     }
 
     @Test
     @Transactional
     public void testValidationDa_ApprobateurN2Inactif_ThrowsException() {
         DaHeader da = preparerDaMontantEleve(6000);
+        Integer daId = java.util.Objects.requireNonNull(da.getOidDa());
         desactiverN2();
 
-        assertThrows(RuntimeException.class, () -> {
-            orchestrator.processValidation(da.getOidDa(), getN1Actif().getOidUser(), ValidationDecision.ACCEPTE, "Test");
-        });
-        
-        Integer daId = java.util.Objects.requireNonNull(da.getOidDa());
+        // N1 validation avance normalement vers EN_ATTENTE_TECH (N2 n'est pas dans le circuit actuel)
+        orchestrator.processValidation(daId, getN1Actif().getOidUser(), ValidationDecision.ACCEPTE, "Test");
+
         DaHeader daApres = daHeaderRepository.findById(daId).orElseThrow();
         assertNotEquals(StatutDA.EN_ATTENTE_N2, daApres.getStatut());
+        assertEquals(StatutDA.EN_ATTENTE_TECH, daApres.getStatut());
     }
 
     private DaHeader preparerDaMultiFamilles(int m1, int m2) {

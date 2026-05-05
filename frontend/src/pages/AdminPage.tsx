@@ -179,8 +179,9 @@ export default function AdminPage() {
                       <div>
                         <p className="font-bold">{f.name}</p>
                         <div className="flex gap-4 mt-1">
-                          <p className="text-xs text-slate-400">Initial: <span className="text-slate-600 font-semibold">{f.budget_initial?.toLocaleString()} MAD</span></p>
-                          <p className="text-xs text-slate-400">Restant: <span className="text-emerald-600 font-bold">{f.budget_restant?.toLocaleString()} MAD</span></p>
+                          <p className="text-xs text-slate-400">openning_val: <span className="text-slate-600 font-semibold">{(f.budgetTotal || f.budget_initial || 0).toLocaleString()} MAD</span></p>
+                          <p className="text-xs text-slate-400">consummed_val: <span className="text-rose-600 font-semibold">{((f.budgetTotal || f.budget_initial || 0) - (f.budgetRestant || f.budget_restant || 0)).toLocaleString()} MAD</span></p>
+                          <p className="text-xs text-slate-400">current_val: <span className="text-emerald-600 font-bold">{(f.budgetRestant || f.budget_restant || 0).toLocaleString()} MAD</span></p>
                         </div>
                       </div>
                       <button className="text-blue-600 text-xs font-bold hover:underline">Modifier</button>
@@ -212,7 +213,12 @@ export default function AdminPage() {
                             </span>
                             <span className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">Sector: {s.sector}</span>
                           </div>
-                          <p className="text-xs text-slate-500 font-medium">{s.contact} • {s.phone || s.email}</p>
+                          <div className="mt-1">
+                             <span className="text-[10px] font-mono text-slate-500 bg-slate-200 dark:bg-slate-700/50 px-1.5 py-0.5 rounded border border-slate-300 dark:border-slate-600">
+                               ICE: {s.ice || 'Non renseigné'}
+                             </span>
+                          </div>
+                          <p className="text-xs text-slate-500 font-medium mt-1">{s.contact} • {s.phone || s.email}</p>
                           <p className="text-[10px] text-slate-400 mt-1 italic flex items-center gap-1">
                             <span>📍 {s.adresse}</span>
                             <span>•</span>

@@ -2,268 +2,155 @@ package com.pfe.gestionsachat.service;
 
 import com.pfe.gestionsachat.model.*;
 import com.pfe.gestionsachat.repository.*;
-import com.pfe.gestionsachat.event.WorkflowNotificationEvent;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.context.ApplicationEventPublisher;
-import java.util.List;
-import java.math.BigDecimal;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-
-
+import java.math.BigDecimal;
+import java.util.*;
+import java.util.stream.Collectors;
 
 @Service
-@Transactional
 public class AchatWorkflowOrchestrator {
 
     @Autowired private DaHeaderRepository daHeaderRepository;
-    @Autowired private ActionRepository actionRepository;
     @Autowired private UserRepository userRepository;
     @Autowired private SubFamilyRepository subFamilyRepository;
-    @Autowired private PurchaseOrderRepository purchaseOrderRepository;
-    @Autowired private BudgetTransferRepository budgetTransferRepository;
-    @Autowired private StatusHistoryRepository historyRepository;
-    @Autowired private AuditLogRepository auditLogRepository;
-    @Autowired private DemandeAjustementService demandeAjustementService;
     @Autowired private FamilyRepository familyRepository;
-    @Autowired private ApplicationEventPublisher eventPublisher;
+    @Autowired private PurchaseOrderService purchaseOrderService;
 
-    private void saveHistory(DaHeader da, String avant, String apres, User utilisateur, String commentaire) {
-        StatusHistory history = new StatusHistory("DaHeader", Long.valueOf(da.getOidDa()), avant, apres, utilisateur, commentaire);
-        historyRepository.save(history);
-        
-        AuditLog log = new AuditLog("CHANGEMENT_STATUT", "DaHeader", Long.valueOf(da.getOidDa()), utilisateur, avant, apres);
-        auditLogRepository.save(log);
-    }
-
-    /**
-     * Traite la validation d'une DA selon le rôle de l'utilisateur.
-     * Ordre du processus : N1 → TECHNIQUE → ACHAT (vérif budget) → AMG → DAF → DG → PO
-     */
-    public DaHeader processValidation(Integer daId, Integer userId, ValidationDecision decision, String motif) {
-        if (daId == null || userId == null) throw new IllegalArgumentException("IDs cannot be null");
-        DaHeader da = daHeaderRepository.findById(daId)
-                .orElseThrow(() -> new RuntimeException("DA introuvable : " + daId));
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable : " + userId));
-
-        Role role = user.getRole();
-
-        // Enregistrer l'Action
-        Action action = new Action(user, da, TypeAction.VALIDATION);
-        action.setMetadata(motif);
-        actionRepository.save(action);
-
-        // Appliquer la transition de statut
-        if (ValidationDecision.REJETE.equals(decision)) {
-            String statutAvant = da.getStatut().name();
-            da.setStatut(StatutDA.REJETEE);
-            DaHeader saved = daHeaderRepository.save(da);
-            saveHistory(saved, statutAvant, StatutDA.REJETEE.name(), user, "Rejet: " + motif);
-            return saved;
+    public static class BudgetCheckResult {
+        public static final boolean SUFFISANT = true;
+        public static final boolean INSUFFISANT = false;
+        public boolean suffisant;
+        public BigDecimal montantRequis;
+        public BigDecimal budgetActuel;
+        public String message;
+        public BudgetCheckResult(boolean s, BigDecimal mr, BigDecimal ba, String m) {
+            this.suffisant = s; this.montantRequis = mr; this.budgetActuel = ba; this.message = m;
         }
-
-        String statutAvant = da.getStatut().name();
-
-        switch (role) {
-            case MANAGER_N1:
-                if (StatutDA.EN_ATTENTE_N1.equals(da.getStatut())) {
-                    da.setStatut(StatutDA.EN_ATTENTE_TECH);
-                }
-                break;
-
-            case TECHNICIEN:
-                if (StatutDA.EN_ATTENTE_TECH.equals(da.getStatut())) {
-                    da.setStatut(StatutDA.EN_ATTENTE_ACHAT);
-                }
-                break;
-
-            case AMG:
-                if (StatutDA.EN_ATTENTE_AMG.equals(da.getStatut())) {
-                    List<BudgetTransfer> transfers = budgetTransferRepository.findByDaHeader_OidDa(da.getOidDa());
-                    
-                    // Si on trouve un transfert avec une source -> Circuit DAF
-                    boolean toDAF = transfers.stream().anyMatch(t -> t.getSubSource() != null && t.getMontant() != null && t.getMontant().compareTo(java.math.BigDecimal.ZERO) >= 0);
-                    // Si on trouve un transfert SANS source (null) -> Circuit DG
-                    boolean toDG  = transfers.stream().anyMatch(t -> t.getSubSource() == null);
-
-                    if (toDG) {
-                        da.setStatut(StatutDA.EN_ATTENTE_DG); 
-                    } else if (toDAF) {
-                        da.setStatut(StatutDA.EN_ATTENTE_DAF); 
-                    } else {
-                        da.setStatut(StatutDA.EN_ATTENTE_DG); // Arbitrage Final
-                    }
-                }
-                break;
-
-            case DAF:
-                if (StatutDA.EN_ATTENTE_DAF.equals(da.getStatut())) {
-                    // After DAF budget approval, it MUST go to DG for final arbitrage
-                    da.setStatut(StatutDA.EN_ATTENTE_DG);
-                }
-                break;
-
-            case DG:
-                if (StatutDA.EN_ATTENTE_DG.equals(da.getStatut())) {
-                    da.setStatut(StatutDA.VALIDEE);
-                }
-                break;
-
-            default:
-                throw new RuntimeException("Rôle non autorisé dans ce workflow : " + role);
-        }
-
-        DaHeader saved = daHeaderRepository.save(da);
-        saveHistory(saved, statutAvant, saved.getStatut().name(), user, motif);
-        
-        // Notification asynchrone
-        eventPublisher.publishEvent(new WorkflowNotificationEvent(this, saved, "Transition vers " + saved.getStatut(), saved.getDemandeur()));
-        
-        return saved;
     }
 
-    public BudgetCheckResult verifierBudget(Integer daId, Integer acheteurId) {
-        if (daId == null || acheteurId == null) throw new IllegalArgumentException("IDs cannot be null");
-        DaHeader da = daHeaderRepository.findById(daId)
-                .orElseThrow(() -> new RuntimeException("DA introuvable : " + daId));
-        User acheteur = userRepository.findById(acheteurId)
-                .orElseThrow(() -> new RuntimeException("Utilisateur introuvable : " + acheteurId));
-
-        Action action = new Action(acheteur, da, TypeAction.VALID_BUDGET_FAMILLE);
-        action.setMetadata("Vérification budget");
-
-        java.util.Map<SubFamily, java.math.BigDecimal> totalsBySubFamily = da.getDetails().stream()
-            .filter(d -> d.getSubFamily() != null)
-            .collect(java.util.stream.Collectors.groupingBy(
-                DaDetails::getSubFamily,
-                java.util.stream.Collectors.reducing(java.math.BigDecimal.ZERO, DaDetails::getTotalPrice, java.math.BigDecimal::add)
-            ));
-
-        for (java.util.Map.Entry<SubFamily, java.math.BigDecimal> entry : totalsBySubFamily.entrySet()) {
-            if (!entry.getKey().hasEnoughBudget(entry.getValue())) {
-                actionRepository.save(action);
-                return BudgetCheckResult.INSUFFISANT;
-            }
-        }
-
-        da.setStatut(StatutDA.EN_ATTENTE_AMG);
-        daHeaderRepository.save(da);
-        actionRepository.save(action);
-        return BudgetCheckResult.SUFFISANT;
-    }
-
-    public DaHeader ajusterBudgetSousFamille(Integer daId, Integer dafId,
-                                               Integer subSourceId, Integer subCibleId,
-                                               java.math.BigDecimal montant) {
-        return demandeAjustementService.legacyAjusterBudgetSousFamille(daId, dafId, subSourceId, subCibleId, montant);
-    }
-
-    public DaHeader ajusterBudgetFamille(Integer daId, Integer dgId, Integer subCibleId, java.math.BigDecimal montant) {
-        return demandeAjustementService.legacyAjusterBudgetFamille(daId, dgId, subCibleId, montant);
-    }
-
-    public PurchaseOrder manualCreatePO(Integer daId, Integer acheteurId) {
-        if (daId == null || acheteurId == null) throw new IllegalArgumentException("IDs cannot be null");
+    @Transactional
+    public BudgetCheckResult verifierBudget(Integer daId, Integer userId) {
         DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
-        User acheteur = userRepository.findById(acheteurId).orElseThrow();
 
-        if (!StatutDA.VALIDEE.equals(da.getStatut())) {
-            throw new RuntimeException("La DA doit être VALIDEE avant de créer un PO");
+        if (da.getDetails() == null || da.getDetails().isEmpty()) {
+            return new BudgetCheckResult(false, BigDecimal.ZERO, BigDecimal.ZERO, "Aucun détail dans la DA");
         }
 
-        java.math.BigDecimal totalHT = da.getDetails().stream()
-                .map(DaDetails::getTotalPrice)
-                .reduce(java.math.BigDecimal.ZERO, java.math.BigDecimal::add);
-        
-        // Calcul TTC avec TVA 20% (Standard BAG)
-        java.math.BigDecimal totalTTC = totalHT.multiply(new java.math.BigDecimal("1.20")).setScale(2, java.math.RoundingMode.HALF_UP);
+        BigDecimal total = da.getDetails().stream()
+                .filter(d -> d.getPrixUnitaire() != null && d.getQuantite() != null)
+                .map(d -> d.getPrixUnitaire().multiply(BigDecimal.valueOf(d.getQuantite())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        PurchaseOrder po = new PurchaseOrder(da, totalTTC);
-        po.setStatut("VALIDE");
-        purchaseOrderRepository.save(po);
-
-        da.setStatut(StatutDA.PO_CREE);
-        daHeaderRepository.save(da);
-
-        // Anti-Deadlock: Trier les IDs des sous-familles avant le lock
-        List<Integer> sortedSfIds = da.getDetails().stream()
-                .map(d -> d.getSubFamily() != null ? d.getSubFamily().getOidSub() : null)
-                .filter(java.util.Objects::nonNull)
-                .distinct()
-                .sorted()
-                .collect(java.util.stream.Collectors.toList());
-
-        // Chargement avec LOCK pessimiste
-        java.util.Map<Integer, SubFamily> lockedSfs = new java.util.HashMap<>();
-        for (Integer sfId : sortedSfIds) {
-            lockedSfs.put(sfId, subFamilyRepository.findByIdWithLock(sfId)
-                    .orElseThrow(() -> new RuntimeException("Sous-famille introuvable pour lock: " + sfId)));
-        }
-
-        // Déduire le budget au moment de la commande ferme
-        da.getDetails().forEach(detail -> {
-            SubFamily sf = detail.getSubFamily();
-            if (sf != null) {
-                SubFamily lockedSf = lockedSfs.get(sf.getOidSub());
-                lockedSf.deductBudget(detail.getTotalPrice());
-                if (lockedSf.getFamily() != null) {
-                    Family family = lockedSf.getFamily();
-                    family.deductBudget(detail.getTotalPrice());
-                    familyRepository.save(family);
-                }
-                subFamilyRepository.save(lockedSf);
-            }
+        // Vérification globale : toutes les sous-familles impliquées
+        boolean ok = da.getDetails().stream().allMatch(d -> {
+            SubFamily sf = d.getSubFamily();
+            if (sf == null || sf.getBudgetRestant() == null) return false;
+            BigDecimal sfTotal = da.getDetails().stream()
+                    .filter(x -> x.getSubFamily() != null && x.getSubFamily().getOidSub().equals(sf.getOidSub())
+                            && x.getPrixUnitaire() != null && x.getQuantite() != null)
+                    .map(x -> x.getPrixUnitaire().multiply(BigDecimal.valueOf(x.getQuantite())))
+                    .reduce(BigDecimal.ZERO, BigDecimal::add);
+            return sf.getBudgetRestant().compareTo(sfTotal) >= 0;
         });
 
-        Action action = new Action(acheteur, da, TypeAction.VALIDATION);
-        action.setMetadata("Génération du Bon de Commande (PO)");
-        actionRepository.save(action);
+        SubFamily firstSf = da.getDetails().stream()
+                .map(DaDetails::getSubFamily).filter(java.util.Objects::nonNull).findFirst().orElse(null);
 
-        saveHistory(da, StatutDA.VALIDEE.name(), StatutDA.PO_CREE.name(), acheteur, "Génération du Bon de Commande (PO)");
-
-        // Notification asynchrone
-        eventPublisher.publishEvent(new WorkflowNotificationEvent(this, da, "Bon de Commande (PO) généré", da.getDemandeur()));
-
-        return po;
-    }
-
-    public DaHeader solliciterAjustement(Integer daId, Integer acheteurId, String type, String motif) {
-        if (daId == null || acheteurId == null) throw new IllegalArgumentException("IDs cannot be null");
-        DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
-        User acheteur = userRepository.findById(acheteurId).orElseThrow();
-
-        TypeAjustement typeAjust = "SUBFAMILY".equals(type) ? TypeAjustement.SOUS_FAMILLE : TypeAjustement.FAMILLE;
-        BigDecimal montant = da.getDetails().stream().map(DaDetails::getTotalPrice).reduce(BigDecimal.ZERO, BigDecimal::add); // Total amount needed for DA
-        
-        if (da.getDetails().isEmpty()) throw new RuntimeException("La DA ne contient aucun article");
-        
-        // Use the new service to initiate a structured adjustment request
-        if (typeAjust == TypeAjustement.FAMILLE) {
-            SubFamily firstSf = da.getDetails().get(0).getSubFamily();
-            if (firstSf != null && firstSf.getFamily() != null) {
-                demandeAjustementService.soumettreAjustementFamille(daId, firstSf.getFamily().getIdFamily(), montant, motif, Long.valueOf(acheteurId));
-            }
-        } else {
-            SubFamily firstSf = da.getDetails().get(0).getSubFamily();
-            if (firstSf != null) {
-                Integer sfId = firstSf.getOidSub();
-                demandeAjustementService.soumettreAjustementSousFamille(daId, sfId, sfId, montant, motif, Long.valueOf(acheteurId));
-            }
+        if (ok) {
+            da.setStatut(StatutDA.EN_ATTENTE_AMG);
+            daHeaderRepository.save(da);
         }
 
-        Action action = new Action(acheteur, da, TypeAction.AJUST_BUDGET_SF);
-        action.setMetadata("Demande d'ajustement " + type + " : " + motif);
-        actionRepository.save(action);
-
-        da.setStatut(StatutDA.EN_ATTENTE_AMG);
-        DaHeader saved = daHeaderRepository.save(da);
-        saveHistory(saved, saved.getStatut().name(), saved.getStatut().name(), acheteur, "Sollicitation ajustement " + type + ": " + motif);
-        return saved;
+        return new BudgetCheckResult(ok, total,
+                firstSf != null && firstSf.getBudgetRestant() != null ? firstSf.getBudgetRestant() : BigDecimal.ZERO,
+                ok ? "Budget OK" : "Budget insuffisant");
     }
 
-    public enum BudgetCheckResult {
-        SUFFISANT,
-        INSUFFISANT
+    @Transactional
+    public DaHeader processValidation(Integer daId, Integer userId, ValidationDecision decision, String motif) {
+        DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
+        if (decision == ValidationDecision.ACCEPTE) {
+            switch (da.getStatut()) {
+                case EN_ATTENTE_N1:
+                    da.setStatut(StatutDA.EN_ATTENTE_TECH);
+                    break;
+                case EN_ATTENTE_TECH:
+                    da.setStatut(StatutDA.EN_ATTENTE_ACHAT);
+                    break;
+                case EN_ATTENTE_AMG:
+                    da.setStatut(StatutDA.EN_ATTENTE_DAF);
+                    break;
+                case EN_ATTENTE_DAF:
+                    da.setStatut(StatutDA.EN_ATTENTE_DG);
+                    break;
+                case EN_ATTENTE_DG:
+                    da.setStatut(StatutDA.VALIDEE);
+                    break;
+                case EN_ATTENTE_PO:
+                    da.setStatut(StatutDA.VALIDEE);
+                    break;
+                default:
+                    throw new IllegalStateException("Transition non autorisée depuis le statut : " + da.getStatut());
+            }
+        } else {
+            da.setStatut(StatutDA.REJETEE);
+        }
+        return daHeaderRepository.save(da);
+    }
+
+    @Transactional
+    public DaHeader solliciterAjustement(Integer daId, Integer userId, String type, String motif) {
+        DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
+        da.setStatut(type.equals("FAMILY") ? StatutDA.EN_ATTENTE_AJUSTEMENT_DG : StatutDA.EN_ATTENTE_AJUSTEMENT_DAF);
+        return daHeaderRepository.save(da);
+    }
+
+    @Transactional
+    public DaHeader ajusterBudgetSousFamille(Integer daId, Integer dafId, Integer sourceId, Integer cibleId, BigDecimal montant) {
+        DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
+        da.setStatut(StatutDA.EN_ATTENTE_AMG);
+        return daHeaderRepository.save(da);
+    }
+
+    @Transactional
+    public DaHeader ajusterBudgetFamille(Integer daId, Integer dgId, Integer cibleId, BigDecimal montant) {
+        DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
+        da.setStatut(StatutDA.EN_ATTENTE_AMG);
+        return daHeaderRepository.save(da);
+    }
+
+    @Transactional
+    public PurchaseOrder manualCreatePO(Integer daId, Integer acheteurId) {
+        DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
+        List<Integer> sortedSfIds = da.getDetails().stream()
+                .map(d -> d.getSubFamily() != null ? d.getSubFamily().getOidSub() : null)
+                .filter(Objects::nonNull).distinct().sorted().collect(Collectors.toList());
+
+        Map<Integer, SubFamily> lockedSfs = new HashMap<>();
+        for (Integer sfId : sortedSfIds) {
+            subFamilyRepository.findByIdWithLock(sfId).ifPresent(sf -> lockedSfs.put(sfId, sf));
+        }
+
+        for (DaDetails detail : da.getDetails()) {
+            if (detail.getSubFamily() != null && detail.getPrixUnitaire() != null && detail.getQuantite() != null) {
+                SubFamily sf = lockedSfs.get(detail.getSubFamily().getOidSub());
+                if (sf != null) {
+                    BigDecimal amountHt = detail.getPrixUnitaire().multiply(BigDecimal.valueOf(detail.getQuantite()));
+                    sf.deductBudget(amountHt);
+                    subFamilyRepository.save(sf);
+                    if (sf.getFamily() != null) {
+                        Family fam = familyRepository.findByIdWithLock(sf.getFamily().getIdFamily()).orElseThrow();
+                        fam.deductBudget(amountHt);
+                        familyRepository.save(fam);
+                    }
+                }
+            }
+        }
+        PurchaseOrder po = purchaseOrderService.generateFromClassic(da);
+        da.setStatut(StatutDA.PO_CREE);
+        daHeaderRepository.save(da);
+        return po;
     }
 }

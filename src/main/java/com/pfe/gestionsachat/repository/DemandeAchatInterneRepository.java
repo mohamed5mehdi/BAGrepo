@@ -21,4 +21,8 @@ public interface DemandeAchatInterneRepository extends JpaRepository<DemandeAcha
 
     @EntityGraph(attributePaths = {"budgetFamille", "budgetSousFamille", "demandeur"})
     List<DemandeAchatInterne> findByStatutAndDemandeur_N1(StatutDemande statut, User n1);
+
+    java.util.Optional<DemandeAchatInterne> findBySubmissionToken(String token);
+
+    java.util.Optional<DemandeAchatInterne> findFirstByDemandeurAndDesignationAndQuantiteOrderByDateCreationDesc(User demandeur, String designation, Integer quantite);
 }

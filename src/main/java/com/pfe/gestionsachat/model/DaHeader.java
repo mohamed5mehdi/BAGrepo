@@ -66,8 +66,12 @@ public class DaHeader {
     }
 
     public void soumettre() {
-        // Updated logic to match new states if needed
-        this.statut = StatutDA.EN_ATTENTE_N1;
+        if (this.statut != StatutDA.EN_ATTENTE_N1) {
+            throw new IllegalStateException(
+                    "Impossible de soumettre la DA : statut actuel [" + this.statut + "] — seul EN_ATTENTE_N1 est autorisé.");
+        }
+        // Le statut reste EN_ATTENTE_N1 car la soumission déclenche le circuit de validation N1
+        // Aucun changement d'état ici — c'est l'approbation N1 qui fait avancer le flux
     }
 
     // Getters

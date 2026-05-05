@@ -60,21 +60,26 @@ public class DaToPoFlowTest {
 
         // 5. Check Budget -> AMG
         AchatWorkflowOrchestrator.BudgetCheckResult budgetResult = orchestrator.verifierBudget(daId, java.util.Objects.requireNonNull(acheteur.getOidUser()));
-        assertEquals(AchatWorkflowOrchestrator.BudgetCheckResult.SUFFISANT, budgetResult);
+        assertTrue(budgetResult.suffisant, "Budget should be sufficient");
         assertEquals(StatutDA.EN_ATTENTE_AMG, daHeaderRepository.findById(daId).get().getStatut());
 
-        // 6. Validation AMG -> DG (Pas de transfert complexe ici, par défaut circuit DG si simple)
+        // 6. Validation AMG -> DAF
         orchestrator.processValidation(daId, java.util.Objects.requireNonNull(amg.getOidUser()), ValidationDecision.ACCEPTE, "OK AMG");
+        assertEquals(StatutDA.EN_ATTENTE_DAF, daHeaderRepository.findById(daId).get().getStatut());
+
+        // 7. Validation DAF -> DG
+        User daf = userRepository.findByEmail("daf@test.com").orElseThrow();
+        orchestrator.processValidation(daId, java.util.Objects.requireNonNull(daf.getOidUser()), ValidationDecision.ACCEPTE, "OK DAF");
         assertEquals(StatutDA.EN_ATTENTE_DG, daHeaderRepository.findById(daId).get().getStatut());
 
-        // 7. Validation DG -> VALIDEE
+        // 8. Validation DG -> VALIDEE
         orchestrator.processValidation(daId, java.util.Objects.requireNonNull(dg.getOidUser()), ValidationDecision.ACCEPTE, "OK DG");
         assertEquals(StatutDA.VALIDEE, daHeaderRepository.findById(daId).get().getStatut());
 
-        // 8. Create PO
+        // 9. Create PO
         PurchaseOrder po = orchestrator.manualCreatePO(daId, java.util.Objects.requireNonNull(acheteur.getOidUser()));
         assertNotNull(po);
-        assertEquals("VALIDE", po.getStatut());
+        assertEquals("VALIDEE", po.getStatut());
         assertTrue(new BigDecimal("1200.00").compareTo(po.getMontantTotal()) == 0);
         assertEquals(StatutDA.PO_CREE, daHeaderRepository.findById(daId).get().getStatut());
 
