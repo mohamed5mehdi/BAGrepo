@@ -124,6 +124,7 @@ export interface DaHeader extends DemandeAchatInterne {
 export interface PurchaseOrder {
   id_po: number;
   daHeader?: DaHeader;
+  fournisseur?: Supplier;
   date_creation: string;
   statut: string;
   montant_total: number;
