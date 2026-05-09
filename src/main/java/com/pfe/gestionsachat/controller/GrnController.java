@@ -29,9 +29,13 @@ public class GrnController {
     @Autowired
     private com.pfe.gestionsachat.repository.GrnHeaderRepository grnRepository;
 
-    @GetMapping("/{poId}/download")
-    public ResponseEntity<byte[]> downloadGrn(@PathVariable Integer poId) {
-        GrnHeader grn = grnRepository.findByPurchaseOrder_IdPo(poId).stream().findFirst().orElseThrow(() -> new RuntimeException("GRN introuvable pour ce PO"));
+    @GetMapping("/{id}/download")
+    public ResponseEntity<byte[]> downloadGrn(@PathVariable Long id) {
+        // Recherche par ID natif du GRN, ou par PO ID si non trouvé (Demo Robustness)
+        GrnHeader grn = grnRepository.findById(id)
+                .orElseGet(() -> grnRepository.findByPurchaseOrder_IdPo(id.intValue()).stream().findFirst()
+                        .orElseThrow(() -> new RuntimeException("GRN introuvable pour l'ID ou le PO spécifié")));
+        
         byte[] pdfBytes = pdfExportService.generateGrnPdf(grn);
         return ResponseEntity.ok()
                 .header(org.springframework.http.HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=GRN_" + grn.getId() + ".pdf")

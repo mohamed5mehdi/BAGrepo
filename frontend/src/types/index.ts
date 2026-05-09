@@ -272,11 +272,47 @@ export interface AuthUser {
 }
 
 // ── API Responses ─────────────────────────────────────────────
-export type BudgetCheckResult = 'SUFFISANT' | 'INSUFFISANT';
+export interface BudgetCheckResult {
+  suffisant: boolean;
+  montantRequis: number;
+  budgetActuel: number;
+  message: string;
+}
 
 export interface ApiError {
   timestamp: string;
   message: string;
   status: number;
 }
+
+// ── Chatbot Entities ──────────────────────────────────────────
+export interface SlotState {
+  designation?: string | null;
+  quantite?: number | null;
+  justification?: string | null;
+  urgence?: UrgenceDemande | null;
+  familyId?: number | null;
+  subFamilyId?: number | null;
+  familyLibelle?: string | null;
+  subFamilyLibelle?: string | null;
+}
+
+export interface ChatResponse {
+  sessionId: string;
+  botMessage: string;
+  slots: SlotState;
+  complet: boolean;
+  confirmed: boolean;
+  daCreeeId?: number | null;
+}
+
+export interface ChatMessage {
+  id: string;
+  sessionId: string;
+  role: 'USER' | 'BOT';
+  content: string;
+  dateEnvoi: string;
+  slotsSnapshot?: string | null;
+}
+
 

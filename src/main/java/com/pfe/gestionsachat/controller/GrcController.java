@@ -32,11 +32,17 @@ public class GrcController {
     @Autowired
     private com.pfe.gestionsachat.repository.GrnHeaderRepository grnRepository;
 
-    @GetMapping("/{poId}/download")
-    public ResponseEntity<byte[]> downloadGrc(@PathVariable Integer poId) {
-        GrnHeader grn = grnRepository.findByPurchaseOrder_IdPo(poId).stream().findFirst().orElseThrow(() -> new RuntimeException("GRN introuvable"));
-        GrcHeader grc = grn.getGrcHeader();
-        if (grc == null) throw new RuntimeException("GRC introuvable pour ce PO");
+    @GetMapping("/{id}/download")
+    public ResponseEntity<byte[]> downloadGrc(@PathVariable Long id) {
+        // Recherche par ID natif du GRC, ou par PO ID si non trouvé
+        GrcHeader grc = grcRepository.findById(id)
+                .orElseGet(() -> {
+                    GrnHeader grn = grnRepository.findByPurchaseOrder_IdPo(id.intValue()).stream().findFirst()
+                            .orElseThrow(() -> new RuntimeException("GRN/GRC introuvable pour cet ID"));
+                    GrcHeader g = grn.getGrcHeader();
+                    if (g == null) throw new RuntimeException("GRC non encore généré pour ce PO");
+                    return g;
+                });
         
         byte[] pdfBytes = pdfExportService.generateGrcPdf(grc);
         return ResponseEntity.ok()

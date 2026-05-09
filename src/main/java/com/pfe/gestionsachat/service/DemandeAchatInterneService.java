@@ -100,6 +100,10 @@ public class DemandeAchatInterneService {
     public DemandeAchatInterne soumettre(@NonNull Long id, @NonNull User demandeur) {
         DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
 
+        if (demande.getStatut() != StatutDemande.BROUILLON) {
+            throw new IllegalStateException("La demande n'est pas à l'état BROUILLON et ne peut pas être soumise de nouveau.");
+        }
+
         boolean stockSuffisant = warehouseService.verifierStock(demande.getDesignation(), demande.getQuantite());
 
         if (stockSuffisant) {

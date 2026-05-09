@@ -48,11 +48,12 @@ public class InvoiceController {
     @Autowired
     private com.pfe.gestionsachat.service.PdfExportService pdfExportService;
 
-    @GetMapping("/{poId}/download")
-    public ResponseEntity<byte[]> downloadInvoice(@PathVariable Integer poId) {
-        Invoice invoice = invoiceRepository.findByPurchaseOrder_IdPo(poId).stream()
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("Facture introuvable pour ce PO"));
+    @GetMapping("/{id}/download")
+    public ResponseEntity<byte[]> downloadInvoice(@PathVariable Long id) {
+        // Recherche par ID natif de l'invoice, ou par PO ID si non trouvé
+        Invoice invoice = invoiceRepository.findById(id)
+                .orElseGet(() -> invoiceRepository.findByPurchaseOrder_IdPo(id.intValue()).stream().findFirst()
+                        .orElseThrow(() -> new RuntimeException("Facture introuvable pour l'ID ou le PO spécifié")));
         
         byte[] pdfBytes = pdfExportService.generateInvoicePdf(invoice);
         return ResponseEntity.ok()

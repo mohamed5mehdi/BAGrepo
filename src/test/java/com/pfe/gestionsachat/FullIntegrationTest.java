@@ -26,7 +26,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-@SpringBootTest(classes = GestionsAchatApplication.class)
+@SpringBootTest(classes = ProcurementManagementApplication.class)
 @TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class FullIntegrationTest {
 

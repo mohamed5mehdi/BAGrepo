@@ -117,13 +117,15 @@ public class LogisticsFlowTest {
         grcDetail.setAcceptedQuantity(8);
         grcDetail.setItemCode("PART-123"); // Important pour GrcService
         grcDetail.setUnitCost(100.0);
+        grcDetail.setTaxRate(20.0);
         grc.setDetails(new java.util.ArrayList<>(List.of(grcDetail)));
         grc = grcService.createGrc(grc);
 
-        // Validation GRC -> Calcul totalCost
+        // Validation GRC -> Calcul totalCost (incluant 20% TVA par défaut si non spécifié, ici on le spécifie)
         GrcHeader validatedGrc = grcService.validateGrc(java.util.Objects.requireNonNull(grc.getId()));
         assertEquals(GrcStatus.VALIDATED, validatedGrc.getStatus());
-        assertEquals(java.math.BigDecimal.valueOf(800.0).setScale(2), validatedGrc.getTotalAmount().setScale(2)); // 8 * 100
+        // 8 items * 100 * 1.20 = 960.0
+        assertEquals(java.math.BigDecimal.valueOf(960.0).setScale(2), validatedGrc.getTotalAmount().setScale(2));
 
         // --- ETAPE 3: Facturation et Matching ---
         Invoice invoice = new Invoice();
@@ -131,12 +133,12 @@ public class LogisticsFlowTest {
         invoice.setPurchaseOrder(po);
         invoice.setInvoiceDate(LocalDate.now());
         invoice.setMontantHT(java.math.BigDecimal.valueOf(800.0));
-        invoice.setMontantTTC(java.math.BigDecimal.valueOf(800.0));
+        invoice.setMontantTTC(java.math.BigDecimal.valueOf(960.0));
         invoice.setStatus(InvoiceStatus.RECEIVED);
         invoice = invoiceRepository.save(invoice);
 
-        // Adjust PO amount to match GRC for the test
-        po.setMontantTotal(java.math.BigDecimal.valueOf(800.0));
+        // Adjust PO amount to match GRC (TTC) for the test
+        po.setMontantTotal(java.math.BigDecimal.valueOf(960.0));
         purchaseOrderRepository.save(java.util.Objects.requireNonNull(po));
 
         // 3-Way Match -> MATCHED

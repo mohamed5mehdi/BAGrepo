@@ -4,7 +4,8 @@ import type {
   Supplier, PurchaseOrder, User,
   ValidationDecision, BudgetCheckResult,
   GrnHeader, GrcHeader, Invoice, CreditNote,
-  Warehouse, StockItem, SupplierOffer
+  Warehouse, StockItem, SupplierOffer,
+  ChatResponse, ChatMessage, DemandeAchatInterne
 } from '../types';
 
 // ── Auth ─────────────────────────────────────────────────────
@@ -130,4 +131,18 @@ export const createCreditNote = (cn: Partial<CreditNote>) => api.post<CreditNote
 // ── Warehouse & Stock ─────────────────────────────────────────
 export const getWarehouses = () => api.get<Warehouse[]>('/warehouse');
 export const getStockItems = () => api.get<StockItem[]>('/warehouse/stock'); // Note: Endpoint à confirmer côté backend
+
+// ── Chatbot API ───────────────────────────────────────────────
+export const demarrerChatbotSession = (userId: number) =>
+  api.post<ChatResponse>('/chatbot/session', null, { params: { userId } });
+
+export const envoyerChatbotMessage = (sessionId: string, userId: number, message: string) =>
+  api.post<ChatResponse>('/chatbot/message', { sessionId, userId, message });
+
+export const confirmerChatbotDemande = (sessionId: string, userId: number) =>
+  api.post<DemandeAchatInterne>('/chatbot/confirmer', { sessionId, userId });
+
+export const getChatbotMessages = (sessionId: string, userId: number) =>
+  api.get<ChatMessage[]>(`/chatbot/session/${sessionId}/messages`, { params: { userId } });
+
 

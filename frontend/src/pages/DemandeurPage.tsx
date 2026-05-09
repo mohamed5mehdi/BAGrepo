@@ -5,6 +5,7 @@ import DashboardLayout from '../components/DashboardLayout';
 import KpiCard from '../components/KpiCard';
 import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
+import ChatbotWidget from '../components/ChatbotWidget';
 import { useAuth } from '../context/AuthContext';
 import { getMesDemandesInternes, createDemandeInterne, getFamilies, getSubFamiliesByFamily, downloadPOByDA } from '../api/services';
 import { formatCurrency } from '../utils/constants';
@@ -23,6 +24,7 @@ export default function DemandeurPage() {
   const qc = useQueryClient();
   const [selectedDa, setSelectedDa] = useState<DemandeAchatInterne | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
+  const [showChatbot, setShowChatbot] = useState(false);
   const [search, setSearch] = useState('');
 
   // Form Global State
@@ -167,12 +169,20 @@ export default function DemandeurPage() {
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
           />
         </div>
-        <button
-          onClick={() => { resetForm(); setShowNewForm(true); }}
-          className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none flex items-center gap-2"
-        >
-          <span>➕</span> Nouvelle Demande d'Achat
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowChatbot(true)}
+            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-sm hover:from-violet-700 hover:to-indigo-700 transition-all shadow-lg shadow-violet-200 dark:shadow-none flex items-center gap-2"
+          >
+            <span>🤖</span> Créer par IA
+          </button>
+          <button
+            onClick={() => { resetForm(); setShowNewForm(true); }}
+            className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none flex items-center gap-2"
+          >
+            <span>➕</span> Nouvelle Demande d'Achat
+          </button>
+        </div>
       </div>
 
       {/* Main Table */}
@@ -381,6 +391,18 @@ export default function DemandeurPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {showChatbot && (
+        <ChatbotWidget
+          onClose={() => setShowChatbot(false)}
+          onDaCreated={() => {
+            qc.invalidateQueries({
+              queryKey: ['da', 'mes-demandes']
+            });
+            setShowChatbot(false);
+          }}
+        />
       )}
     </DashboardLayout>
   );

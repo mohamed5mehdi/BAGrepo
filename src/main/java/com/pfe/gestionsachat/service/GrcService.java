@@ -63,7 +63,7 @@ public class GrcService {
             }
 
             java.math.BigDecimal taxFactor = java.math.BigDecimal.ONE;
-            if (detail.getTaxRate() != null && detail.getTaxRate() > 0) {
+            if (detail.getTaxRate() != null) {
                 taxFactor = java.math.BigDecimal.ONE.add(java.math.BigDecimal.valueOf(detail.getTaxRate()).divide(java.math.BigDecimal.valueOf(100)));
             } else {
                 // Default TVA 20% si non spécifié pour le calcul TTC

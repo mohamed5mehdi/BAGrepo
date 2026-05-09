@@ -1,31 +1,32 @@
 services:
   db:
     image: postgres:15-alpine
-    container_name: gestionsachat-db
+    container_name: procurement-db
     environment:
-      POSTGRES_DB: ${POSTGRES_DB:-gestionsachat}
+      POSTGRES_DB: ${POSTGRES_DB:-procurement_db}
       POSTGRES_USER: ${POSTGRES_USER:-mehdi}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-0660438081}
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mehdi} -d ${POSTGRES_DB:-gestionsachat}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mehdi} -d ${POSTGRES_DB:-procurement_db}"]
       interval: 10s
       timeout: 5s
       retries: 5
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  gestionsachat:
+  procurement-app:
     build: .
-    container_name: gestionsachat-app
+    image: procurement-management-app:latest
+    container_name: procurement-app
     ports:
       - "8080:8080"
     depends_on:
       db:
         condition: service_healthy
     environment:
-      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${POSTGRES_DB:-gestionsachat}
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${POSTGRES_DB:-procurement_db}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-mehdi}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-0660438081}
       - SPRING_JPA_HIBERNATE_DDL_AUTO=update
@@ -33,13 +34,14 @@ services:
   frontend:
     build:
       context: ./frontend
-    container_name: gestionsachat-frontend
+    image: procurement-management-frontend:latest
+    container_name: procurement-frontend
     ports:
       - "3000:80"
     healthcheck:
       disable: true
     depends_on:
-      - gestionsachat
+      - procurement-app
 
 volumes:
   postgres_data:

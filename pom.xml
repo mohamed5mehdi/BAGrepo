@@ -9,10 +9,10 @@
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.pfe</groupId>
-    <artifactId>gestionsachat</artifactId>
+    <artifactId>procurement-management</artifactId>
     <version>0.0.1-SNAPSHOT</version>
-    <!-- Standardized Purchase Management System - RELOAD 2.1 -->
-    <name>gestionsachat</name>
+    <!-- Standardized Procurement Management System - RELOAD 2.1 -->
+    <name>Procurement Management System</name>
     <description>Demo project for Spring Boot</description>
     <properties>
         <!-- JDK 26 is used at runtime, but we compile TO Java 21 bytecode         -->
