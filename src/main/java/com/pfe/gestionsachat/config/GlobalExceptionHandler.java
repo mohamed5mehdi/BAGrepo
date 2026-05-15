@@ -1,5 +1,6 @@
 package com.pfe.gestionsachat.config;
 
+import com.pfe.gestionsachat.exception.OverReceptionException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -18,21 +19,52 @@ public class GlobalExceptionHandler {
         ex.printStackTrace(); // Log the full stack trace for debugging
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now());
+        body.put("error", "INTERNAL_ERROR");
         body.put("message", ex.getMessage());
         body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
 
         return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
+    /**
+     * Erreur de saisie utilisateur — HTTP 400 avec code métier structuré.
+     * Couvre : itemCode inconnu dans le PO, montantEstime manquant, etc.
+     */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Object> handleIllegalArgumentException(IllegalArgumentException ex, WebRequest request) {
-        ex.printStackTrace();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now());
+        body.put("error", "INVALID_INPUT");
         body.put("message", ex.getMessage());
+        body.put("field", extractField(ex.getMessage()));
         body.put("status", HttpStatus.BAD_REQUEST.value());
-
         return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Sur-réception GRN — HTTP 409 Conflict (violation règle métier BAG ERP).
+     */
+    @ExceptionHandler(OverReceptionException.class)
+    public ResponseEntity<Object> handleOverReception(OverReceptionException ex, WebRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("error", "OVER_RECEPTION");
+        body.put("message", ex.getMessage());
+        body.put("status", HttpStatus.UNPROCESSABLE_ENTITY.value());
+        return new ResponseEntity<>(body, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * Transition d'état invalide (machine à états PO/GRN/GRC) — HTTP 422.
+     */
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<Object> handleIllegalState(IllegalStateException ex, WebRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("error", "INVALID_STATE_TRANSITION");
+        body.put("message", ex.getMessage());
+        body.put("status", HttpStatus.UNPROCESSABLE_ENTITY.value());
+        return new ResponseEntity<>(body, HttpStatus.UNPROCESSABLE_ENTITY);
     }
     
     @ExceptionHandler(Exception.class)
@@ -40,10 +72,20 @@ public class GlobalExceptionHandler {
         ex.printStackTrace();
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("timestamp", LocalDateTime.now());
-        body.put("message", "An unexpected error occurred");
+        body.put("error", "INTERNAL_ERROR");
+        body.put("message", "Une erreur inattendue s'est produite.");
         body.put("details", ex.getMessage());
         body.put("status", HttpStatus.INTERNAL_SERVER_ERROR.value());
-
         return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    /** Extrait un hint de champ depuis le message d'erreur pour le frontend. */
+    private String extractField(String message) {
+        if (message == null) return null;
+        if (message.contains("itemCode") || message.contains("Article")) return "itemCode";
+        if (message.contains("montantEstime")) return "montantEstime";
+        if (message.contains("grnHeader")) return "grnHeader";
+        if (message.contains("PO")) return "purchaseOrder";
+        return null;
     }
 }

@@ -10,7 +10,7 @@ import type {
 
 // ── Auth ─────────────────────────────────────────────────────
 export const login = (email: string, password: string) =>
-  api.post<{ success: boolean; userId: number; userName: string; email: string; role: string; message: string }>(
+  api.post<{ success: boolean; userId: number; userName: string; email: string; role: string; token: string; message: string }>(
     '/auth/login',
     null,
     { params: { email, password } }
@@ -103,21 +103,36 @@ export const getSubFamiliesByFamily = (familyId: number) =>
 // ── Suppliers ─────────────────────────────────────────────────
 export const getSuppliers = () => api.get<Supplier[]>('/suppliers');
 
-// ── Purchase Orders ───────────────────────────────────────────
+// ── Purchase Orders ───────────────────────────────────────────────
 export const getPurchaseOrders = () => api.get<PurchaseOrder[]>('/purchase-orders');
-export const downloadPO = (id: number) => 
+export const getPurchaseOrdersByStatus = (statut: import('../types').POStatus) =>
+  api.get<PurchaseOrder[]>(`/purchase-orders/status/${statut}`);
+export const downloadPO = (id: number) =>
   api.get(`/purchase-orders/${id}/download`, { responseType: 'blob' });
-export const downloadPOByDA = (daId: number) => 
+export const downloadPOByDA = (daId: number) =>
   api.get(`/purchase-orders/da/${daId}/download`, { responseType: 'blob' });
+export const getPoBalance = (id: number) =>
+  api.get<Record<string, number>>(`/purchase-orders/${id}/balance`);
+/** Responsable Achat : PENDING_APPROVAL → APPROVED */
+export const approvePO = (id: number, userId: number, commentaire?: string) =>
+  api.put<PurchaseOrder>(`/purchase-orders/${id}/approve`, null, { params: { userId, commentaire } });
+/** Responsable Achat : PENDING_APPROVAL → REJECTED */
+export const rejectPO = (id: number, userId: number, motif: string) =>
+  api.put<PurchaseOrder>(`/purchase-orders/${id}/reject`, null, { params: { userId, motif } });
+/** SHORT_CLOSED : clôture manuelle forcée (APPROVED → SHORT_CLOSED) */
+export const shortClosePO = (id: number, userId: number, motif: string) =>
+  api.put<PurchaseOrder>(`/purchase-orders/${id}/short-close`, null, { params: { userId, motif } });
 
 // ── GRN (Good Receipt Note) ───────────────────────────────────
 export const createGrn = (grn: Partial<GrnHeader>) => api.post<GrnHeader>('/grn', grn);
 export const validateGrn = (id: number) => api.put<GrnHeader>(`/grn/${id}/valider`);
+export const getGrnByStatus = (status: string) => api.get<GrnHeader[]>(`/grn/status/${status}`);
 export const downloadGRN = (id: number) => api.get(`/grn/${id}/download`, { responseType: 'blob' });
 
 // ── GRC (Good Receipt Costing) ────────────────────────────────
 export const createGrc = (grc: Partial<GrcHeader>) => api.post<GrcHeader>('/grc', grc);
 export const validateGrc = (id: number) => api.put<GrcHeader>(`/grc/${id}/valider`);
+export const approveGrc = (id: number) => api.put<GrcHeader>(`/grc/${id}/approuver`);
 export const downloadGRC = (id: number) => api.get(`/grc/${id}/download`, { responseType: 'blob' });
 
 // ── Invoices ──────────────────────────────────────────────────

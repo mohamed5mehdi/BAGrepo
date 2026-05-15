@@ -21,6 +21,7 @@ class ComplexWorkflowTest {
     @Autowired private AchatWorkflowOrchestrator orchestrator;
     @Autowired private DaHeaderService daHeaderService;
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
+    @Autowired private com.pfe.gestionsachat.service.PurchaseOrderService purchaseOrderService;
 
     @Test
     @Transactional
@@ -108,8 +109,10 @@ class ComplexWorkflowTest {
         PurchaseOrder po = purchaseOrderRepository.findAll().stream()
                 .filter(p -> p.getDaHeader().getOidDa().equals(daId))
                 .findFirst().orElseThrow();
-        assertEquals(0, java.math.BigDecimal.valueOf(3600.0).compareTo(po.getMontantTotal()), "PO total should be 3600.00 (3000 HT + 20% VAT)");
-        assertEquals("VALIDEE", po.getStatut());
+        po = purchaseOrderService.submitForApproval(po.getIdPo(), acheteur);
+        po = purchaseOrderService.approvePO(po.getIdPo(), daf, "OK PO");
+        assertEquals(POStatus.APPROVED, po.getStatut());
+        assertTrue(new BigDecimal("3600.00").compareTo(po.getMontantTotal()) == 0, "PO total should be 3600.00 (3000 HT + 20% VAT)");
 
         // Check budget deduction
         Integer subId = sfHardware.getOidSub();

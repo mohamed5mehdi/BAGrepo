@@ -3,6 +3,7 @@ package com.pfe.gestionsachat.controller;
 import com.pfe.gestionsachat.model.User;
 import com.pfe.gestionsachat.model.Role;
 import com.pfe.gestionsachat.repository.UserRepository;
+import com.pfe.gestionsachat.config.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,7 +13,7 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping(value = "/api/auth", produces = "application/json")
-@CrossOrigin(origins = "*")
+
 public class AuthController {
 
     @Autowired
@@ -20,6 +21,9 @@ public class AuthController {
 
     @Autowired
     private org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder encoder;
+
+    @Autowired
+    private JwtUtil jwtUtil;
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(
@@ -34,7 +38,8 @@ public class AuthController {
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             if (encoder.matches(password, user.getPassword())) {
-                return buildSuccessResponse(user.getOidUser(), user.getNom(), user.getEmail(), user.getRole());
+                String token = jwtUtil.generateToken(user.getEmail());
+                return buildSuccessResponse(user.getOidUser(), user.getNom(), user.getEmail(), user.getRole(), token);
             }
         }
 
@@ -43,7 +48,7 @@ public class AuthController {
         return ResponseEntity.status(401).body(response);
     }
 
-    private ResponseEntity<Map<String, Object>> buildSuccessResponse(Integer id, String nom, String email, Role role) {
+    private ResponseEntity<Map<String, Object>> buildSuccessResponse(Integer id, String nom, String email, Role role, String token) {
         Map<String, Object> response = new HashMap<>();
         response.put("success", true);
         response.put("message", "Login successful");
@@ -51,6 +56,7 @@ public class AuthController {
         response.put("userName", nom);
         response.put("email", email);
         response.put("role", role);
+        response.put("token", token);
         return ResponseEntity.ok(response);
     }
 }

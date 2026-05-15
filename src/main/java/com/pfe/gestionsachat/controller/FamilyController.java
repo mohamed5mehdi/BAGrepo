@@ -12,7 +12,7 @@ import com.pfe.gestionsachat.dto.FamilyDtoFinancier;
 
 @RestController
 @RequestMapping({"/api/families", "/api/family", "/api/categories", "/api/category", "/api/familles"})
-@CrossOrigin(origins = "*")
+
 public class FamilyController {
 
     @Autowired

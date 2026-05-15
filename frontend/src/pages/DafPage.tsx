@@ -30,7 +30,7 @@ export default function DafPage() {
     queryFn: () => getSubFamilies().then(r => r.data),
   });
 
-  const mine = all.filter(d => ['EN_VALIDATION_DAF', 'AJUSTEMENT_DAF'].includes(d.statut));
+  const mine = all.filter(d => ['VALIDE_DAF'].includes(d.statut));
 
   const adjustMutation = useMutation({
     mutationFn: () => adjustSubFamily(
@@ -49,7 +49,7 @@ export default function DafPage() {
   const kpis = {
     total:   all.length,
     mine:    mine.length,
-    done:    all.filter(d => ['APPROUVEE', 'PO_CREE', 'EN_LIVRAISON'].includes(d.statut)).length,
+    done:    all.filter(d => ['APPROUVEE', 'PO_CREE', 'EN_LIVRAISON', 'AFFECTEE'].includes(d.statut)).length,
     rejected:all.filter(d => d.statut === 'REJETEE').length,
   };
 

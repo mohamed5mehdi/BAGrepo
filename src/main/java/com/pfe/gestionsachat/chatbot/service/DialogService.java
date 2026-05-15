@@ -1,6 +1,7 @@
 package com.pfe.gestionsachat.chatbot.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.pfe.gestionsachat.ai.InsightGeneratorService;
 import com.pfe.gestionsachat.chatbot.dto.ChatResponse;
 import com.pfe.gestionsachat.chatbot.model.ChatMessage;
 import com.pfe.gestionsachat.chatbot.model.ChatMessageRole;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.text.Normalizer;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.List;
 import java.util.Optional;
 
 /**
@@ -56,6 +58,9 @@ public class DialogService {
     @Autowired
     private ObjectMapper objectMapper;
 
+    @Autowired
+    private InsightGeneratorService insightGeneratorService;
+
     // ─── MÉTHODE 1 : demarrerSession ─────────────────────────────────────────
 
     /**
@@ -65,7 +70,8 @@ public class DialogService {
      */
     @Transactional
     public ChatSession demarrerSession(Integer userId) {
-        Optional<ChatSession> existing = chatSessionRepository.findFirstByUserIdAndStatutOrderByDateCreationDesc(userId, ChatSessionStatut.ACTIVE);
+        Optional<ChatSession> existing = chatSessionRepository.findFirstByUserIdAndStatutOrderByDateCreationDesc(userId,
+                ChatSessionStatut.ACTIVE);
 
         if (existing.isPresent()) {
             ChatSession session = existing.get();
@@ -113,7 +119,8 @@ public class DialogService {
             throw new RuntimeException("Accès non autorisé");
         }
         if (session.getStatut() == ChatSessionStatut.CONFIRMEE || session.getStatut() == ChatSessionStatut.ABANDONNEE) {
-            throw new RuntimeException("Impossible de modifier une session " + session.getStatut().name().toLowerCase());
+            throw new RuntimeException(
+                    "Impossible de modifier une session " + session.getStatut().name().toLowerCase());
         }
 
         // 3. Désérialiser slotsJson → SlotState
@@ -121,6 +128,19 @@ public class DialogService {
 
         // 4. Détecter intentions spéciales — normalisé (sans accents) pour robustesse
         String lower = normalizeMsg(message);
+
+        // 4.0 Commande analytique IA — interceptée avant tout traitement de slots
+        if (lower.matches(".*(resume|analyse|bilan|dashboard|rapport|statistique|recap|bilon|analise).*")) {
+            String botMsg;
+            try {
+                botMsg = insightGeneratorService.genererInsights().resumeChatbot();
+            } catch (Exception e) {
+                botMsg = "📊 Analyse indisponible momentanément. Consultez le tableau de bord BI pour les statistiques complètes.";
+            }
+            persistMessages(session, message, botMsg, slots);
+            updateSession(session, slots);
+            return buildResponse(session, botMsg, slots);
+        }
 
         if (lower.contains("recommencer") || lower.contains("reset") || lower.contains("annuler tout")) {
             slots = new SlotState();
@@ -142,7 +162,8 @@ public class DialogService {
             return buildResponse(session, botMsg, slots);
         }
 
-        if (slots.isComplet() && (lower.equals("oui") || lower.equals("ok") || lower.equals("je confirme") || lower.equals("confirmer") || lower.equals("valider"))) {
+        if (slots.isComplet() && (lower.equals("oui") || lower.equals("ok") || lower.equals("je confirme")
+                || lower.equals("confirmer") || lower.equals("valider"))) {
             String botMsg = "Merci de valider en cliquant sur le bouton de confirmation.";
             persistMessages(session, message, botMsg, slots);
             updateSession(session, slots);
@@ -187,9 +208,21 @@ public class DialogService {
                         "\n• Bureautique & Mobilier" +
                         "\n• Fournitures & Services";
 
-            case "SOUS_FAMILLE":
+            case "SOUS_FAMILLE": {
                 String familyLib = slots.getFamilyLibelle() != null ? slots.getFamilyLibelle() : "cette catégorie";
-                return "Pouvez-vous préciser la sous-catégorie pour **" + familyLib + "** ?";
+                StringBuilder sb = new StringBuilder("Sous quelle catégorie pour **");
+                sb.append(familyLib).append("** ?");
+                // Charger les sous-familles dynamiquement depuis la base
+                if (slots.getFamilyId() != null) {
+                    List<SubFamily> subs = subFamilyRepository.findByFamilyId(slots.getFamilyId());
+                    if (!subs.isEmpty()) {
+                        for (SubFamily s : subs) {
+                            sb.append("\n• ").append(s.getLibelle());
+                        }
+                    }
+                }
+                return sb.toString();
+            }
 
             case "JUSTIFICATION":
                 return "Quelle est la justification de cette demande ?";
@@ -202,12 +235,15 @@ public class DialogService {
 
             case "COMPLET":
                 return "📋 **Récapitulatif de votre demande :**" +
-                        "\n• Article     : " + (slots.getDesignation() != null ? slots.getDesignation() : "-") +
-                        "\n• Quantité   : " + (slots.getQuantite() != null ? slots.getQuantite() : "-") +
-                        "\n• Catégorie  : " + (slots.getFamilyLibelle() != null ? slots.getFamilyLibelle() : "Non spécifiée") +
-                        "\n• Sous-cat.  : " + (slots.getSubFamilyLibelle() != null ? slots.getSubFamilyLibelle() : "Non applicable") +
-                        "\n• Urgence    : " + (slots.getUrgence() != null ? slots.getUrgence() : "NORMALE") +
-                        "\n• Justif.    : " + (slots.getJustification() != null ? slots.getJustification() : "Non précisée") +
+                        "\n- **Article**     : " + (slots.getDesignation() != null ? slots.getDesignation() : "-") +
+                        "\n- **Quantité**   : " + (slots.getQuantite() != null ? slots.getQuantite() : "-") +
+                        "\n- **Catégorie**  : "
+                        + (slots.getFamilyLibelle() != null ? slots.getFamilyLibelle() : "Non spécifiée") +
+                        "\n- **Sous-cat.**  : "
+                        + (slots.getSubFamilyLibelle() != null ? slots.getSubFamilyLibelle() : "Non applicable") +
+                        "\n- **Urgence**    : " + (slots.getUrgence() != null ? slots.getUrgence() : "NORMALE") +
+                        "\n- **Justif.**    : "
+                        + (slots.getJustification() != null ? slots.getJustification() : "Non précisée") +
                         "\n\nConfirmez-vous cette demande ? **(oui/non)**";
 
             default:
@@ -232,8 +268,9 @@ public class DialogService {
         if (!session.getUserId().equals(userId)) {
             throw new RuntimeException("Accès non autorisé");
         }
-        if (session.getStatut() == ChatSessionStatut.CONFIRMEE) {
-            throw new RuntimeException("La demande a déjà été confirmée");
+        if (session.getStatut() == ChatSessionStatut.CONFIRMEE || session.getStatut() == ChatSessionStatut.ABANDONNEE) {
+            throw new RuntimeException(
+                    "Session " + session.getStatut().name().toLowerCase() + " — opération impossible");
         }
 
         // 3. Désérialiser slots
@@ -251,7 +288,7 @@ public class DialogService {
         // 5. Charger User
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new RuntimeException("Utilisateur introuvable"));
-                
+
         if (!Boolean.TRUE.equals(user.getActif())) {
             throw new RuntimeException("Utilisateur inactif");
         }
@@ -301,14 +338,16 @@ public class DialogService {
      * "annulé" → "annule", "modifié" → "modifie".
      */
     private String normalizeMsg(String input) {
-        if (input == null) return "";
+        if (input == null)
+            return "";
         return Normalizer.normalize(input.toLowerCase(), Normalizer.Form.NFD)
                 .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
     }
 
     private SlotState deserializeSlots(String slotsJson) {
         try {
-            if (slotsJson == null || slotsJson.isBlank()) return new SlotState();
+            if (slotsJson == null || slotsJson.isBlank())
+                return new SlotState();
             return objectMapper.readValue(slotsJson, SlotState.class);
         } catch (Exception e) {
             return new SlotState();
@@ -319,7 +358,9 @@ public class DialogService {
         try {
             return objectMapper.writeValueAsString(slots);
         } catch (Exception e) {
-            return "{}";
+            // Ne jamais avaler silencieusement — une perte d'état ici = régression
+            // conversationnelle invisible pour l'utilisateur.
+            throw new RuntimeException("[DialogService] Échec critique de sérialisation SlotState", e);
         }
     }
 
@@ -348,20 +389,25 @@ public class DialogService {
                 slots,
                 slots.isComplet(),
                 session.getStatut() == ChatSessionStatut.CONFIRMEE,
-                session.getDaCreeeId()
-        );
+                session.getDaCreeeId());
     }
 
     /**
      * Identifie le dernier slot rempli dans l'ordre inverse de priorité.
      */
     private String findDernierSlotRempli(SlotState slots) {
-        if (slots.getUrgence() != null) return "URGENCE";
-        if (slots.getJustification() != null) return "JUSTIFICATION";
-        if (slots.getSubFamilyId() != null) return "SOUS_FAMILLE";
-        if (slots.getFamilyId() != null) return "FAMILLE";
-        if (slots.getQuantite() != null) return "QUANTITE";
-        if (slots.getDesignation() != null) return "DESIGNATION";
+        if (slots.getUrgence() != null)
+            return "URGENCE";
+        if (slots.getJustification() != null)
+            return "JUSTIFICATION";
+        if (slots.getSubFamilyId() != null)
+            return "SOUS_FAMILLE";
+        if (slots.getFamilyId() != null)
+            return "FAMILLE";
+        if (slots.getQuantite() != null)
+            return "QUANTITE";
+        if (slots.getDesignation() != null)
+            return "DESIGNATION";
         return null;
     }
 

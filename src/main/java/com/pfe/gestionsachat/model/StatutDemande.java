@@ -3,17 +3,16 @@ package com.pfe.gestionsachat.model;
 public enum StatutDemande {
     BROUILLON,
     SOUMISE,
-    VALIDEE_N1,
-    VALIDEE_TECH,
+    VALIDE_N1,
+    VALIDE_TECH,
+    VALIDE_AMG,
+    VALIDE_DAF,
+    VALIDE_DG,
     EN_TRAITEMENT,
-    AJUSTEMENT_DAF,
-    AJUSTEMENT_DG,
-    EN_VALIDATION_AMG,
-    EN_VALIDATION_DAF,
-    EN_VALIDATION_DG,
+    DISPONIBLE_STOCK,
+    REJETEE,
     APPROUVEE,
     PO_CREE,
-    EN_LIVRAISON,
-    AFFECTEE,
-    REJETEE
+    EN_LIVRAISON, // Restauré pour compatibilité historique
+    AFFECTEE      // Restauré pour compatibilité historique
 }

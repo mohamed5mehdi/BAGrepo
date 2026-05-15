@@ -10,6 +10,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.retry.annotation.Retryable;
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -70,6 +73,11 @@ public class BudgetSuiviService {
      * @throws EquationBudgetaireException  si l'équation est rompue après imputation
      */
     @Transactional
+    @Retryable(
+        retryFor = { ObjectOptimisticLockingFailureException.class },
+        maxAttempts = 3,
+        backoff = @Backoff(delay = 100, multiplier = 2.0)
+    )
     public ConsommerBudgetResponse consommerBudget(ConsommerBudgetRequest request) {
 
         // ── Récupération et validation de la DA ────────────────────────────

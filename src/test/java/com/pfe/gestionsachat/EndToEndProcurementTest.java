@@ -54,6 +54,7 @@ public class EndToEndProcurementTest {
     @Autowired private GrnService grnService;
     @Autowired private GrcService grcService;
     @Autowired private MatchingService matchingService;
+    @Autowired private com.pfe.gestionsachat.service.PurchaseOrderService purchaseOrderService;
 
     @Autowired private DaHeaderRepository daHeaderRepository;
     @Autowired private DaDetailsRepository daDetailsRepository;
@@ -73,6 +74,9 @@ public class EndToEndProcurementTest {
         Family family = familyRepository.save(new Family("Pièces Moteur", BigDecimal.valueOf(50000.0)));
         SubFamily subFamily = subFamilyRepository.save(new SubFamily("Pistons", BigDecimal.valueOf(20000.0), family));
         
+        stockItemRepository.deleteAll();
+        warehouseRepository.deleteAll();
+
         Warehouse warehouse = new Warehouse();
         warehouse.setName("Entrepôt Central BAG");
         warehouse.setLocation("Casablanca");
@@ -131,6 +135,8 @@ public class EndToEndProcurementTest {
         // 4. Génération du Bon de Commande (PO)
         PurchaseOrder po = orchestrator.manualCreatePO(daId, Objects.requireNonNull(acheteur.getOidUser()));
         assertNotNull(po);
+        po = purchaseOrderService.submitForApproval(po.getIdPo(), acheteur);
+        po = purchaseOrderService.approvePO(po.getIdPo(), daf, "OK PO");
         assertTrue(new BigDecimal("1200.00").compareTo(po.getMontantTotal()) == 0);
         assertEquals(StatutDA.PO_CREE, daHeaderRepository.findById(daId).orElseThrow().getStatut());
         System.out.println("✅ Étape 2 : PO généré avec succès (Montant TTC: 1200.00).");
@@ -141,7 +147,7 @@ public class EndToEndProcurementTest {
         grn.setSupplier(supplier);
         grn.setDeliveryNoteNumber("BL-2024-001");
         grn.setReceiptDate(java.time.LocalDate.now());
-        grn.setStatus(GrnStatus.DRAFT);
+        grn.setStatus(GrnStatus.PENDING);
 
         GrnDetails grnDetail = new GrnDetails();
         grnDetail.setGrnHeader(grn);
@@ -156,18 +162,19 @@ public class EndToEndProcurementTest {
         grn = grnService.createGrn(grn);
         GrnHeader validatedGrn = grnService.validateGrn(Objects.requireNonNull(grn.getId()));
 
-        assertEquals(GrnStatus.VALIDATED, validatedGrn.getStatus());
+        assertEquals(GrnStatus.ENTRY_COMPLETED, validatedGrn.getStatus());
         assertEquals(20, stockItemRepository.findByItemCode("PIST-001").get(0).getQuantityAvailable()); // 10 initial + 10 reçus
         System.out.println("✅ Étape 3 : Réception physique (GRN) effectuée et stock mis à jour (Total: 20).");
 
         // 6. Valorisation Financière (GRC)
         GrcHeader grc = new GrcHeader();
         grc.setGrnHeader(validatedGrn);
-        grc.setStatus(GrcStatus.DRAFT);
+        grc.setStatus(GrcStatus.PENDING_APPROVAL);
         grc.setCostingDate(java.time.LocalDate.now());
 
         GrcDetails grcDetail = new GrcDetails();
         grcDetail.setGrcHeader(grc);
+        grcDetail.setGrnDetail(validatedGrn.getDetails().get(0));
         grcDetail.setItemCode("PIST-001");
         grcDetail.setAcceptedQuantity(10);
         grcDetail.setUnitCost(100.0);
@@ -177,7 +184,7 @@ public class EndToEndProcurementTest {
         grc = grcService.createGrc(grc);
         GrcHeader validatedGrc = grcService.validateGrc(Objects.requireNonNull(grc.getId()));
 
-        assertEquals(GrcStatus.VALIDATED, validatedGrc.getStatus());
+        assertEquals(GrcStatus.POSTED, validatedGrc.getStatus());
         assertEquals(java.math.BigDecimal.valueOf(1200.0).setScale(2), validatedGrc.getTotalAmount().setScale(2));
         System.out.println("✅ Étape 4 : Valorisation financière (GRC) terminée.");
 

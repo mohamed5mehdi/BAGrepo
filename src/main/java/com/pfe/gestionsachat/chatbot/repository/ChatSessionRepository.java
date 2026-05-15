@@ -31,6 +31,14 @@ public interface ChatSessionRepository extends JpaRepository<ChatSession, String
     Optional<ChatSession> findByIdWithLock(@Param("id") String id);
 
     List<ChatSession> findByStatutAndDateDernierMsgBefore(ChatSessionStatut statut, LocalDateTime date);
+    
+    @Modifying
+    @Transactional
+    @Query("UPDATE ChatSession c SET c.statut = :statut WHERE c.statut = com.pfe.gestionsachat.chatbot.model.ChatSessionStatut.ACTIVE AND c.dateDernierMsg < :limite")
+    void abandonnerSessionsInactives(
+        @Param("statut") ChatSessionStatut statut,
+        @Param("limite") LocalDateTime limite
+    );
 
     @Modifying
     @Transactional

@@ -11,7 +11,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/invoice")
-@CrossOrigin(origins = "*")
+
 public class InvoiceController {
 
     @Autowired
@@ -62,3 +62,4 @@ public class InvoiceController {
                 .body(pdfBytes);
     }
 }
+

@@ -10,7 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping({"/api/da-headers", "/api/purchase-requests", "/api/purchase-request", "/api/requests", "/api/request", "/api/da"})
-@CrossOrigin(origins = "*")
+
 public class DaHeaderController {
 
     @Autowired

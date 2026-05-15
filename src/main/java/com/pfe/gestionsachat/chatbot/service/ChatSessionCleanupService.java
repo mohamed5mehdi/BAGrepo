@@ -23,11 +23,10 @@ public class ChatSessionCleanupService {
         LocalDateTime limite3mois = LocalDateTime.now().minusMonths(3);
 
         // Abandonner les sessions actives inactives depuis plus de 30 minutes
-        sessionRepository.findByStatutAndDateDernierMsgBefore(ChatSessionStatut.ACTIVE, limite30min)
-                .forEach(s -> {
-                    s.setStatut(ChatSessionStatut.ABANDONNEE);
-                    sessionRepository.save(s);
-                });
+        sessionRepository.abandonnerSessionsInactives(
+                ChatSessionStatut.ABANDONNEE,
+                LocalDateTime.now().minusMinutes(30)
+        );
 
         // Supprimer physiquement les sessions abandonnées depuis plus de 3 mois
         sessionRepository.purgeSessionsPhysiquement(ChatSessionStatut.ABANDONNEE, limite3mois);

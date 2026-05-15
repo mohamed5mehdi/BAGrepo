@@ -10,7 +10,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/warehouse")
-@CrossOrigin(origins = "*")
+
 public class WarehouseController {
 
     @Autowired
@@ -28,3 +28,4 @@ public class WarehouseController {
         return stockItemRepository.findAll();
     }
 }
+

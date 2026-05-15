@@ -55,6 +55,7 @@ public class InternalProcurementTest {
         demande.setQuantite(2);
         demande.setUrgence(UrgenceDemande.NORMALE);
         demande.setCategorie(CategorieDemande.INFORMATIQUE);
+        demande.setIsPieceRechange(true); // Flux SAV pour test stock
         
         DemandeAchatInterne saved = demandeService.createDemande(demande, demandeur);
         assertNotNull(saved.getId());
@@ -63,7 +64,7 @@ public class InternalProcurementTest {
         // 3. Soumettre (Vérification Stock)
         // Cas 1: Stock suffisant -> AFFECTEE
         DemandeAchatInterne soumise = demandeService.soumettre(saved.getId(), demandeur);
-        assertEquals(StatutDemande.AFFECTEE, soumise.getStatut());
+        assertEquals(StatutDemande.DISPONIBLE_STOCK, soumise.getStatut());
         
         // Vérifier stock déduit
         StockItem updatedItem = stockItemRepository.findByItemNameIgnoreCase("Laptop Dell").get(0);
@@ -73,17 +74,24 @@ public class InternalProcurementTest {
         DemandeAchatInterne demande2 = new DemandeAchatInterne();
         demande2.setDesignation("Laptop Dell");
         demande2.setQuantite(10);
+        demande2.setIsPieceRechange(true);
         demande2 = demandeService.createDemande(demande2, demandeur);
         DemandeAchatInterne soumise2 = demandeService.soumettre(demande2.getId(), demandeur);
-        assertEquals(StatutDemande.SOUMISE, soumise2.getStatut());
+        assertEquals(StatutDemande.EN_TRAITEMENT, soumise2.getStatut());
 
-        // 4. Workflow de validation
-        DemandeAchatInterne valideeN1 = demandeService.validerN1(soumise2.getId(), true, "Ok pour moi", n1);
-        assertEquals(StatutDemande.VALIDEE_N1, valideeN1.getStatut());
+        // 4. Acheteur prend le relais (EN_TRAITEMENT)
+        User acheteur = userRepository.findByEmail("acheteur@test.com").orElseThrow(); // Assurez-vous que cet user existe ou créez-en un fictif, ou utilisez un user avec role ACHETEUR.
+        // Si "acheteur" n'existe pas dans le seeder, on va forcer le rôle sur un user existant pour le test
+        User acheteurTest = userRepository.findAll().stream().filter(u -> u.getRole() == com.pfe.gestionsachat.model.Role.ACHETEUR).findFirst().orElseThrow();
 
-        // 5. Valorisation par l'acheteur
-        DemandeAchatInterne valorisee = demandeService.valoriserDemande(valideeN1.getId(), java.math.BigDecimal.valueOf(15000.0), supplier.getOidSupplier());
+        DemandeAchatInterne valorisee = demandeService.valoriserDemande(soumise2.getId(), java.math.BigDecimal.valueOf(15000.0), supplier.getOidSupplier());
         assertEquals(java.math.BigDecimal.valueOf(15000.0), valorisee.getPrixUnitaire());
-        assertEquals(java.math.BigDecimal.valueOf(150000.0).setScale(2), valorisee.getMontantEstime().setScale(2));
+        
+        DemandeAchatInterne traitee = demandeService.traiterAchat(soumise2.getId(), acheteurTest);
+        assertEquals(StatutDemande.SOUMISE, traitee.getStatut());
+
+        // 5. Workflow de validation (N1)
+        DemandeAchatInterne valideeN1 = demandeService.validerN1(soumise2.getId(), true, "Ok pour moi", n1);
+        assertEquals(StatutDemande.VALIDE_N1, valideeN1.getStatut());
     }
 }

@@ -27,7 +27,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/api/budget")
-@CrossOrigin(origins = "*")
+
 public class BudgetController {
 
     private static final Logger log = LoggerFactory.getLogger(BudgetController.class);
@@ -187,3 +187,4 @@ public class BudgetController {
                 "timestamp", LocalDateTime.now().toString());
     }
 }
+

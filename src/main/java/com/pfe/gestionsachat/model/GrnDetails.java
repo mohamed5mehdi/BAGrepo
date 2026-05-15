@@ -18,6 +18,12 @@ public class GrnDetails {
     private String itemCode;
     private String itemName;
     private Integer orderedQuantity;
+    /**
+     * Shipped Qty — solde restant à recevoir (règle BAG ERP).
+     * = orderedQuantity - somme(receivedQuantity de tous les GRNs précédents) - receivedQuantity de CE GRN.
+     * Calculé et persisté à la création du GRN. PO clôturé quand shippedQuantity = 0 pour toutes les lignes.
+     */
+    private Integer shippedQuantity;
     private Integer receivedQuantity;
     private Integer acceptedQuantity;
     private Integer rejectedQuantity;
@@ -38,6 +44,8 @@ public class GrnDetails {
     public void setItemName(String itemName) { this.itemName = itemName; }
     public Integer getOrderedQuantity() { return orderedQuantity; }
     public void setOrderedQuantity(Integer orderedQuantity) { this.orderedQuantity = orderedQuantity; }
+    public Integer getShippedQuantity() { return shippedQuantity; }
+    public void setShippedQuantity(Integer shippedQuantity) { this.shippedQuantity = shippedQuantity; }
     public Integer getReceivedQuantity() { return receivedQuantity; }
     public void setReceivedQuantity(Integer receivedQuantity) { this.receivedQuantity = receivedQuantity; }
     public Integer getAcceptedQuantity() { return acceptedQuantity; }

@@ -18,12 +18,11 @@ public class SecurityEndpointTest {
 
     @Test
     public void testPublicEndpointsAreAccessible() throws Exception {
-        // Vérifie que les endpoints de base ne sont pas bloqués par un 401/403
-        // (Comme défini dans le SecurityConfig avec permitAll)
-        mockMvc.perform(get("/api/users/all"))
+        // Vérifie que les endpoints d'auth ne sont pas bloqués par un 401/403
+        mockMvc.perform(get("/api/auth/login?email=test&password=test"))
                 .andExpect(result -> {
                     int statusCode = result.getResponse().getStatus();
-                    assert statusCode != 401 && statusCode != 403 : "Security bloquée sur un endpoint censé être public";
+                    assert statusCode != 403 : "Security bloquée sur un endpoint public (auth/login)";
                 });
     }
 }

@@ -26,6 +26,9 @@ public class GrcDetails {
     private Double taxRate;
     private Double montantTTC;
 
+    private String mainAccount;
+    private String subAccount;
+
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -45,4 +48,9 @@ public class GrcDetails {
     public void setTaxRate(Double taxRate) { this.taxRate = taxRate; }
     public Double getMontantTTC() { return montantTTC; }
     public void setMontantTTC(Double montantTTC) { this.montantTTC = montantTTC; }
+
+    public String getMainAccount() { return mainAccount; }
+    public void setMainAccount(String mainAccount) { this.mainAccount = mainAccount; }
+    public String getSubAccount() { return subAccount; }
+    public void setSubAccount(String subAccount) { this.subAccount = subAccount; }
 }

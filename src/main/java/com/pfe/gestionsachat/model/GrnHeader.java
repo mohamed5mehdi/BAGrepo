@@ -22,6 +22,14 @@ public class GrnHeader {
     private String deliveryNoteNumber;
     private LocalDate receiptDate = LocalDate.now();
 
+    /**
+     * Numéro de référence BAG ERP du GRN — partagé avec le GRC associé.
+     * Formats : GRN-YYYYMM-XXXXX
+     * Règle BAG ERP : GRC = MÊME numéro que son GRN.
+     */
+    @Column(name = "grn_number", unique = true)
+    private String grnNumber;
+
     @ManyToOne
     @JoinColumn(name = "received_by")
     private User receivedBy;
@@ -48,6 +56,8 @@ public class GrnHeader {
     public void setSupplier(Supplier supplier) { this.supplier = supplier; }
     public String getDeliveryNoteNumber() { return deliveryNoteNumber; }
     public void setDeliveryNoteNumber(String deliveryNoteNumber) { this.deliveryNoteNumber = deliveryNoteNumber; }
+    public String getGrnNumber() { return grnNumber; }
+    public void setGrnNumber(String grnNumber) { this.grnNumber = grnNumber; }
     public LocalDate getReceiptDate() { return receiptDate; }
     public void setReceiptDate(LocalDate receiptDate) { this.receiptDate = receiptDate; }
     public User getReceivedBy() { return receivedBy; }

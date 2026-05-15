@@ -24,7 +24,7 @@ public class SlotState {
     /**
      * Retourne true si tous les slots obligatoires sont renseignés.
      * Ordre de vérification : designation → quantite → familyId
-     *                         → subFamilyId → justification → urgence
+     * → subFamilyId → justification → urgence
      */
     public boolean isComplet() {
         return designation != null && !designation.isBlank()
@@ -40,38 +40,84 @@ public class SlotState {
      * Retourne "COMPLET" si tous les slots sont renseignés.
      */
     public String getProchainSlotManquant() {
-        if (designation == null || designation.isBlank()) return "DESIGNATION";
-        if (quantite == null)                               return "QUANTITE";
-        if (familyId == null)                               return "FAMILLE";
-        if (subFamilyId == null)                            return "SOUS_FAMILLE";
-        if (justification == null || justification.isBlank()) return "JUSTIFICATION";
-        if (urgence == null)                                return "URGENCE";
+        if (designation == null || designation.isBlank())
+            return "DESIGNATION";
+        if (quantite == null)
+            return "QUANTITE";
+        if (familyId == null)
+            return "FAMILLE";
+        if (subFamilyId == null)
+            return "SOUS_FAMILLE";
+        if (justification == null || justification.isBlank())
+            return "JUSTIFICATION";
+        if (urgence == null)
+            return "URGENCE";
         return "COMPLET";
     }
 
     // ─── Getters / Setters ───────────────────────────────────────────────────
 
-    public String getDesignation() { return designation; }
-    public void setDesignation(String designation) { this.designation = designation; }
+    public String getDesignation() {
+        return designation;
+    }
 
-    public Integer getQuantite() { return quantite; }
-    public void setQuantite(Integer quantite) { this.quantite = quantite; }
+    public void setDesignation(String designation) {
+        this.designation = designation;
+    }
 
-    public String getJustification() { return justification; }
-    public void setJustification(String justification) { this.justification = justification; }
+    public Integer getQuantite() {
+        return quantite;
+    }
 
-    public UrgenceDemande getUrgence() { return urgence; }
-    public void setUrgence(UrgenceDemande urgence) { this.urgence = urgence; }
+    public void setQuantite(Integer quantite) {
+        this.quantite = quantite;
+    }
 
-    public Integer getFamilyId() { return familyId; }
-    public void setFamilyId(Integer familyId) { this.familyId = familyId; }
+    public String getJustification() {
+        return justification;
+    }
 
-    public Integer getSubFamilyId() { return subFamilyId; }
-    public void setSubFamilyId(Integer subFamilyId) { this.subFamilyId = subFamilyId; }
+    public void setJustification(String justification) {
+        this.justification = justification;
+    }
 
-    public String getFamilyLibelle() { return familyLibelle; }
-    public void setFamilyLibelle(String familyLibelle) { this.familyLibelle = familyLibelle; }
+    public UrgenceDemande getUrgence() {
+        return urgence;
+    }
 
-    public String getSubFamilyLibelle() { return subFamilyLibelle; }
-    public void setSubFamilyLibelle(String subFamilyLibelle) { this.subFamilyLibelle = subFamilyLibelle; }
+    public void setUrgence(UrgenceDemande urgence) {
+        this.urgence = urgence;
+    }
+
+    public Integer getFamilyId() {
+        return familyId;
+    }
+
+    public void setFamilyId(Integer familyId) {
+        this.familyId = familyId;
+    }
+
+    public Integer getSubFamilyId() {
+        return subFamilyId;
+    }
+
+    public void setSubFamilyId(Integer subFamilyId) {
+        this.subFamilyId = subFamilyId;
+    }
+
+    public String getFamilyLibelle() {
+        return familyLibelle;
+    }
+
+    public void setFamilyLibelle(String familyLibelle) {
+        this.familyLibelle = familyLibelle;
+    }
+
+    public String getSubFamilyLibelle() {
+        return subFamilyLibelle;
+    }
+
+    public void setSubFamilyLibelle(String subFamilyLibelle) {
+        this.subFamilyLibelle = subFamilyLibelle;
+    }
 }

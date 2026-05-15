@@ -9,7 +9,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/creditnote")
-@CrossOrigin(origins = "*")
+
 public class CreditNoteController {
 
     @Autowired
@@ -20,3 +20,4 @@ public class CreditNoteController {
         return ResponseEntity.ok(creditNoteService.processCreditNote(request));
     }
 }
+

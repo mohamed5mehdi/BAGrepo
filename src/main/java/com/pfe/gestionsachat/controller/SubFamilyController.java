@@ -9,7 +9,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping({"/api/sub-families", "/api/sub-family", "/api/subcategories", "/api/subcategory", "/api/sous-familles"})
-@CrossOrigin(origins = "*")
+
 public class SubFamilyController {
 
     @Autowired

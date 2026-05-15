@@ -35,6 +35,9 @@ public class LogisticsFlowTest {
 
     @BeforeEach
     void setup() {
+        stockItemRepository.deleteAll();
+        warehouseRepository.deleteAll();
+
         warehouse = new Warehouse();
         warehouse.setName("Main Depot");
         warehouse.setType(WarehouseType.CENTRAL);
@@ -52,7 +55,7 @@ public class LogisticsFlowTest {
         supplier = supplierRepository.save(supplier);
 
         po = new PurchaseOrder();
-        po.setStatut("OPEN");
+        po.setStatut(POStatus.APPROVED);
         po.setMontantTotal(new java.math.BigDecimal("1000.00"));
         po = purchaseOrderRepository.save(po);
     }
@@ -63,7 +66,7 @@ public class LogisticsFlowTest {
         GrnHeader grn = new GrnHeader();
         grn.setPurchaseOrder(po);
         grn.setReceiptDate(LocalDate.now());
-        grn.setStatus(GrnStatus.DRAFT);
+        grn.setStatus(GrnStatus.PENDING);
         grn = grnRepository.save(grn);
 
         GrnDetails detail = new GrnDetails();
@@ -95,7 +98,7 @@ public class LogisticsFlowTest {
 
         // Validation GRN -> Mouvements de stock
         GrnHeader validatedGrn = grnService.validateGrn(java.util.Objects.requireNonNull(grn.getId()));
-        assertEquals(GrnStatus.VALIDATED, validatedGrn.getStatus());
+        assertEquals(GrnStatus.ENTRY_COMPLETED, validatedGrn.getStatus());
 
         // Verifier le stock IN pour les 8 pièces
         StockItem updatedStock = stockItemRepository.findByItemCode("PART-123").get(0);
@@ -104,8 +107,8 @@ public class LogisticsFlowTest {
         // --- ETAPE 2: GRC (Costing) ---
         GrcHeader grc = new GrcHeader();
         grc.setGrnHeader(validatedGrn);
-        grc.setStatus(GrcStatus.DRAFT);
-        grc = grcRepository.save(grc);
+        grc.setStatus(GrcStatus.PENDING_APPROVAL);
+        // Ne pas sauvegarder via grcRepository avant createGrc — déclencherait le guard 1-GRC/GRN
 
         GrcDetails grcDetail = new GrcDetails();
         grcDetail.setGrcHeader(grc);
@@ -123,7 +126,7 @@ public class LogisticsFlowTest {
 
         // Validation GRC -> Calcul totalCost (incluant 20% TVA par défaut si non spécifié, ici on le spécifie)
         GrcHeader validatedGrc = grcService.validateGrc(java.util.Objects.requireNonNull(grc.getId()));
-        assertEquals(GrcStatus.VALIDATED, validatedGrc.getStatus());
+        assertEquals(GrcStatus.POSTED, validatedGrc.getStatus());
         // 8 items * 100 * 1.20 = 960.0
         assertEquals(java.math.BigDecimal.valueOf(960.0).setScale(2), validatedGrc.getTotalAmount().setScale(2));
 

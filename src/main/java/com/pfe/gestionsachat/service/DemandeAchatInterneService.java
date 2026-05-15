@@ -5,373 +5,266 @@ import com.pfe.gestionsachat.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.lang.NonNull;
-
 import java.time.LocalDateTime;
-import java.time.Duration;
 import java.util.List;
+import java.util.Optional;
 
+/**
+ * Service unifié pour les deux flux d'achat interne BAG :
+ *
+ * Flux A — Achat général (isPieceRechange = false)
+ * BROUILLON → SOUMISE → VALIDE_N1 → VALIDE_TECH
+ * → VALIDE_AMG → VALIDE_DAF → VALIDE_DG → PO
+ *
+ * Flux B — Pièces de rechange SAV (isPieceRechange = true)
+ * BROUILLON → DISPONIBLE_STOCK (sortie stock auto, fin)
+ * OU
+ * BROUILLON → EN_TRAITEMENT → valorisation Acheteur
+ * → VALIDE_N1 → VALIDE_TECH → VALIDE_AMG → VALIDE_DAF
+ * → VALIDE_DG → PO
+ */
 @Service
 public class DemandeAchatInterneService {
 
     @Autowired
-    private DemandeAchatInterneRepository demandeRepository;
-
+    private DemandeAchatInterneRepository repository;
+    @Autowired
+    private StockItemRepository stockItemRepository;
+    @Autowired
+    private PurchaseOrderService poService;
     @Autowired
     private StatusHistoryRepository historyRepository;
 
-    @Autowired
-    private AuditLogRepository auditLogRepository;
-
-    @Autowired
-    private WarehouseService warehouseService;
-
-    @Autowired
-    private NotificationService notificationService;
-
-    @Autowired
-    private SupplierRepository supplierRepository;
-
-    @Autowired
-    private FamilyRepository familyRepository;
-
-    @Autowired
-    private SubFamilyRepository subFamilyRepository;
-
-    @Autowired
-    private PurchaseOrderRepository purchaseOrderRepository;
+    // ── Création ─────────────────────────────────────────────────────────────
 
     @Transactional
-    public DemandeAchatInterne createDemande(DemandeAchatInterne demande, User demandeur) {
-        // 1. Contrôle d'Idempotence (Token unique)
-        if (demande.getSubmissionToken() != null && !demande.getSubmissionToken().isEmpty()) {
-            java.util.Optional<DemandeAchatInterne> existing = demandeRepository
-                    .findBySubmissionToken(demande.getSubmissionToken());
-            if (existing.isPresent()) {
-                return existing.get(); // Retourner l'existant sans erreur pour le front (idempotence)
-            }
-        }
-
-        // 2. Contrôle Anti-Doublon (Fuzzy match - 30 secondes)
-        demandeRepository
-                .findFirstByDemandeurAndDesignationAndQuantiteOrderByDateCreationDesc(demandeur,
-                        demande.getDesignation(), demande.getQuantite())
-                .ifPresent(last -> {
-                    if (java.time.Duration.between(last.getDateCreation(), java.time.LocalDateTime.now())
-                            .getSeconds() < 30) {
-                        throw new RuntimeException("Une demande identique a été soumise il y a moins de 30 secondes.");
-                    }
-                });
-
-        demande.setDemandeur(demandeur);
-        demande.setDepartement(demandeur.getService());
-        demande.setStatut(StatutDemande.BROUILLON);
-        demande.setDateCreation(java.time.LocalDateTime.now());
-
-        // Récupération des objets complets pour garantir la cohérence (Catégorie,
-        // Budget)
-        // Récupération des objets complets pour garantir la cohérence
-        if (demande.getBudgetFamille() != null && demande.getBudgetFamille().getIdFamily() != null) {
-            demande.setBudgetFamille(familyRepository.findById(demande.getBudgetFamille().getIdFamily()).orElse(null));
-        }
-        if (demande.getBudgetSousFamille() != null && demande.getBudgetSousFamille().getOidSub() != null) {
-            demande.setBudgetSousFamille(
-                    subFamilyRepository.findById(demande.getBudgetSousFamille().getOidSub()).orElse(null));
-        }
-
-        // Calcul de la quantité totale et liaison des détails
-        if (demande.getDetails() != null && !demande.getDetails().isEmpty()) {
-            int totalQty = 0;
-            for (DaDetails detail : demande.getDetails()) {
-                detail.setDemandeAchatInterne(demande);
-                detail.setSubFamily(demande.getBudgetSousFamille());
-                if (detail.getQuantite() != null)
-                    totalQty += detail.getQuantite();
-            }
-            demande.setQuantite(totalQty);
-        }
-
-        DemandeAchatInterne saved = demandeRepository.save(demande);
-        saveHistory(saved, null, saved.getStatut().name(), demandeur, "Création de la demande");
+    public DemandeAchatInterne createDemande(DemandeAchatInterne da, User user) {
+        da.setDemandeur(user);
+        da.setStatut(StatutDemande.BROUILLON);
+        da.setDateCreation(LocalDateTime.now());
+        DemandeAchatInterne saved = repository.save(da);
+        log(saved, null, StatutDemande.BROUILLON, user, "Demande créée");
         return saved;
     }
 
-    @Transactional
-    public DemandeAchatInterne soumettre(@NonNull Long id, @NonNull User demandeur) {
-        DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-
-        if (demande.getStatut() != StatutDemande.BROUILLON) {
-            throw new IllegalStateException("La demande n'est pas à l'état BROUILLON et ne peut pas être soumise de nouveau.");
-        }
-
-        boolean stockSuffisant = warehouseService.verifierStock(demande.getDesignation(), demande.getQuantite());
-
-        if (stockSuffisant) {
-            warehouseService.affecterStock(demande.getDesignation(), demande.getQuantite(), "Affectation DA #" + id);
-            updateStatut(demande, StatutDemande.AFFECTEE, demandeur, "Affectation directe depuis le stock interne");
-        } else {
-            updateStatut(demande, StatutDemande.SOUMISE, demandeur,
-                    "Soumission pour validation N+1 (Stock insuffisant)");
-        }
-
-        return demandeRepository.save(demande);
-    }
+    // ── Soumission — point de branchement des deux flux ──────────────────────
 
     @Transactional
-    public DemandeAchatInterne validerN1(Long id, boolean valider, String commentaire, User n1) {
-        DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-        if (valider) {
-            updateStatut(demande, StatutDemande.VALIDEE_N1, n1, commentaire);
-        } else {
-            if (commentaire == null || commentaire.trim().isEmpty()) {
-                throw new RuntimeException("Le commentaire de rejet est obligatoire");
+    public DemandeAchatInterne soumettre(Long id, User user) {
+        DemandeAchatInterne da = repository.findById(id)
+                .orElseThrow(() -> new RuntimeException("Demande introuvable : " + id));
+
+        if (da.getStatut() != StatutDemande.BROUILLON) {
+            throw new IllegalStateException(
+                "Seule une demande en BROUILLON peut être soumise. Statut actuel : " + da.getStatut());
+        }
+
+        StatutDemande statutPrecedent = da.getStatut();
+
+        if (Boolean.TRUE.equals(da.getIsPieceRechange())) {
+            // ── Flux B : pièce de rechange (Vérification Stock) ───────────
+            if (da.getItemCode() == null || da.getItemCode().isBlank()) {
+                throw new IllegalArgumentException("itemCode obligatoire pour une demande de pièce de rechange.");
             }
-            updateStatut(demande, StatutDemande.REJETEE, n1, commentaire);
-            demande.setCommentaireRejet(commentaire);
-        }
-        return demandeRepository.save(demande);
-    }
 
-    @Transactional
-    public DemandeAchatInterne validerTechnicien(Long id, boolean valider, String commentaire, User tech) {
-        DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-        if (valider) {
-            updateStatut(demande, StatutDemande.VALIDEE_TECH, tech, commentaire);
-        } else {
-            if (commentaire == null || commentaire.trim().isEmpty()) {
-                throw new RuntimeException("Le commentaire de rejet est obligatoire");
+            Optional<StockItem> stockOpt = stockItemRepository.findByItemCode(da.getItemCode()).stream().findFirst();
+
+            boolean disponible = stockOpt.isPresent() && stockOpt.get().getQuantityAvailable() >= da.getQuantite();
+
+            if (disponible) {
+                // Sortie de stock automatique avec verrou pessimiste
+                StockItem stock = stockItemRepository.findByItemCodeWithLock(da.getItemCode()).stream().findFirst().orElseThrow();
+                stock.setQuantityAvailable(stock.getQuantityAvailable() - da.getQuantite());
+                stockItemRepository.save(stock);
+
+                da.setIsAvailableInStock(true);
+                da.setStatut(StatutDemande.DISPONIBLE_STOCK);
+                log(da, statutPrecedent, StatutDemande.DISPONIBLE_STOCK, user,
+                    "Pièce disponible en stock — sortie automatique de " + da.getQuantite() + " unités");
+            } else {
+                da.setIsAvailableInStock(false);
+                da.setStatut(StatutDemande.EN_TRAITEMENT);
+                log(da, statutPrecedent, StatutDemande.EN_TRAITEMENT, user,
+                    "Pièce hors stock — en attente de valorisation par l'acheteur");
             }
-            updateStatut(demande, StatutDemande.REJETEE, tech, commentaire);
-            demande.setCommentaireRejet(commentaire);
-        }
-        return demandeRepository.save(demande);
-    }
-
-    @Transactional
-    public DemandeAchatInterne valoriserDemande(Long id, java.math.BigDecimal prixUnitaire, Integer supplierId) {
-        DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-        demande.setPrixUnitaire(prixUnitaire);
-        demande.setFournisseur(supplierRepository.findById(supplierId).orElseThrow());
-
-        // Calcul financier expert : Quantité * Prix Unitaire avec précision BigDecimal
-        java.math.BigDecimal qty = java.math.BigDecimal
-                .valueOf(demande.getQuantite() != null ? demande.getQuantite() : 1);
-        demande.setMontantEstime(prixUnitaire.multiply(qty).setScale(2, java.math.RoundingMode.HALF_UP));
-
-        return demandeRepository.save(demande);
-    }
-
-    @Transactional
-    public DemandeAchatInterne traiterAchat(Long id, User acheteur) {
-        DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-
-        SubFamily bsf = demande.getBudgetSousFamille();
-        if (bsf == null) {
-            throw new RuntimeException("Erreur : La sous-famille budgétaire n'est pas définie pour cette demande.");
-        }
-
-        java.math.BigDecimal montant = demande.getMontantEstime();
-        if (montant == null) {
-            throw new RuntimeException("Erreur : Le montant estimé n'a pas été défini.");
-        }
-
-        // Si budget suffisant -> Circuit de validation financière
-        if (bsf.getBudgetRestant() != null && bsf.getBudgetRestant().compareTo(montant) >= 0) {
-            updateStatut(demande, StatutDemande.EN_VALIDATION_AMG, acheteur,
-                    "Budget suffisant, transmission au circuit de validation AMG/DAF/DG");
         } else {
-            // Sinon, on reste en traitement pour que l'acheteur sollicite un ajustement
-            updateStatut(demande, StatutDemande.EN_TRAITEMENT, acheteur,
-                    "Budget insuffisant détecté (Dispo: " + bsf.getBudgetRestant() + "). Ajustement requis.");
+            // ── Flux A : achat général (Circuit hiérarchique N1) ──────────
+            da.setStatut(StatutDemande.SOUMISE);
+            log(da, statutPrecedent, StatutDemande.SOUMISE, user, "Demande soumise — en attente de validation N1");
         }
 
-        return demandeRepository.save(demande);
+        return repository.save(da);
+    }
+
+    // ── Circuit de validation hiérarchique ───────────────────────────────────
+
+    @Transactional
+    public DemandeAchatInterne validerN1(Long id, boolean valider, String commentaire, User user) {
+        DemandeAchatInterne da = repository.findById(id).orElseThrow();
+        StatutDemande from = da.getStatut();
+        if (from != StatutDemande.SOUMISE) {
+            throw new IllegalStateException("Validation N1 impossible depuis : " + from);
+        }
+        if (user.getRole() != Role.MANAGER_N1) {
+            throw new SecurityException("Seul un Manager N1 peut effectuer cette validation.");
+        }
+        StatutDemande to = valider ? StatutDemande.VALIDE_N1 : StatutDemande.REJETEE;
+        da.setStatut(to);
+        log(da, from, to, user, commentaire);
+        return repository.save(da);
     }
 
     @Transactional
-    public DemandeAchatInterne ajustementBudget(Long id, TypeAjustement type, User acheteur) {
-        DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-        demande.setTypeAjustement(type);
-        if (type == TypeAjustement.SOUS_FAMILLE) {
-            updateStatut(demande, StatutDemande.AJUSTEMENT_DAF, acheteur, "Demande d'ajustement sous-famille");
-        } else {
-            updateStatut(demande, StatutDemande.AJUSTEMENT_DG, acheteur, "Demande d'ajustement famille");
-        }
-        return demandeRepository.save(demande);
+    public DemandeAchatInterne validerTechnicien(Long id, boolean valider, String commentaire, User user) {
+        DemandeAchatInterne da = repository.findById(id).orElseThrow();
+        StatutDemande from = da.getStatut();
+        if (from != StatutDemande.VALIDE_N1)
+            throw new IllegalStateException("Attendu: VALIDE_N1");
+        if (user.getRole() != Role.TECHNICIEN)
+            throw new SecurityException("Habilitation TECHNICIEN requise.");
+        // Règle BAG : Après validation technique, la DA doit être valorisée par l'acheteur
+        // avant d'entrer dans le circuit budgétaire (AMG/DAF/DG)
+        StatutDemande to = valider ? StatutDemande.EN_TRAITEMENT : StatutDemande.REJETEE;
+        da.setStatut(to);
+        log(da, from, to, user, commentaire);
+        return repository.save(da);
     }
 
     @Transactional
-    public DemandeAchatInterne validerAjustement(Long id, boolean valider, String commentaire, User validateur) {
-        DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-        if (valider) {
-            updateStatut(demande, StatutDemande.EN_VALIDATION_AMG, validateur,
-                    "Ajustement accepté, passage au circuit final");
-        } else {
-            updateStatut(demande, StatutDemande.EN_TRAITEMENT, validateur, "Ajustement refusé : " + commentaire);
-        }
-        return demandeRepository.save(demande);
+    public DemandeAchatInterne validerAMG(Long id, boolean valider, String commentaire, User user) {
+        DemandeAchatInterne da = repository.findById(id).orElseThrow();
+        StatutDemande from = da.getStatut();
+        if (from != StatutDemande.VALIDE_TECH)
+            throw new IllegalStateException("Attendu: VALIDE_TECH");
+        if (user.getRole() != Role.AMG)
+            throw new SecurityException("Habilitation AMG requise.");
+        StatutDemande to = valider ? StatutDemande.VALIDE_AMG : StatutDemande.REJETEE;
+        da.setStatut(to);
+        log(da, from, to, user, commentaire);
+        return repository.save(da);
     }
 
     @Transactional
-    public DemandeAchatInterne validerAMG(Long id, boolean valider, String commentaire, User amg) {
-        DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-        if (valider) {
-            updateStatut(demande, StatutDemande.EN_VALIDATION_DAF, amg, commentaire);
-        } else {
-            updateStatut(demande, StatutDemande.EN_TRAITEMENT, amg, "Retour Acheteur (AMG) : " + commentaire);
-        }
-        return demandeRepository.save(demande);
+    public DemandeAchatInterne validerDAF(Long id, boolean valider, String commentaire, User user) {
+        DemandeAchatInterne da = repository.findById(id).orElseThrow();
+        StatutDemande from = da.getStatut();
+        if (from != StatutDemande.VALIDE_AMG)
+            throw new IllegalStateException("Attendu: VALIDE_AMG");
+        if (user.getRole() != Role.DAF)
+            throw new SecurityException("Habilitation DAF requise.");
+        StatutDemande to = valider ? StatutDemande.VALIDE_DAF : StatutDemande.REJETEE;
+        da.setStatut(to);
+        log(da, from, to, user, commentaire);
+        return repository.save(da);
     }
 
     @Transactional
-    public DemandeAchatInterne validerDAF(Long id, boolean valider, String commentaire, User daf) {
-        DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-        if (valider) {
-            updateStatut(demande, StatutDemande.EN_VALIDATION_DG, daf, commentaire);
-        } else {
-            updateStatut(demande, StatutDemande.EN_TRAITEMENT, daf, "Retour Acheteur (DAF) : " + commentaire);
-        }
-        return demandeRepository.save(demande);
+    public DemandeAchatInterne validerDG(Long id, boolean valider, String commentaire, User user) {
+        DemandeAchatInterne da = repository.findById(id).orElseThrow();
+        StatutDemande from = da.getStatut();
+        if (from != StatutDemande.VALIDE_DAF)
+            throw new IllegalStateException("Attendu: VALIDE_DAF");
+        if (user.getRole() != Role.DG)
+            throw new SecurityException("Habilitation DG requise.");
+        StatutDemande to = valider ? StatutDemande.VALIDE_DG : StatutDemande.REJETEE;
+        da.setStatut(to);
+        log(da, from, to, user, commentaire);
+        return repository.save(da);
+    }
+
+    // ── Valorisation & PO ────────────────────────────────────────────────────
+
+    @Transactional
+    public DemandeAchatInterne valoriserDemande(Long id, java.math.BigDecimal prix, Integer supplierId) {
+        DemandeAchatInterne da = repository.findById(id).orElseThrow();
+        if (da.getStatut() != StatutDemande.EN_TRAITEMENT)
+            throw new IllegalStateException("Attendu: EN_TRAITEMENT");
+        da.setPrixUnitaire(prix);
+        da.setMontantEstime(prix.multiply(java.math.BigDecimal.valueOf(da.getQuantite())));
+        da.setFournisseur(new Supplier(supplierId));
+        return repository.save(da);
+    }
+
+    /**
+     * Action Acheteur : confirme que la demande est traitée et prête pour le
+     * circuit N1.
+     * Cette étape est nécessaire pour les pièces SAV après valorisation.
+     */
+    @Transactional
+    public DemandeAchatInterne traiterAchat(Long id, User user) {
+        DemandeAchatInterne da = repository.findById(id).orElseThrow();
+        if (da.getStatut() != StatutDemande.EN_TRAITEMENT)
+            throw new IllegalStateException("Attendu: EN_TRAITEMENT");
+        if (da.getPrixUnitaire() == null || da.getFournisseur() == null)
+            throw new IllegalStateException("La demande doit être valorisée d'abord.");
+        if (user.getRole() != Role.ACHETEUR)
+            throw new SecurityException("Seul l'ACHETEUR peut traiter cette demande.");
+
+        // Une fois valorisée par l'acheteur, la DA passe directement au circuit AMG (Budget)
+        // Pour les pièces SAV, cela permet de bypasser N1 et Tech (exigence métier).
+        // Pour les achats internes, cela suit la valorisation post-technique.
+        da.setStatut(StatutDemande.VALIDE_TECH);
+        log(da, StatutDemande.EN_TRAITEMENT, StatutDemande.VALIDE_TECH, user,
+                "Achat valorisé — Transmis au circuit AMG pour contrôle budgétaire");
+        return repository.save(da);
     }
 
     @Transactional
-    public DemandeAchatInterne validerDG(Long id, boolean valider, String commentaire, User dg) {
-        DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-        if (valider) {
-            updateStatut(demande, StatutDemande.APPROUVEE, dg, commentaire);
-        } else {
-            updateStatut(demande, StatutDemande.REJETEE, dg, "Rejet définitif (DG) : " + commentaire);
-            demande.setCommentaireRejet(commentaire);
-        }
-        return demandeRepository.save(demande);
+    public PurchaseOrder creerPO(Long id, User user) {
+        DemandeAchatInterne da = repository.findById(id).orElseThrow();
+        if (da.getStatut() != StatutDemande.VALIDE_DG)
+            throw new IllegalStateException("Attendu: VALIDE_DG");
+        return poService.generateFromInternal(da);
     }
 
-    @Autowired
-    private PurchaseOrderService purchaseOrderService;
+    public List<DemandeAchatInterne> getMesDemandes(User user) {
+        return repository.findByDemandeur(user);
+    }
+
+    public List<DemandeAchatInterne> getDemandesAValider(User user) {
+        return switch (user.getRole()) {
+            case MANAGER_N1 -> repository.findByStatutIn(List.of(StatutDemande.SOUMISE)); // Ne voit plus les
+                                                                                          // EN_TRAITEMENT
+            case TECHNICIEN -> repository.findByStatut(StatutDemande.VALIDE_N1);
+            case AMG -> repository.findByStatut(StatutDemande.VALIDE_TECH);
+            case DAF -> repository.findByStatut(StatutDemande.VALIDE_AMG);
+            case DG -> repository.findByStatut(StatutDemande.VALIDE_DAF);
+            case ACHETEUR -> repository.findByStatutIn(List.of(StatutDemande.EN_TRAITEMENT, StatutDemande.VALIDE_DG));
+            default -> List.of();
+        };
+    }
 
     @Transactional
-    public PurchaseOrder creerPO(@NonNull Long id, @NonNull User acheteur) {
-        DemandeAchatInterne demande = demandeRepository.findById(id).orElseThrow();
-        if (demande.getStatut() != StatutDemande.APPROUVEE) {
-            throw new RuntimeException("La demande doit être APPROUVEE pour créer un PO");
-        }
-
-        SubFamily sf = demande.getBudgetSousFamille();
-        Family f = demande.getBudgetFamille();
-        java.math.BigDecimal montantHt = demande.getMontantEstime();
-
-        if (montantHt == null) {
-            throw new RuntimeException("Le montant estimé n'a pas été défini pour la demande #" + id);
-        }
-
-        // Imputation budgétaire avec verrou pessimiste (une seule fois)
-        if (sf != null && sf.getOidSub() != null) {
-            sf = subFamilyRepository.findByIdWithLock(sf.getOidSub()).orElseThrow();
-            if (!sf.hasEnoughBudget(montantHt)) {
-                throw new RuntimeException("Budget insuffisant sur la sous-famille [" + sf.getLibelle() + "]. Disponible: " + sf.getBudgetRestant() + ", Requis: " + montantHt);
-            }
-            sf.deductBudget(montantHt);
-            subFamilyRepository.save(sf);
-        }
-        if (f != null && f.getIdFamily() != null) {
-            f = familyRepository.findByIdWithLock(f.getIdFamily()).orElseThrow();
-            f.deductBudget(montantHt);
-            familyRepository.save(f);
-        }
-
-        PurchaseOrder savedPo = purchaseOrderService.generateFromInternal(demande);
-        updateStatut(demande, StatutDemande.PO_CREE, acheteur, "Bon de Commande généré : PO-" + savedPo.getIdPo());
-
-        return savedPo;
+    public DemandeAchatInterne ajustementBudget(Long id, TypeAjustement type, User user) {
+        DemandeAchatInterne da = repository.findById(id).orElseThrow();
+        log(da, da.getStatut(), da.getStatut(), user, "Ajustement : " + type);
+        return repository.save(da);
     }
 
-    private void updateStatut(DemandeAchatInterne demande, StatutDemande nouveauStatut, User utilisateur,
-            String commentaire) {
-        String statutAvant = demande.getStatut() != null ? demande.getStatut().name() : null;
-        demande.setStatut(nouveauStatut);
-        saveHistory(demande, statutAvant, nouveauStatut.name(), utilisateur, commentaire);
-
-        // Notify Demandeur
-        notificationService.notifyUser(demande.getDemandeur(), "Mise à jour de votre demande #" + demande.getId(),
-                "Le statut de votre demande est passé à " + nouveauStatut + ". "
-                        + (commentaire != null ? commentaire : ""));
-
-        // Notify next validator (simplified logic)
-        notifyNextValidator(demande);
-    }
-
-    private void notifyNextValidator(DemandeAchatInterne demande) {
-        // Logic to notify manager, technician, buyer, etc. based on new status
-        String topic = null;
-        switch (demande.getStatut()) {
-            case SOUMISE:
-                topic = "MANAGER_N1";
-                break;
-            case VALIDEE_N1:
-                topic = "TECHNICIEN";
-                break;
-            case VALIDEE_TECH:
-                topic = "ACHETEUR";
-                break;
-            case EN_VALIDATION_AMG:
-                topic = "AMG";
-                break;
-            case EN_VALIDATION_DAF:
-            case AJUSTEMENT_DAF:
-                topic = "DAF";
-                break;
-            case EN_VALIDATION_DG:
-            case AJUSTEMENT_DG:
-                topic = "DG";
-                break;
-            default:
-                break; // Other statuses don't need notifications
+    @Transactional
+    public DemandeAchatInterne annulerDemande(Long id, User user) {
+        DemandeAchatInterne da = repository.findById(id).orElseThrow();
+        if (da.getStatut() == StatutDemande.PO_CREE || da.getStatut() == StatutDemande.VALIDE_DG) {
+            throw new IllegalStateException("Impossible d'annuler une demande déjà validée par la DG ou avec PO.");
         }
-        if (topic != null) {
-            notificationService.notifyTopic(topic, "Nouvelle demande en attente de validation : #" + demande.getId());
+        
+        StatutDemande from = da.getStatut();
+        
+        // Restauration du stock si la pièce était réservée
+        if (from == StatutDemande.DISPONIBLE_STOCK && Boolean.TRUE.equals(da.getIsAvailableInStock())) {
+            StockItem stock = stockItemRepository.findByItemCodeWithLock(da.getItemCode())
+                    .stream().findFirst().orElseThrow();
+            stock.setQuantityAvailable(stock.getQuantityAvailable() + da.getQuantite());
+            stockItemRepository.save(stock);
         }
+        
+        da.setStatut(StatutDemande.REJETEE);
+        log(da, from, StatutDemande.REJETEE, user, "Demande annulée par l'utilisateur/système — Stock restauré si applicable");
+        return repository.save(da);
     }
 
-    private void saveHistory(DemandeAchatInterne demande, String avant, String apres, User utilisateur,
-            String commentaire) {
-        StatusHistory history = new StatusHistory("DemandeAchatInterne", demande.getId(), avant, apres, utilisateur,
-                commentaire);
-        historyRepository.save(history);
-
-        AuditLog log = new AuditLog();
-        log.setAction("CHANGEMENT_STATUT");
-        log.setEntite("DemandeAchatInterne");
-        log.setEntiteId(demande.getId());
-        log.setUtilisateur(utilisateur);
-        log.setValeurAvant(avant);
-        log.setValeurApres(apres);
-        auditLogRepository.save(log);
-    }
-
-    public List<DemandeAchatInterne> getMesDemandes(User demandeur) {
-        return demandeRepository.findByDemandeur(demandeur);
-    }
-
-    public List<DemandeAchatInterne> getDemandesAValider(User utilisateur) {
-        Role role = utilisateur.getRole();
-        switch (role) {
-            case MANAGER_N1:
-                return demandeRepository.findByStatutAndDemandeur_N1(StatutDemande.SOUMISE, utilisateur);
-            case TECHNICIEN:
-                return demandeRepository.findByStatut(StatutDemande.VALIDEE_N1);
-            case ACHETEUR:
-                return demandeRepository.findByStatutIn(
-                        List.of(StatutDemande.VALIDEE_TECH, StatutDemande.EN_TRAITEMENT, StatutDemande.APPROUVEE));
-            case AMG:
-                return demandeRepository.findByStatut(StatutDemande.EN_VALIDATION_AMG);
-            case DAF:
-                return demandeRepository
-                        .findByStatutIn(List.of(StatutDemande.EN_VALIDATION_DAF, StatutDemande.AJUSTEMENT_DAF));
-            case DG:
-                return demandeRepository
-                        .findByStatutIn(List.of(StatutDemande.EN_VALIDATION_DG, StatutDemande.AJUSTEMENT_DG));
-            default:
-                return List.of();
-        }
+    private void log(DemandeAchatInterne da, StatutDemande from, StatutDemande to, User user, String msg) {
+        historyRepository.save(new StatusHistory("DemandeAchatInterne", da.getId(), from != null ? from.name() : null,
+                to.name(), user, msg));
     }
 }

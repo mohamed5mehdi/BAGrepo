@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-mehdi}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-0660438081}
     ports:
-      - "5432:5432"
+      - "5437:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-mehdi} -d ${POSTGRES_DB:-procurement_db}"]
       interval: 10s
@@ -21,11 +21,12 @@ services:
     image: procurement-management-app:latest
     container_name: procurement-app
     ports:
-      - "8080:8080"
+      - "8085:8080"
     depends_on:
       db:
         condition: service_healthy
     environment:
+      - SPRING_PROFILES_ACTIVE=docker
       - SPRING_DATASOURCE_URL=jdbc:postgresql://db:5432/${POSTGRES_DB:-procurement_db}
       - SPRING_DATASOURCE_USERNAME=${POSTGRES_USER:-mehdi}
       - SPRING_DATASOURCE_PASSWORD=${POSTGRES_PASSWORD:-0660438081}
@@ -37,7 +38,7 @@ services:
     image: procurement-management-frontend:latest
     container_name: procurement-frontend
     ports:
-      - "3000:80"
+      - "3005:80"
     healthcheck:
       disable: true
     depends_on:
@@ -45,3 +46,4 @@ services:
 
 volumes:
   postgres_data:
+

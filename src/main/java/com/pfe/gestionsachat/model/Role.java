@@ -6,8 +6,15 @@ public enum Role {
     MANAGER_N2,
     TECHNICIEN,
     ACHETEUR,
+    /** Responsable Service Achat — BAG ERP : approuve le PO */
+    RESP_ACHAT,
+    /** Magasinier — BAG ERP : reçoit les marchandises et génère le GRN */
+    MAGASINIER,
+    /** Comptable — BAG ERP : valide le GRC (costing financier) */
+    COMPTABLE,
     AMG,
     DAF,
     DG,
     ADMINISTRATEUR
 }
+

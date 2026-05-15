@@ -28,6 +28,14 @@ public class GrcHeader {
     private java.math.BigDecimal totalAmount;
     private String devise;
 
+    /**
+     * Règle BAG ERP : grcNumber = grnNumber du GRN associé.
+     * Assigné dans GrcService.createGrc() depuis grnHeader.grnNumber.
+     * Unique — garantit l'absence de doublon GRC.
+     */
+    @Column(name = "grc_number", unique = true)
+    private String grcNumber;
+
     @OneToMany(mappedBy = "grcHeader", cascade = CascadeType.ALL)
     private List<GrcDetails> details;
 
@@ -48,4 +56,6 @@ public class GrcHeader {
     public void setDevise(String devise) { this.devise = devise; }
     public List<GrcDetails> getDetails() { return details; }
     public void setDetails(List<GrcDetails> details) { this.details = details; }
+    public String getGrcNumber() { return grcNumber; }
+    public void setGrcNumber(String grcNumber) { this.grcNumber = grcNumber; }
 }

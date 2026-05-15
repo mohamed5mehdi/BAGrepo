@@ -24,7 +24,7 @@ import java.util.Optional;
  */
 @RestController
 @RequestMapping("/api/chatbot")
-@CrossOrigin(origins = "*")
+
 public class ChatbotController {
 
     @Autowired
@@ -172,3 +172,4 @@ public class ChatbotController {
         catch (NumberFormatException e) { return null; }
     }
 }
+

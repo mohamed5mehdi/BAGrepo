@@ -31,6 +31,10 @@ public class Supplier {
 
     public Supplier() {}
 
+    public Supplier(Integer oidSupplier) {
+        this.oidSupplier = oidSupplier;
+    }
+
     public Supplier(String nom, String contact, String adresse, String sector, Integer rating, Integer leadTime) {
         this.nom = nom;
         this.contact = contact;

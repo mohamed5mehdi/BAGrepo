@@ -1,0 +1,170 @@
+### 0. Variables globales
+@baseUrl = http://localhost:8080/api
+
+### 1. Authentification Demandeur
+# @name loginDemandeur
+POST {{baseUrl}}/auth/login
+Content-Type: application/x-www-form-urlencoded
+
+email=demandeur@test.com&password=password
+
+> {%
+    client.global.set("demandeur_token", response.body.token);
+    client.global.set("demandeur_id", response.body.userId);
+%}
+
+### 2. Création DA Interne (Pièce de Rechange)
+# @name createDa
+POST {{baseUrl}}/demandes?userId={{demandeur_id}}
+Authorization: Bearer {{demandeur_token}}
+Content-Type: application/json
+
+{
+    "departement": "MAINTENANCE",
+    "categorie": "AUTRE",
+    "designation": "Batterie 12V 70Ah TEST HTTP",
+    "quantite": 10,
+    "justification": "Besoin urgent",
+    "urgence": "URGENTE",
+    "statut": "BROUILLON",
+    "isPieceRechange": true,
+    "itemCode": "BAT-V12-70AH"
+}
+
+> {%
+    client.global.set("da_id", response.body.id);
+%}
+
+### 3. Soumettre la DA
+# @name soumettreDa
+POST {{baseUrl}}/demandes/{{da_id}}/soumettre?userId={{demandeur_id}}
+Authorization: Bearer {{demandeur_token}}
+
+### 4. Authentification Acheteur
+# @name loginAcheteur
+POST {{baseUrl}}/auth/login
+Content-Type: application/x-www-form-urlencoded
+
+email=acheteur@test.com&password=password
+
+> {%
+    client.global.set("acheteur_token", response.body.token);
+    client.global.set("acheteur_id", response.body.userId);
+%}
+
+### 5. Valoriser et Traiter Achat (Bypass Hiérarchique Pièce Rechange)
+# @name valoriserDa
+PUT {{baseUrl}}/demandes/{{da_id}}/valoriser-achat?prixUnitaire=850.0&supplierId=1
+Authorization: Bearer {{acheteur_token}}
+
+### 6. Traiter Achat
+# @name traiterDa
+PUT {{baseUrl}}/demandes/{{da_id}}/traiter-achat?userId={{acheteur_id}}
+Authorization: Bearer {{acheteur_token}}
+
+### 7. Créer PO
+# @name createPo
+POST {{baseUrl}}/demandes/{{da_id}}/creer-po?userId={{acheteur_id}}
+Authorization: Bearer {{acheteur_token}}
+
+> {%
+    client.global.set("po_id", response.body.idPo);
+%}
+
+### 8. Authentification Responsable Achat
+# @name loginRespAchat
+POST {{baseUrl}}/auth/login
+Content-Type: application/x-www-form-urlencoded
+
+email=resp.achat@test.com&password=password
+
+> {%
+    client.global.set("resp_achat_token", response.body.token);
+    client.global.set("resp_achat_id", response.body.userId);
+%}
+
+### 9. Approuver PO
+# @name approvePo
+PUT {{baseUrl}}/purchase-orders/{{po_id}}/approve?userId={{resp_achat_id}}&commentaire=Approuve
+Authorization: Bearer {{resp_achat_token}}
+
+### 10. Authentification Magasinier
+# @name loginMagasinier
+POST {{baseUrl}}/auth/login
+Content-Type: application/x-www-form-urlencoded
+
+email=magasinier@test.com&password=password
+
+> {%
+    client.global.set("magasinier_token", response.body.token);
+    client.global.set("magasinier_id", response.body.userId);
+%}
+
+### 11. Création GRN
+# @name createGrn
+POST {{baseUrl}}/grn
+Authorization: Bearer {{magasinier_token}}
+Content-Type: application/json
+
+{
+    "purchaseOrder": {"idPo": {{po_id}}},
+    "deliveryNoteNumber": "BL-HTTP-001",
+    "receivedBy": {"oidUser": {{magasinier_id}}},
+    "status": "DRAFT",
+    "details": [
+        {
+            "itemCode": "BAT-V12-70AH",
+            "receivedQuantity": 10
+        }
+    ]
+}
+
+> {%
+    client.global.set("grn_id", response.body.id);
+    client.global.set("grn_detail_id", response.body.details[0].id);
+%}
+
+### 12. Valider GRN (Complete)
+# @name completeGrn
+PUT {{baseUrl}}/grn/{{grn_id}}/complete
+Authorization: Bearer {{magasinier_token}}
+
+### 13. Authentification Comptable
+# @name loginComptable
+POST {{baseUrl}}/auth/login
+Content-Type: application/x-www-form-urlencoded
+
+email=comptable@test.com&password=password
+
+> {%
+    client.global.set("comptable_token", response.body.token);
+    client.global.set("comptable_id", response.body.userId);
+%}
+
+### 14. Création GRC
+# @name createGrc
+POST {{baseUrl}}/grc
+Authorization: Bearer {{comptable_token}}
+Content-Type: application/json
+
+{
+    "grnHeader": {"id": {{grn_id}}},
+    "processedBy": "Comptable",
+    "details": [
+        {
+            "grnDetail": {"id": {{grn_detail_id}}},
+            "itemCode": "BAT-V12-70AH",
+            "acceptedQuantity": 10,
+            "unitCost": 850.0
+        }
+    ]
+}
+
+> {%
+    client.global.set("grc_id", response.body.id);
+%}
+
+### 15. Validation et Génération Facture GRC
+# @name validateGrc
+PUT {{baseUrl}}/grc/{{grc_id}}/valider
+Authorization: Bearer {{comptable_token}}

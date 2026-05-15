@@ -7,7 +7,7 @@ import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
 import ChatbotWidget from '../components/ChatbotWidget';
 import { useAuth } from '../context/AuthContext';
-import { getMesDemandesInternes, createDemandeInterne, getFamilies, getSubFamiliesByFamily, downloadPOByDA } from '../api/services';
+import { getMesDemandesInternes, createDemandeInterne, soumettreDemandeInterne, getFamilies, getSubFamiliesByFamily, downloadPOByDA, getStockItems } from '../api/services';
 import { formatCurrency } from '../utils/constants';
 import type { DemandeAchatInterne, SubFamily, DaDetails } from '../types';
 
@@ -24,14 +24,20 @@ export default function DemandeurPage() {
   const qc = useQueryClient();
   const [selectedDa, setSelectedDa] = useState<DemandeAchatInterne | null>(null);
   const [showNewForm, setShowNewForm] = useState(false);
+  const [showPieceForm, setShowPieceForm] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
   const [search, setSearch] = useState('');
+
+  // Pièce Form State
+  const [selectedPieceCode, setSelectedPieceCode] = useState('');
+  const [pieceQty, setPieceQty] = useState(1);
 
   // Form Global State
   const [urgency, setUrgency] = useState('NORMALE');
   const [budgetFamilleId, setBudgetFamilleId] = useState<string>('');
   const [budgetSousFamilleId, setBudgetSousFamilleId] = useState<string>('');
   const [globalJustification, setGlobalJustification] = useState('');
+  const [shouldSubmitAfterCreate, setShouldSubmitAfterCreate] = useState(false);
 
   // Form Items State (Multi-items logic)
   const [items, setItems] = useState<ItemRow[]>([
@@ -57,16 +63,48 @@ export default function DemandeurPage() {
     enabled: !!budgetFamilleId
   });
 
+  const { data: stockItems = [] } = useQuery({
+    queryKey: ['stock-catalog'],
+    queryFn: () => getStockItems().then(r => r.data),
+  });
+
+  const selectedPiece = stockItems.find((s: any) => s.itemCode === selectedPieceCode);
+
   const createMutation = useMutation({
     mutationFn: (payload: any) => createDemandeInterne(payload, user!.userId),
-    onSuccess: () => {
-      toast.success('Demande d\'achat créée avec succès !');
+    onSuccess: (res) => {
+      const newDa = res.data;
       qc.invalidateQueries({ queryKey: ['da', 'mes-demandes'] });
-      setShowNewForm(false);
-      resetForm();
+      
+      if (shouldSubmitAfterCreate) {
+        submitMutation.mutate(newDa.id);
+      } else {
+        toast.success('Demande enregistrée en brouillon !');
+        setShowNewForm(false);
+        resetForm();
+      }
     },
     onError: () => {
       toast.error('Erreur lors de la création de la demande');
+    },
+  });
+
+  const submitMutation = useMutation({
+    mutationFn: (id: number) => soumettreDemandeInterne(id, user!.userId),
+    onSuccess: (res) => {
+      const updatedDa = res.data;
+      if (updatedDa.statut === 'AFFECTEE') {
+        toast.success('🎉 Succès ! Votre besoin est couvert par le stock existant.', { duration: 6000 });
+      } else {
+        toast.success('🚀 Demande soumise avec succès au workflow N1 !');
+      }
+      qc.invalidateQueries({ queryKey: ['da'] });
+      setShowNewForm(false);
+      setSelectedDa(null);
+      resetForm();
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Erreur lors de la soumission');
     },
   });
 
@@ -97,7 +135,6 @@ export default function DemandeurPage() {
     e.preventDefault();
     if (!user) return;
 
-    // Transformation pour le backend (DemandeAchatInterne)
     const payload = {
       designation: items[0]?.itemName || 'Nouvelle Demande', 
       quantite: items.reduce((acc, it) => acc + it.quantite, 0),
@@ -105,7 +142,6 @@ export default function DemandeurPage() {
       urgence: urgency,
       budgetFamille: { id: Number(budgetFamilleId) },
       budgetSousFamille: { id: Number(budgetSousFamilleId) },
-      // On garde les détails au cas où le backend évolue, mais le root est ce qui compte pour l'entité actuelle
       details: items.map(item => ({
         itemName: item.itemName,
         description: item.description,
@@ -117,6 +153,23 @@ export default function DemandeurPage() {
       submissionToken
     };
 
+    createMutation.mutate(payload);
+  };
+
+  const handlePieceSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !selectedPiece) return;
+
+    const payload = {
+      designation: selectedPiece.itemName,
+      itemCode: selectedPiece.itemCode,
+      quantite: pieceQty,
+      justification: `Demande de pièce SAV / Maintenance : ${selectedPiece.itemName}`,
+      isPieceRechange: true,
+      submissionToken: crypto.randomUUID()
+    };
+
+    setShouldSubmitAfterCreate(true);
     createMutation.mutate(payload);
   };
 
@@ -177,6 +230,12 @@ export default function DemandeurPage() {
             <span>🤖</span> Créer par IA
           </button>
           <button
+            onClick={() => { setSelectedPieceCode(''); setPieceQty(1); setShowPieceForm(true); }}
+            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-700 text-white font-bold text-sm hover:from-indigo-700 hover:to-blue-800 transition-all shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2"
+          >
+            <span>🛠️</span> Demande de Pièces
+          </button>
+          <button
             onClick={() => { resetForm(); setShowNewForm(true); }}
             className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none flex items-center gap-2"
           >
@@ -199,26 +258,127 @@ export default function DemandeurPage() {
       {/* Detail Modal */}
       {selectedDa && (
         <DaModal da={selectedDa} onClose={() => setSelectedDa(null)} title="Détails de la Demande" wide showPrice={false}>
-          <div className="flex justify-end items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
-            {selectedDa.statut === 'PO_CREE' && (
-              <button 
-                onClick={() => handleDownloadPo(selectedDa.oid_da || selectedDa.id)}
-                className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 dark:shadow-none flex items-center gap-2"
-              >
-                <span>📄</span> Télécharger le BC
-              </button>
+          <div className="space-y-4">
+            {selectedDa.statut === 'AFFECTEE' && (
+              <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-4 rounded-2xl flex items-center gap-4 animate-pulse">
+                <span className="text-2xl">📦</span>
+                <div>
+                  <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Affectation Directe (Stock)</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">Votre besoin est couvert par le stock existant. Aucun processus d'achat externe requis.</p>
+                </div>
+              </div>
             )}
-            <button 
-              onClick={() => setSelectedDa(null)}
-              className="px-6 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-200 transition-all"
-            >
-              Fermer
-            </button>
+
+            <div className="flex justify-end items-center gap-3 pt-4 border-t border-slate-100 dark:border-slate-800">
+              {selectedDa.statut === 'BROUILLON' && (
+                <button 
+                  onClick={() => submitMutation.mutate(selectedDa.id)}
+                  disabled={submitMutation.isPending}
+                  className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-bold text-sm hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg shadow-blue-100 dark:shadow-none flex items-center gap-2"
+                >
+                  {submitMutation.isPending ? '...' : <><span>🚀</span> Soumettre la demande</>}
+                </button>
+              )}
+              {selectedDa.statut === 'PO_CREE' && (
+                <button 
+                  onClick={() => handleDownloadPo(selectedDa.oid_da || selectedDa.id)}
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 dark:shadow-none flex items-center gap-2"
+                >
+                  <span>📄</span> Télécharger le BC
+                </button>
+              )}
+              <button 
+                onClick={() => setSelectedDa(null)}
+                className="px-6 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold text-sm hover:bg-slate-200 transition-all"
+              >
+                Fermer
+              </button>
+            </div>
           </div>
         </DaModal>
       )}
 
       {/* Create DA Form Modal - MULTI-ITEMS VERSION */}
+      {/* Piece Form Modal */}
+      {showPieceForm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-2xl animate-scale-in overflow-hidden">
+            <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-indigo-50/50 dark:bg-indigo-900/10">
+              <div>
+                <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">🛠️ Demande de Pièces & SAV</h2>
+                <p className="text-xs text-slate-400 mt-1">Sélectionnez une pièce dans le catalogue des rayons.</p>
+              </div>
+              <button onClick={() => setShowPieceForm(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400">✕</button>
+            </div>
+
+            <form onSubmit={handlePieceSubmit} className="p-10 space-y-8">
+              <div className="space-y-2">
+                <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Pièce / Article *</label>
+                <select 
+                  value={selectedPieceCode} onChange={e => setSelectedPieceCode(e.target.value)} required
+                  className="w-full px-5 py-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm"
+                >
+                  <option value="">Chercher une pièce (Huile, Roue, Batterie...)</option>
+                  {stockItems.map((s: any) => (
+                    <option key={s.id} value={s.itemCode}>
+                      {s.itemName} ({s.itemCode}) — {s.locationCode}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {selectedPiece && (
+                <div className={`p-4 rounded-2xl border flex items-center gap-4 transition-all ${
+                  selectedPiece.quantityAvailable > 0 
+                    ? 'bg-emerald-50 border-emerald-100 dark:bg-emerald-900/20 dark:border-emerald-800' 
+                    : 'bg-rose-50 border-rose-100 dark:bg-rose-900/20 dark:border-rose-800'
+                }`}>
+                  <span className="text-2xl">{selectedPiece.quantityAvailable > 0 ? '✅' : '⚠️'}</span>
+                  <div>
+                    <p className={`text-sm font-bold ${selectedPiece.quantityAvailable > 0 ? 'text-emerald-800 dark:text-emerald-300' : 'text-rose-800 dark:text-rose-300'}`}>
+                      {selectedPiece.quantityAvailable > 0 ? `Disponible en Stock (${selectedPiece.quantityAvailable})` : 'Hors Stock (Nécessite Achat)'}
+                    </p>
+                    <p className="text-xs opacity-70">Emplacement : {selectedPiece.locationCode}</p>
+                  </div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-6">
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Quantité *</label>
+                  <input 
+                    type="number" min={1} value={pieceQty} onChange={e => setPieceQty(Number(e.target.value))}
+                    className="w-full px-5 py-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-bold focus:ring-2 focus:ring-indigo-500 outline-none"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[11px] font-bold text-slate-400 uppercase tracking-widest ml-1">Unité</label>
+                  <div className="px-5 py-3.5 rounded-2xl bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 text-sm font-semibold text-slate-500 italic">
+                    Pièce / Unité
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-6 border-t border-slate-50 dark:border-slate-800 flex justify-end gap-3">
+                <button 
+                  type="button" onClick={() => setShowPieceForm(false)}
+                  className="px-8 py-3 rounded-2xl bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-100 transition-all"
+                >
+                  Annuler
+                </button>
+                <button 
+                  type="submit"
+                  disabled={!selectedPieceCode || createMutation.isPending}
+                  className="px-10 py-3 rounded-2xl bg-indigo-600 text-white font-black text-sm hover:bg-indigo-700 disabled:opacity-50 shadow-xl shadow-indigo-100 dark:shadow-none transition-all flex items-center gap-2"
+                >
+                  {createMutation.isPending ? 'Envoi...' : '🚀 Envoyer à l\'Acheteur'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {showNewForm && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
           <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-6xl max-h-[95vh] flex flex-col animate-scale-in">
@@ -379,14 +539,26 @@ export default function DemandeurPage() {
                   type="button" onClick={() => setShowNewForm(false)}
                   className="px-8 py-3 rounded-2xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 transition-all"
                 >
-                  Cancel
+                  Annuler
                 </button>
-                <button 
-                  type="submit" form="da-form" disabled={createMutation.isPending}
-                  className="px-10 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm hover:bg-blue-700 disabled:opacity-50 shadow-xl shadow-blue-200 dark:shadow-none transition-all flex items-center gap-2"
-                >
-                  {createMutation.isPending ? '...' : '💾 Submit Request'}
-                </button>
+                <div className="flex gap-2">
+                  <button 
+                    type="submit" form="da-form" 
+                    onClick={() => setShouldSubmitAfterCreate(false)}
+                    disabled={createMutation.isPending || submitMutation.isPending}
+                    className="px-6 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-200 transition-all border border-slate-200 dark:border-slate-700"
+                  >
+                    💾 Enregistrer Brouillon
+                  </button>
+                  <button 
+                    type="submit" form="da-form"
+                    onClick={() => setShouldSubmitAfterCreate(true)}
+                    disabled={createMutation.isPending || submitMutation.isPending}
+                    className="px-10 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm hover:bg-blue-700 disabled:opacity-50 shadow-xl shadow-blue-200 dark:shadow-none transition-all flex items-center gap-2"
+                  >
+                    {createMutation.isPending || submitMutation.isPending ? 'Traitement...' : '🚀 Soumettre la demande'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

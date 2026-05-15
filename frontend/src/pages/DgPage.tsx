@@ -7,6 +7,7 @@ import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
 import { useAuth } from '../context/AuthContext';
 import { getAllDA, validateWorkflow, adjustFamily, getSubFamilies } from '../api/services';
+import { getAIDecision } from '../api/ai-services';
 import type { DaHeader, ValidationDecision, SubFamily } from '../types';
 import { formatCurrency } from '../utils/constants';
 
@@ -30,7 +31,14 @@ export default function DgPage() {
     queryFn: () => getSubFamilies().then(r => r.data),
   });
 
-  const mine = all.filter(d => ['EN_VALIDATION_DG', 'AJUSTEMENT_DG'].includes(d.statut));
+  const { data: aiDecision, isLoading: loadingDecision } = useQuery({
+    queryKey: ['ai', 'decision', selectedDa?.oid_da],
+    queryFn: () => getAIDecision(selectedDa!.oid_da).then(r => r.data),
+    enabled: !!selectedDa?.oid_da,
+    staleTime: 60_000,
+  });
+
+  const mine = all.filter(d => ['VALIDE_DG'].includes(d.statut));
 
   const validateMutation = useMutation({
     mutationFn: ({ decision }: { decision: ValidationDecision }) =>
@@ -67,6 +75,10 @@ export default function DgPage() {
       <div className="flex gap-3 mb-5">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Rechercher..."
           className="flex-1 px-4 py-2 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
+        <button onClick={() => window.location.href='/ai-dashboard'}
+          className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2">
+          📊 Tableau de Bord BI IA
+        </button>
         <button onClick={() => qc.invalidateQueries({ queryKey: ['da'] })}
           className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 transition-colors">🔄 Actualiser</button>
       </div>
@@ -106,32 +118,103 @@ export default function DgPage() {
               </button>
             </div>
 
-            {/* Récapitulatif Audit Financier pour DG */}
-            <div className="p-4 rounded-2xl bg-slate-900 text-white shadow-xl space-y-3">
-               <div className="flex justify-between items-center border-b border-white/10 pb-2">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400">Audit Décisionnel</h4>
-                  <span className="text-[10px] font-bold bg-indigo-500 px-2 py-0.5 rounded">TVA 20% incluse</span>
-               </div>
-               <div className="grid grid-cols-2 gap-4">
-                  <div>
-                     <p className="text-[9px] text-slate-500 uppercase font-bold">Fournisseur Sélectionné</p>
-                     <p className="text-sm font-bold text-indigo-300">{selectedDa?.fournisseur?.nom || '—'}</p>
+            {/* Intelligence Décisionnelle IA pour DG */}
+            <div className={`rounded-2xl border-2 overflow-hidden ${
+              aiDecision?.recommandationColor === 'red'    ? 'border-red-400'
+              : aiDecision?.recommandationColor === 'orange' ? 'border-orange-400'
+              : 'border-emerald-400'
+            }`}>
+              <div className={`px-5 py-3 flex items-center justify-between ${
+                aiDecision?.recommandationColor === 'red'    ? 'bg-gradient-to-r from-red-900 to-red-800'
+                : aiDecision?.recommandationColor === 'orange' ? 'bg-gradient-to-r from-orange-900 to-amber-800'
+                : 'bg-gradient-to-r from-emerald-900 to-green-800'
+              }`}>
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">🤖</span>
+                  <span className="text-[11px] font-black text-white uppercase tracking-widest">Intelligence Décisionnelle IA — Arbitrage DG</span>
+                </div>
+                {loadingDecision ? (
+                  <div className="h-6 w-28 bg-white/20 rounded-full animate-pulse" />
+                ) : aiDecision ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xl">{aiDecision.recommandationIcon}</span>
+                    <span className="text-sm font-black text-white tracking-wide">{aiDecision.recommandation}</span>
+                    <span className="text-[10px] text-white/60">({Math.round(aiDecision.confidence * 100)}% conf.)</span>
                   </div>
-                  <div className="text-right">
-                     <p className="text-[9px] text-slate-500 uppercase font-bold">Total TTC à décaisser</p>
-                     <p className="text-lg font-black text-emerald-400">{formatCurrency((selectedDa?.montantEstime || 0) * 1.20)}</p>
+                ) : null}
+              </div>
+              <div className="p-4 bg-slate-900 space-y-3">
+                {loadingDecision ? (
+                  <div className="space-y-2">
+                    <div className="h-3 bg-slate-700 rounded animate-pulse w-3/4" />
+                    <div className="h-3 bg-slate-700 rounded animate-pulse w-1/2" />
                   </div>
-               </div>
-               <div className="pt-2 border-t border-white/10 flex justify-between items-center">
-                  <p className="text-[9px] text-slate-500 uppercase font-bold">Impact Budget Sous-Famille</p>
-                  <p className="text-xs font-mono">
-                     {formatCurrency(selectedDa?.budgetSousFamille?.budget_restant || 0)} 
-                     <span className="text-rose-400 mx-1">→</span>
-                     <span className="text-emerald-400 font-bold">
-                        {formatCurrency((selectedDa?.budgetSousFamille?.budget_restant || 0) - (selectedDa?.montantEstime || 0))}
-                     </span>
-                  </p>
-               </div>
+                ) : aiDecision ? (
+                  <>
+                    {/* Score */}
+                    <div>
+                      <div className="flex justify-between text-[10px] font-bold text-slate-400 mb-1">
+                        <span>Score de risque IA</span>
+                        <span className="font-black text-white">{aiDecision.score}/100</span>
+                      </div>
+                      <div className="h-2 bg-slate-700 rounded-full overflow-hidden">
+                        <div className="h-full rounded-full transition-all duration-700" style={{
+                          width: `${aiDecision.score}%`,
+                          background: aiDecision.score >= 85 ? '#ef4444' : aiDecision.score >= 50 ? '#f97316' : '#22c55e'
+                        }} />
+                      </div>
+                    </div>
+                    {/* Fournisseur + TTC */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <p className="text-[9px] text-slate-500 uppercase font-bold">Fournisseur</p>
+                        <p className="text-sm font-bold text-indigo-300">{selectedDa?.fournisseur?.nom || '—'}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] text-slate-500 uppercase font-bold">Total TTC (20%)</p>
+                        <p className="text-lg font-black text-emerald-400">{formatCurrency((selectedDa?.montantEstime || 0) * 1.20)}</p>
+                      </div>
+                    </div>
+                    {/* Impact budget */}
+                    <div className="pt-2 border-t border-white/10 flex justify-between items-center">
+                      <p className="text-[9px] text-slate-500 uppercase font-bold">Impact Budget Sous-Famille</p>
+                      <p className="text-xs font-mono">
+                        {formatCurrency(selectedDa?.budgetSousFamille?.budget_restant || 0)}
+                        <span className="text-rose-400 mx-1">→</span>
+                        <span className="text-emerald-400 font-bold">{formatCurrency((selectedDa?.budgetSousFamille?.budget_restant || 0) - (selectedDa?.montantEstime || 0))}</span>
+                      </p>
+                    </div>
+                    {/* Circuit conseillé */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px] text-slate-400 font-semibold">Circuit IA :</span>
+                      <span className="text-xs font-black px-2 py-0.5 rounded bg-indigo-800 text-indigo-200">{aiDecision.suggestedRole}</span>
+                    </div>
+                    {/* Anomalie */}
+                    {aiDecision.anomalie && (
+                      <div className={`text-[11px] font-bold px-3 py-2 rounded-xl border ${
+                        aiDecision.anomalie.niveau === 'CRITIQUE'
+                          ? 'bg-red-950/60 border-red-700 text-red-300'
+                          : 'bg-amber-950/60 border-amber-700 text-amber-300'
+                      }`}>
+                        {aiDecision.anomalie.niveau === 'CRITIQUE' ? '⛔' : '⚠️'} Anomalie {aiDecision.anomalie.niveau} — Z={aiDecision.anomalie.zScore.toFixed(2)}<br />
+                        <span className="font-normal opacity-80">{aiDecision.anomalie.raison}</span>
+                      </div>
+                    )}
+                    {/* Justifications */}
+                    {aiDecision.justifications?.length > 0 && (
+                      <ul className="space-y-1">
+                        {aiDecision.justifications.map((j: string, i: number) => (
+                          <li key={i} className="text-[11px] text-slate-400 flex items-start gap-1.5">
+                            <span className="text-indigo-400">›</span>{j}
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </>
+                ) : (
+                  <p className="text-xs text-slate-500">Analyse indisponible</p>
+                )}
+              </div>
             </div>
 
             {/* Standard validation */}

@@ -18,7 +18,13 @@ export default function LoginPage() {
     try {
       const { data } = await loginApi(email.trim().toLowerCase(), password);
       if (data.success) {
-        login({ userId: data.userId, userName: data.userName, email: data.email, role: data.role as Role });
+        login({ 
+          userId: data.userId, 
+          userName: data.userName, 
+          email: data.email, 
+          role: data.role as Role,
+          token: data.token
+        });
         toast.success(`Bienvenue, ${data.userName} !`);
         navigate(getDashboardRoute(data.role as Role));
       } else {

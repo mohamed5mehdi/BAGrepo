@@ -4,21 +4,21 @@ export type Role =
   | 'MANAGER_N1'
   | 'TECHNICIEN'
   | 'ACHETEUR'
+  | 'RESP_ACHAT'       // Responsable Service Achat — BAG ERP
+  | 'MAGASINIER'       // Magasinier — BAG ERP
+  | 'COMPTABLE'        // Comptable Service Comptabilité — BAG ERP
   | 'AMG'
   | 'DAF'
   | 'DG'
   | 'ADMINISTRATEUR';
 
 export type StatutDA =
-  | 'BROUILLON' | 'SOUMISE'
-  | 'EN_ATTENTE_N1' | 'VALIDEE_N1'
-  | 'EN_ATTENTE_TECH' | 'VALIDEE_TECH'
-  | 'EN_ATTENTE_ACHAT' | 'EN_TRAITEMENT' | 'A_COMMANDER'
-  | 'EN_ATTENTE_AMG' | 'EN_VALIDATION_AMG'
-  | 'EN_ATTENTE_DAF' | 'EN_VALIDATION_DAF' | 'AJUSTEMENT_DAF'
-  | 'EN_ATTENTE_DG' | 'EN_VALIDATION_DG' | 'AJUSTEMENT_DG'
-  | 'VALIDEE' | 'APPROUVEE' | 'PO_CREE' | 'REJETEE'
-  | 'EN_LIVRAISON' | 'AFFECTEE';
+  // Flux Interne (StatutDemande)
+  | 'BROUILLON' | 'SOUMISE' | 'VALIDE_N1' | 'VALIDE_TECH' | 'VALIDE_AMG' | 'VALIDE_DAF' | 'VALIDE_DG'
+  | 'EN_TRAITEMENT' | 'DISPONIBLE_STOCK' | 'APPROUVEE'
+  // Flux Classique (StatutDA)
+  | 'EN_ATTENTE_N1' | 'EN_ATTENTE_TECH' | 'EN_ATTENTE_ACHAT' | 'EN_ATTENTE_AMG' | 'EN_ATTENTE_DAF' | 'EN_ATTENTE_DG'
+  | 'VALIDEE' | 'PO_CREE' | 'REJETEE' | 'EN_LIVRAISON' | 'AFFECTEE';
 
 export type ValidationDecision = 'ACCEPTE' | 'REJETE';
 
@@ -49,6 +49,9 @@ export interface DemandeAchatInterne {
   dateCreation?: string;
   dateValidation?: string;
   commentaireRejet?: string;
+  isPieceRechange?: boolean;
+  itemCode?: string;
+  isAvailableInStock?: boolean;
 }
 
 export interface User {
@@ -124,10 +127,14 @@ export interface DaHeader extends DemandeAchatInterne {
 export interface PurchaseOrder {
   id_po: number;
   daHeader?: DaHeader;
+  demandeInterne?: DemandeAchatInterne;
   fournisseur?: Supplier;
   date_creation: string;
-  statut: string;
+  /** Statut typé BAG ERP — remplace l'ancien string libre */
+  statut: POStatus;
   montant_total: number;
+  /** Numéro de référence BAG ERP (PO-YYYYMM-XXXXX) */
+  poNumber?: string;
 }
 
 export interface BudgetTransfer {
@@ -140,13 +147,17 @@ export interface BudgetTransfer {
 }
 
 // ── Logistics Enums ───────────────────────────────────────────
-export type GrnStatus = 'DRAFT' | 'VALIDATED' | 'PARTIAL';
+/** BAG ERP PO statuses — machine à états stricte */
+export type POStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'APPROVED' | 'REJECTED' | 'SHORT_CLOSED';
+/** BAG ERP GRN statuses — Magasinier, pas d'approbation hiérarchique */
+export type GrnStatus = 'DRAFT' | 'PENDING' | 'ENTRY_COMPLETED';
 export type QualityStatus = 'PENDING' | 'APPROVED' | 'REJECTED' | 'QUARANTINE';
-export type GrcStatus = 'DRAFT' | 'VALIDATED' | 'POSTED';
+/** BAG ERP GRC statuses — Comptable */
+export type GrcStatus = 'DRAFT' | 'PENDING_APPROVAL' | 'VALIDATED' | 'POSTED';
 export type InvoiceStatus = 'RECEIVED' | 'MATCHED' | 'APPROVED' | 'PAID' | 'REJECTED';
 export type CreditNoteStatus = 'PENDING' | 'ISSUED' | 'RECONCILED';
 export type WarehouseType = 'CENTRAL' | 'REGIONAL' | 'LOCAL';
-export type MovementType = 'IN_RECEIPT' | 'OUT_RETURN' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'CONSUMPTION';
+export type MovementType = 'IN_RECEIPT' | 'OUT_RETURN' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'CONSUMPTION' | 'AFFECTATION';
 export type TransferStatus = 'REQUESTED' | 'IN_TRANSIT' | 'DELIVERED';
 
 export interface SupplierOffer {
@@ -167,6 +178,8 @@ export interface GrnHeader {
   receivedBy?: User;
   parentGrn?: GrnHeader;
   status: GrnStatus;
+  /** Numéro de référence BAG ERP — partagé avec le GRC associé (même numéro) */
+  grnNumber?: string;
   details?: GrnDetails[];
 }
 
@@ -176,6 +189,8 @@ export interface GrnDetails {
   itemCode: string;
   itemName: string;
   orderedQuantity: number;
+  /** Solde restant à recevoir (BAG ERP Shipped Qty) — PO clôturé quand = 0 */
+  shippedQuantity: number;
   receivedQuantity: number;
   acceptedQuantity: number;
   rejectedQuantity: number;
@@ -204,6 +219,8 @@ export interface GrcDetails {
   totalCost: number;
   taxRate?: number;
   montantTTC: number;
+  mainAccount?: string;
+  subAccount?: string;
 }
 
 export interface Invoice {
@@ -238,6 +255,8 @@ export interface StockItem {
   warehouse?: Warehouse;
   itemCode: string;
   itemName: string;
+  /** Code emplacement logique virtuel (BAG ERP — auto-généré, unique par article) */
+  locationCode?: string;
   quantityAvailable: number;
   quantityReserved: number;
   unitCost?: number;
@@ -269,6 +288,7 @@ export interface AuthUser {
   userName: string;
   email: string;
   role: Role;
+  token?: string;
 }
 
 // ── API Responses ─────────────────────────────────────────────

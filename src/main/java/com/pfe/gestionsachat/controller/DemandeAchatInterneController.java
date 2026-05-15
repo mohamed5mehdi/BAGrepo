@@ -17,7 +17,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping(value = "/api/demandes", produces = "application/json")
-@CrossOrigin(origins = "*")
+
 public class DemandeAchatInterneController {
 
     @Autowired
@@ -136,3 +136,4 @@ public class DemandeAchatInterneController {
         return ResponseEntity.ok(offreRepository.findByDa_Id(id));
     }
 }
+

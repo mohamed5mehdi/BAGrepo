@@ -6,7 +6,7 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "demande_achat_interne")
-@com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+@com.fasterxml.jackson.annotation.JsonIgnoreProperties({ "hibernateLazyInitializer", "handler" })
 public class DemandeAchatInterne {
 
     @Id
@@ -64,8 +64,20 @@ public class DemandeAchatInterne {
     @Column(unique = true)
     private String submissionToken;
 
+    private Boolean isPieceRechange = false;
+    private String itemCode;
+    private Boolean isAvailableInStock = false;
+
     @OneToMany(mappedBy = "demandeAchatInterne", cascade = CascadeType.ALL, orphanRemoval = true)
     private java.util.List<DaDetails> details = new java.util.ArrayList<>();
+
+    /**
+     * Lien inverse vers le PO généré depuis cette DA.
+     * Permet la traçabilité complète DA→PO→GRN→GRC pour le reporting.
+     */
+    @OneToOne(mappedBy = "demandeInterne")
+    @com.fasterxml.jackson.annotation.JsonIgnore
+    private PurchaseOrder purchaseOrder;
 
     public DemandeAchatInterne() {
         this.dateCreation = LocalDateTime.now();
@@ -73,17 +85,37 @@ public class DemandeAchatInterne {
     }
 
     // Getters and Setters
-    public Long getId() { return id; }
-    public void setId(Long id) { this.id = id; }
+    public Long getId() {
+        return id;
+    }
 
-    public User getDemandeur() { return demandeur; }
-    public void setDemandeur(User demandeur) { this.demandeur = demandeur; }
+    public void setId(Long id) {
+        this.id = id;
+    }
 
-    public String getDepartement() { return departement; }
-    public void setDepartement(String departement) { this.departement = departement; }
+    public User getDemandeur() {
+        return demandeur;
+    }
 
-    public CategorieDemande getCategorie() { return categorie; }
-    public void setCategorie(CategorieDemande categorie) { this.categorie = categorie; }
+    public void setDemandeur(User demandeur) {
+        this.demandeur = demandeur;
+    }
+
+    public String getDepartement() {
+        return departement;
+    }
+
+    public void setDepartement(String departement) {
+        this.departement = departement;
+    }
+
+    public CategorieDemande getCategorie() {
+        return categorie;
+    }
+
+    public void setCategorie(CategorieDemande categorie) {
+        this.categorie = categorie;
+    }
 
     @PrePersist
     @PreUpdate
@@ -93,56 +125,166 @@ public class DemandeAchatInterne {
         }
     }
 
-    public String getDesignation() { return designation; }
-    public void setDesignation(String designation) { this.designation = designation; }
+    public String getDesignation() {
+        return designation;
+    }
 
-    public Integer getQuantite() { return quantite; }
-    public void setQuantite(Integer quantite) { this.quantite = quantite; }
+    public void setDesignation(String designation) {
+        this.designation = designation;
+    }
 
-    public String getJustification() { return justification; }
-    public void setJustification(String justification) { this.justification = justification; }
+    public Integer getQuantite() {
+        return quantite;
+    }
 
-    public UrgenceDemande getUrgence() { return urgence; }
-    public void setUrgence(UrgenceDemande urgence) { this.urgence = urgence; }
+    public void setQuantite(Integer quantite) {
+        this.quantite = quantite;
+    }
 
-    public Family getBudgetFamille() { return budgetFamille; }
-    public void setBudgetFamille(Family budgetFamille) { 
+    public String getJustification() {
+        return justification;
+    }
+
+    public void setJustification(String justification) {
+        this.justification = justification;
+    }
+
+    public UrgenceDemande getUrgence() {
+        return urgence;
+    }
+
+    public void setUrgence(UrgenceDemande urgence) {
+        this.urgence = urgence;
+    }
+
+    public Family getBudgetFamille() {
+        return budgetFamille;
+    }
+
+    public void setBudgetFamille(Family budgetFamille) {
         this.budgetFamille = budgetFamille;
         if (budgetFamille != null && budgetFamille.getCategorie() != null) {
             this.categorie = budgetFamille.getCategorie();
         }
     }
 
-    public SubFamily getBudgetSousFamille() { return budgetSousFamille; }
-    public void setBudgetSousFamille(SubFamily budgetSousFamille) { this.budgetSousFamille = budgetSousFamille; }
+    public SubFamily getBudgetSousFamille() {
+        return budgetSousFamille;
+    }
 
-    public StatutDemande getStatut() { return statut; }
-    public void setStatut(StatutDemande statut) { this.statut = statut; }
+    public void setBudgetSousFamille(SubFamily budgetSousFamille) {
+        this.budgetSousFamille = budgetSousFamille;
+    }
 
-    public TypeAjustement getTypeAjustement() { return typeAjustement; }
-    public void setTypeAjustement(TypeAjustement typeAjustement) { this.typeAjustement = typeAjustement; }
+    public StatutDemande getStatut() {
+        return statut;
+    }
 
-    public BigDecimal getMontantEstime() { return montantEstime; }
-    public void setMontantEstime(BigDecimal montantEstime) { this.montantEstime = montantEstime; }
+    public void setStatut(StatutDemande statut) {
+        this.statut = statut;
+    }
 
-    public BigDecimal getPrixUnitaire() { return prixUnitaire; }
-    public void setPrixUnitaire(BigDecimal prixUnitaire) { this.prixUnitaire = prixUnitaire; }
+    public TypeAjustement getTypeAjustement() {
+        return typeAjustement;
+    }
 
-    public Supplier getFournisseur() { return fournisseur; }
-    public void setFournisseur(Supplier fournisseur) { this.fournisseur = fournisseur; }
+    public void setTypeAjustement(TypeAjustement typeAjustement) {
+        this.typeAjustement = typeAjustement;
+    }
 
-    public LocalDateTime getDateCreation() { return dateCreation; }
-    public void setDateCreation(LocalDateTime dateCreation) { this.dateCreation = dateCreation; }
+    public BigDecimal getMontantEstime() {
+        return montantEstime;
+    }
 
-    public LocalDateTime getDateValidation() { return dateValidation; }
-    public void setDateValidation(LocalDateTime dateValidation) { this.dateValidation = dateValidation; }
+    public void setMontantEstime(BigDecimal montantEstime) {
+        this.montantEstime = montantEstime;
+    }
 
-    public String getCommentaireRejet() { return commentaireRejet; }
-    public void setCommentaireRejet(String commentaireRejet) { this.commentaireRejet = commentaireRejet; }
+    public BigDecimal getPrixUnitaire() {
+        return prixUnitaire;
+    }
 
-    public java.util.List<DaDetails> getDetails() { return details; }
-    public void setDetails(java.util.List<DaDetails> details) { this.details = details; }
+    public void setPrixUnitaire(BigDecimal prixUnitaire) {
+        this.prixUnitaire = prixUnitaire;
+    }
 
-    public String getSubmissionToken() { return submissionToken; }
-    public void setSubmissionToken(String submissionToken) { this.submissionToken = submissionToken; }
+    public Supplier getFournisseur() {
+        return fournisseur;
+    }
+
+    public void setFournisseur(Supplier fournisseur) {
+        this.fournisseur = fournisseur;
+    }
+
+    public LocalDateTime getDateCreation() {
+        return dateCreation;
+    }
+
+    public void setDateCreation(LocalDateTime dateCreation) {
+        this.dateCreation = dateCreation;
+    }
+
+    public LocalDateTime getDateValidation() {
+        return dateValidation;
+    }
+
+    public void setDateValidation(LocalDateTime dateValidation) {
+        this.dateValidation = dateValidation;
+    }
+
+    public String getCommentaireRejet() {
+        return commentaireRejet;
+    }
+
+    public void setCommentaireRejet(String commentaireRejet) {
+        this.commentaireRejet = commentaireRejet;
+    }
+
+    public java.util.List<DaDetails> getDetails() {
+        return details;
+    }
+
+    public void setDetails(java.util.List<DaDetails> details) {
+        this.details = details;
+    }
+
+    public String getSubmissionToken() {
+        return submissionToken;
+    }
+
+    public void setSubmissionToken(String submissionToken) {
+        this.submissionToken = submissionToken;
+    }
+
+    public PurchaseOrder getPurchaseOrder() {
+        return purchaseOrder;
+    }
+
+    public void setPurchaseOrder(PurchaseOrder purchaseOrder) {
+        this.purchaseOrder = purchaseOrder;
+    }
+
+    public Boolean getIsPieceRechange() {
+        return isPieceRechange;
+    }
+
+    public void setIsPieceRechange(Boolean isPieceRechange) {
+        this.isPieceRechange = isPieceRechange;
+    }
+
+    public String getItemCode() {
+        return itemCode;
+    }
+
+    public void setItemCode(String itemCode) {
+        this.itemCode = itemCode;
+    }
+
+    public Boolean getIsAvailableInStock() {
+        return isAvailableInStock;
+    }
+
+    public void setIsAvailableInStock(Boolean isAvailableInStock) {
+        this.isAvailableInStock = isAvailableInStock;
+    }
 }

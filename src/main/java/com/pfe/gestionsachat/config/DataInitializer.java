@@ -2,6 +2,7 @@ package com.pfe.gestionsachat.config;
 
 import com.pfe.gestionsachat.model.*;
 import com.pfe.gestionsachat.repository.*;
+import com.pfe.gestionsachat.model.POStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.stereotype.Component;
@@ -24,6 +25,7 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private WarehouseRepository warehouseRepository;
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
     @Autowired private DemandeAchatInterneRepository demandeAchatInterneRepository;
+    @Autowired private StockItemRepository stockItemRepository;
     @Autowired private OffreFournisseurRepository offreFournisseurRepository;
     @Autowired private BCryptPasswordEncoder encoder;
     @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
@@ -51,12 +53,17 @@ public class DataInitializer implements CommandLineRunner {
             demandeur.setService("LOGISTIQUE BAG");
             demandeur.setN1(n1);
             
-            userRepository.saveAll(List.of(n1, tech, acheteur, amg, daf, dg, admin, demandeur));
+            User magasinier = new User("Hassan Rahhali",   "magasinier@test.com", encoder.encode("password"), Role.MAGASINIER);
+            User comptable   = new User("Nadia Berrada",    "comptable@test.com",  encoder.encode("password"), Role.COMPTABLE);
+            User respAchat   = new User("Omar Kettani",     "resp.achat@test.com", encoder.encode("password"), Role.RESP_ACHAT);
+
+            userRepository.saveAll(List.of(n1, tech, acheteur, amg, daf, dg, admin, demandeur, magasinier, comptable, respAchat));
         } else {
             demandeur = userRepository.findByEmail("demandeur@test.com").orElse(null);
         }
 
         // 2. Nettoyage complet et robuste (Ordre inverse des dépendances)
+        /*
         if (familyRepository.count() > 0 || daHeaderRepository.count() > 0 || demandeAchatInterneRepository.count() > 0) {
             log.info("♻️ Nettoyage complet via TRUNCATE CASCADE (BAG)...");
             try {
@@ -68,6 +75,7 @@ public class DataInitializer implements CommandLineRunner {
                 familyRepository.deleteAll(); 
             }
         }
+        */
 
 
         if (familyRepository.count() > 0) {
@@ -177,11 +185,14 @@ public class DataInitializer implements CommandLineRunner {
 
             PurchaseOrder po = new PurchaseOrder();
             po.setDaHeader(da4);
-            po.setStatut("VALIDEE");
+            po.setStatut(POStatus.APPROVED);  // Seedé en APPROVED pour tests logistique (GRN/GRC)
             po.setMontantTotal(BigDecimal.valueOf(6500.0));
             po.setDateCreation(java.time.LocalDate.now());
-            purchaseOrderRepository.save(po);
-            log.info("📦 PO Seedé pour test logistique : PO-{}", po.getIdPo());
+            po.setFournisseur(sup2);
+            PurchaseOrder savedPo = purchaseOrderRepository.save(po);
+            savedPo.setPoNumber("PO-" + java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM")) + "-" + String.format("%05d", savedPo.getIdPo()));
+            purchaseOrderRepository.save(savedPo);
+            log.info("📦 PO Seedé pour test logistique : {}", savedPo.getPoNumber());
         }
         // 7. Demandes d'Achat Internes (flux principal)
         if (demandeAchatInterneRepository.count() == 0) {
@@ -204,7 +215,7 @@ public class DataInitializer implements CommandLineRunner {
             di2.setQuantite(50);
             di2.setJustification("Stock épuisé pour le trimestre");
             di2.setUrgence(UrgenceDemande.NORMALE);
-            di2.setStatut(StatutDemande.VALIDEE_N1);
+            di2.setStatut(StatutDemande.VALIDE_N1);
             di2.setBudgetFamille(famBur);
             di2.setBudgetSousFamille(sfMobilier);
             demandeAchatInterneRepository.save(di2);
@@ -217,7 +228,7 @@ public class DataInitializer implements CommandLineRunner {
             di3.setQuantite(5);
             di3.setJustification("Renouvellement mobilier open-space");
             di3.setUrgence(UrgenceDemande.NORMALE);
-            di3.setStatut(StatutDemande.VALIDEE_TECH); // Set to VALIDEE_TECH for Buyer processing
+            di3.setStatut(StatutDemande.VALIDE_TECH); // Set to VALIDE_TECH for Buyer processing
             di3.setMontantEstime(BigDecimal.valueOf(15000.0));
             di3.setBudgetFamille(famBur);
             di3.setBudgetSousFamille(sfMobilier);
@@ -250,6 +261,41 @@ public class DataInitializer implements CommandLineRunner {
         }
 
         log.info("✅ Données BAG initialisées avec succès !");
+
+        // 9. Seeding des Rayons et Articles (Flux de Pièces)
+        if (stockItemRepository.count() < 10) {
+            log.info("🛠️ Seeding des Rayons et Pièces de Rechange...");
+            Warehouse central = warehouseRepository.findAll().get(0);
+            
+            StockItem h1 = new StockItem();
+            h1.setWarehouse(central); h1.setItemCode("HUI-POMP-001"); h1.setItemName("Huile à pompe hydraulique");
+            h1.setCategory(ItemCategory.PIECE_RECHANGE); h1.setLocationCode("RAYON-LUBRIFIANT");
+            h1.setQuantityAvailable(10); h1.setUnitCost(150.0);
+            
+            StockItem r1 = new StockItem();
+            r1.setWarehouse(central); r1.setItemCode("ROUE-SEC-045"); r1.setItemName("Roue de secours 17 pouces");
+            r1.setCategory(ItemCategory.PIECE_RECHANGE); r1.setLocationCode("RAYON-MECANIQUE");
+            r1.setQuantityAvailable(4); r1.setUnitCost(1200.0);
+            
+            StockItem b1 = new StockItem();
+            b1.setWarehouse(central); b1.setItemCode("BAT-V12-70AH"); b1.setItemName("Batterie 12V 70Ah");
+            b1.setCategory(ItemCategory.PIECE_RECHANGE); b1.setLocationCode("RAYON-ELECTRIQUE");
+            b1.setQuantityAvailable(0); b1.setUnitCost(850.0); // Hors stock pour tester le flux achat
+            
+            StockItem c1 = new StockItem();
+            c1.setWarehouse(central); c1.setItemCode("CLE-DYN-SMALL"); c1.setItemName("Clé dynamométrique 1/4");
+            c1.setCategory(ItemCategory.PIECE_RECHANGE); c1.setLocationCode("RAYON-OUTILLAGE");
+            c1.setQuantityAvailable(2); c1.setUnitCost(450.0);
+            
+            StockItem p1 = new StockItem();
+            p1.setWarehouse(central); p1.setItemCode("PNEU-MIC-205"); p1.setItemName("Pneu Michelin 205/55 R16");
+            p1.setCategory(ItemCategory.PIECE_RECHANGE); p1.setLocationCode("RAYON-PNEUMATIQUE");
+            p1.setQuantityAvailable(8); p1.setUnitCost(950.0);
+            
+            stockItemRepository.saveAll(List.of(h1, r1, b1, c1, p1));
+            log.info("✅ 5 Rayons et articles seedés pour le flux Pièces.");
+        }
+
         log.info("Encadrants : M. Abdelhamid Barakate & Mme Ibtissame Saadalh");
     }
 }

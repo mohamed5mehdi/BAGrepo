@@ -11,7 +11,7 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/ajustement")
-@CrossOrigin(origins = "*")
+
 public class DemandeAjustementController {
 
     @Autowired
@@ -122,3 +122,4 @@ public class DemandeAjustementController {
             .orElse(ResponseEntity.notFound().build());
     }
 }
+

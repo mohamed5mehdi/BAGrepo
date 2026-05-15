@@ -16,11 +16,21 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: string; to: string }[]> =
     { label: 'Logistique', icon: '🚚', to: '/logistics' },
   ],
   AMG:       [{ label: 'Dossiers AMG', icon: '📂', to: '/amg' }],
-  DAF:       [{ label: 'Contrôle Budget', icon: '💰', to: '/daf' }],
-  DG:        [{ label: 'Direction', icon: '🏢', to: '/dg' }],
+  DAF:       [
+    { label: 'Contrôle Budget', icon: '💰', to: '/daf' },
+    { label: 'Intelligence IA', icon: '🤖', to: '/ai-dashboard' },
+  ],
+  DG:        [
+    { label: 'Direction', icon: '🏢', to: '/dg' },
+    { label: 'Dashboard IA', icon: '📊', to: '/ai-dashboard' },
+  ],
+  MAGASINIER: [{ label: 'Réception GRN', icon: '📦', to: '/magasinier' }],
+  COMPTABLE:  [{ label: 'Facturation GRC', icon: '🧾', to: '/comptable' }],
+  RESP_ACHAT: [{ label: 'Approbation PO', icon: '🛡️', to: '/resp-achat' }],
   ADMINISTRATEUR:     [
     { label: 'Administration', icon: '⚙️', to: '/admin' },
     { label: 'Logistique', icon: '🚚', to: '/logistics' },
+    { label: 'Surveillance IA', icon: '👁️', to: '/ai-dashboard' },
   ],
 };
 

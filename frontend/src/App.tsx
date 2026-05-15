@@ -7,8 +7,12 @@ import DemandeurPage from './pages/DemandeurPage';
 import AcheteurPage from './pages/AcheteurPage';
 import AdminPage from './pages/AdminPage';
 import LogisticsPage from './pages/LogisticsPage';
+import MagasinierPage from './pages/MagasinierPage';
+import ComptablePage from './pages/ComptablePage';
 import ValidatorPage from './pages/ValidatorPage';
+import RespAchatPage from './pages/RespAchatPage';
 import { N1Page, TechPage, AmgPage, ProtectedRoute } from './pages/RolePages';
+import AIDashboardPage from './pages/AIDashboardPage';
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -31,10 +35,14 @@ export default function App() {
             <Route path="/tech"          element={<ProtectedRoute><TechPage /></ProtectedRoute>} />
             <Route path="/acheteur"      element={<ProtectedRoute><AcheteurPage /></ProtectedRoute>} />
             <Route path="/amg"           element={<ProtectedRoute><AmgPage /></ProtectedRoute>} />
-            <Route path="/daf"           element={<ProtectedRoute><ValidatorPage role="DAF" myStatut="EN_VALIDATION_DAF" title="Dashboard DAF — Contrôle Budgétaire" icon="💰" color="from-fuchsia-500 to-purple-700" /></ProtectedRoute>} />
-            <Route path="/dg"            element={<ProtectedRoute><ValidatorPage role="DG" myStatut="EN_VALIDATION_DG" title="Dashboard DG — Direction Générale" icon="🏢" color="from-slate-600 to-slate-800" /></ProtectedRoute>} />
+            <Route path="/daf"           element={<ProtectedRoute><ValidatorPage role="DAF" myStatut="VALIDE_DAF" title="Dashboard DAF — Contrôle Budgétaire" icon="💰" color="from-fuchsia-500 to-purple-700" /></ProtectedRoute>} />
+            <Route path="/dg"            element={<ProtectedRoute><ValidatorPage role="DG" myStatut="VALIDE_DG" title="Dashboard DG — Direction Générale" icon="🏢" color="from-slate-600 to-slate-800" /></ProtectedRoute>} />
             <Route path="/admin"         element={<ProtectedRoute><AdminPage /></ProtectedRoute>} />
+            <Route path="/magasinier"    element={<ProtectedRoute><MagasinierPage /></ProtectedRoute>} />
+            <Route path="/comptable"     element={<ProtectedRoute><ComptablePage /></ProtectedRoute>} />
+            <Route path="/resp-achat"    element={<ProtectedRoute><RespAchatPage /></ProtectedRoute>} />
             <Route path="/logistics"     element={<ProtectedRoute><LogisticsPage /></ProtectedRoute>} />
+            <Route path="/ai-dashboard"  element={<ProtectedRoute><AIDashboardPage /></ProtectedRoute>} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/login" replace />} />

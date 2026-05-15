@@ -11,7 +11,7 @@ import org.springframework.lang.NonNull;
 
 @RestController
 @RequestMapping("/api/workflow")
-@CrossOrigin(origins = "*")
+
 public class AchatWorkflowController {
 
     @Autowired
@@ -67,3 +67,4 @@ public class AchatWorkflowController {
         return ResponseEntity.ok(workflowOrchestrator.solliciterAjustement(daId, acheteurId, type, motif));
     }
 }
+

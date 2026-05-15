@@ -30,7 +30,8 @@ public class WorkflowMonitorService {
         LocalDate limitDate = LocalDate.now().minusDays(30);
         
         // On cherche les POs en statut 'VALIDE' (en attente de réception) créés il y a plus de 30 jours
-        List<PurchaseOrder> ghostPOs = purchaseOrderRepository.findGhostPurchaseOrders(limitDate);
+        List<PurchaseOrder> ghostPOs = purchaseOrderRepository.findGhostPurchaseOrders(
+                com.pfe.gestionsachat.model.POStatus.APPROVED, limitDate);
         
         for (PurchaseOrder po : ghostPOs) {
             String msg = "Alerte R6/R4: Le PO #" + po.getIdPo() + " (DA #" + 

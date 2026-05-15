@@ -3,7 +3,9 @@ package com.pfe.gestionsachat.model;
 import jakarta.persistence.*;
 
 @Entity
-@Table(name = "stock_item")
+@Table(name = "stock_item", uniqueConstraints = {
+    @UniqueConstraint(name = "uk_stock_item_code_warehouse", columnNames = {"item_code", "warehouse_id"})
+})
 public class StockItem {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -18,6 +20,17 @@ public class StockItem {
 
     private String itemCode;
     private String itemName;
+
+    @Enumerated(EnumType.STRING)
+    private ItemCategory category;
+
+    /**
+     * Code emplacement — généré automatiquement, logique virtuel (BAG ERP).
+     * Format : LOC-{YYYYMM}-{UUID_SHORT}
+     * Règle : 1 emplacement = 1 article unique (unicité stricte via @UniqueConstraint).
+     */
+    @Column(name = "location_code", unique = true)
+    private String locationCode;
 
     private Integer quantityAvailable;
     private Integer quantityReserved;
@@ -35,6 +48,10 @@ public class StockItem {
     public void setItemCode(String itemCode) { this.itemCode = itemCode; }
     public String getItemName() { return itemName; }
     public void setItemName(String itemName) { this.itemName = itemName; }
+    public ItemCategory getCategory() { return category; }
+    public void setCategory(ItemCategory category) { this.category = category; }
+    public String getLocationCode() { return locationCode; }
+    public void setLocationCode(String locationCode) { this.locationCode = locationCode; }
     public Integer getQuantityAvailable() { return quantityAvailable; }
     public void setQuantityAvailable(Integer quantityAvailable) { this.quantityAvailable = quantityAvailable; }
     public Integer getQuantityReserved() { return quantityReserved; }

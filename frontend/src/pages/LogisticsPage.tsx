@@ -67,16 +67,28 @@ export default function LogisticsPage() {
     onError: (err: any) => toast.error(err.response?.data?.message || 'Erreur lors de la facturation')
   });
 
-  const handleCreateGrn = (po: PurchaseOrder) => {
+  const handleCreateGrn = (po: PurchaseOrder & { demandeInterne?: any }) => {
+    const sourceDetails = po.daHeader?.details || 
+      (po.demandeInterne ? [{
+        itemCode: po.demandeInterne.id ? `ART-DI-${po.demandeInterne.id}` : `ART-BAG-${Math.floor(Math.random()*1000)}`,
+        itemName: po.demandeInterne.designation,
+        description: po.demandeInterne.designation,
+        quantite: po.demandeInterne.quantite,
+        fournisseur: po.fournisseur,
+        prix_unitaire: po.demandeInterne.prixUnitaire
+      }] : []);
+
+    const supplier = po.daHeader?.details?.[0]?.fournisseur || po.demandeInterne?.fournisseur || po.fournisseur;
+
     const payload: Partial<GrnHeader> = {
       purchaseOrder: { id_po: po.id_po } as any,
-      supplier: po.daHeader?.details?.[0]?.fournisseur || po.fournisseur,
+      supplier: supplier,
       deliveryNoteNumber: `BL-${Math.floor(Math.random()*10000)}`,
       receiptDate: new Date().toISOString().split('T')[0],
       status: 'DRAFT',
-      details: po.daHeader?.details?.map(d => ({
-        itemCode: d.itemCode || 'ART-BAG',
-        itemName: d.itemName || d.description,
+      details: sourceDetails.map((d: any) => ({
+        itemCode: d.itemCode || `ART-BAG-${Math.floor(Math.random()*1000)}`,
+        itemName: d.itemName || d.description || 'Article',
         orderedQuantity: d.quantite,
         receivedQuantity: d.quantite,
         acceptedQuantity: d.quantite,
@@ -86,17 +98,24 @@ export default function LogisticsPage() {
     grnMutation.mutate(payload);
   };
 
-  const handleCreateGrc = (po: PurchaseOrder) => {
+  const handleCreateGrc = (po: PurchaseOrder & { demandeInterne?: any }) => {
+    const sourceDetails = po.daHeader?.details || 
+      (po.demandeInterne ? [{
+        itemCode: po.demandeInterne.id ? `ART-DI-${po.demandeInterne.id}` : `ART-BAG-${Math.floor(Math.random()*1000)}`,
+        quantite: po.demandeInterne.quantite,
+        prix_unitaire: po.demandeInterne.prixUnitaire
+      }] : []);
+
     const payload: Partial<GrcHeader> = {
       grnHeader: { id: po.id_po } as any, // Le backend cherchera par PO ID
       costingDate: new Date().toISOString().split('T')[0],
       status: 'VALIDATED',
       totalAmount: po.montant_total,
       devise: 'MAD',
-      details: po.daHeader?.details?.map(d => ({
-        itemCode: d.itemCode || 'ART-BAG',
+      details: sourceDetails.map((d: any) => ({
+        itemCode: d.itemCode || `ART-BAG-${Math.floor(Math.random()*1000)}`,
         acceptedQuantity: d.quantite,
-        unitCost: Number(d.prix_unitaire)
+        unitCost: Number(d.prix_unitaire || 0)
       })) as any
     };
     grcMutation.mutate(payload);
@@ -149,7 +168,7 @@ export default function LogisticsPage() {
                       {activeTab === 'PO' ? `PO-${po.id_po}` : activeTab === 'GRN' ? `GRN-${po.id_po}` : `DOC-${po.id_po}`}
                     </td>
                     <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-200">
-                      {po.daHeader?.details?.[0]?.fournisseur?.nom ?? '—'}
+                      {po.daHeader?.details?.[0]?.fournisseur?.nom ?? po.demandeInterne?.fournisseur?.nom ?? po.fournisseur?.nom ?? '—'}
                     </td>
                     <td className="px-6 py-4 font-bold text-slate-900 dark:text-white">
                       {formatCurrency(po.montant_total)}
@@ -185,9 +204,11 @@ export default function LogisticsPage() {
                           >
                             📥 Télécharger PDF
                           </button>
-                          <button onClick={() => handleCreateGrn(po)} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
-                            🚚 Réceptionner
-                          </button>
+                          {po.statut === 'APPROVED' && (
+                            <button onClick={() => handleCreateGrn(po)} className="px-4 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 transition-all shadow-lg shadow-blue-100">
+                              🚚 Réceptionner
+                            </button>
+                          )}
                         </div>
                       )}
                       {activeTab === 'GRN' && (
