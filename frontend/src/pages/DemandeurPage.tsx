@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
@@ -37,7 +37,7 @@ export default function DemandeurPage() {
   const [budgetFamilleId, setBudgetFamilleId] = useState<string>('');
   const [budgetSousFamilleId, setBudgetSousFamilleId] = useState<string>('');
   const [globalJustification, setGlobalJustification] = useState('');
-  const [shouldSubmitAfterCreate, setShouldSubmitAfterCreate] = useState(false);
+  const shouldSubmitRef = useRef<boolean>(false);
 
   // Form Items State (Multi-items logic)
   const [items, setItems] = useState<ItemRow[]>([
@@ -76,7 +76,8 @@ export default function DemandeurPage() {
       const newDa = res.data;
       qc.invalidateQueries({ queryKey: ['da', 'mes-demandes'] });
       
-      if (shouldSubmitAfterCreate) {
+      if (shouldSubmitRef.current) {
+        shouldSubmitRef.current = false;
         submitMutation.mutate(newDa.id);
       } else {
         toast.success('Demande enregistrée en brouillon !');
@@ -85,6 +86,7 @@ export default function DemandeurPage() {
       }
     },
     onError: () => {
+      shouldSubmitRef.current = false;
       toast.error('Erreur lors de la création de la demande');
     },
   });
@@ -93,10 +95,12 @@ export default function DemandeurPage() {
     mutationFn: (id: number) => soumettreDemandeInterne(id, user!.userId),
     onSuccess: (res) => {
       const updatedDa = res.data;
-      if (updatedDa.statut === 'AFFECTEE') {
-        toast.success('🎉 Succès ! Votre besoin est couvert par le stock existant.', { duration: 6000 });
+      if (updatedDa.statut === 'DISPONIBLE_STOCK') {
+        toast.success('🎉 Succès ! Pièce disponible en stock. Vous pouvez la récupérer au magasin.', { duration: 6000 });
+      } else if (updatedDa.isPieceRechange) {
+        toast.success('🛠️ Flux SAV : Demande envoyée directement au Bureau des Achats (Bypass N1).');
       } else {
-        toast.success('🚀 Demande soumise avec succès au workflow N1 !');
+        toast.success('🚀 Flux Standard : Demande soumise avec succès au workflow N1.');
       }
       qc.invalidateQueries({ queryKey: ['da'] });
       setShowNewForm(false);
@@ -140,14 +144,14 @@ export default function DemandeurPage() {
       quantite: items.reduce((acc, it) => acc + it.quantite, 0),
       justification: globalJustification || items[0]?.justification,
       urgence: urgency,
-      budgetFamille: { id: Number(budgetFamilleId) },
-      budgetSousFamille: { id: Number(budgetSousFamilleId) },
+      budgetFamille: { idFamily: budgetFamilleId ? Number(budgetFamilleId) : null },
+      budgetSousFamille: { oidSub: budgetSousFamilleId ? Number(budgetSousFamilleId) : null },
       details: items.map(item => ({
         itemName: item.itemName,
         description: item.description,
         quantite: item.quantite,
         justification: item.justification,
-        subFamily: { id: Number(budgetSousFamilleId) },
+        subFamily: { oidSub: budgetSousFamilleId ? Number(budgetSousFamilleId) : null },
         prix_unitaire: 0 
       })),
       submissionToken
@@ -169,7 +173,7 @@ export default function DemandeurPage() {
       submissionToken: crypto.randomUUID()
     };
 
-    setShouldSubmitAfterCreate(true);
+    shouldSubmitRef.current = true;
     createMutation.mutate(payload);
   };
 
@@ -196,10 +200,10 @@ export default function DemandeurPage() {
   };
 
   const kpis = {
-    total:   daList.length,
-    pending: daList.filter((d: any) => !['PO_CREE', 'REJETEE', 'APPROUVEE'].includes(d.statut)).length,
-    valid:   daList.filter((d: any) => d.statut === 'APPROUVEE' || d.statut === 'PO_CREE').length,
-    rejected:daList.filter((d: any) => d.statut === 'REJETEE').length,
+    total: daList.length,
+    pending: daList.filter((d: any) => !['VALIDE_DG', 'REJETEE'].includes(d.statut)).length,
+    valid: daList.filter((d: any) => d.statut === 'VALIDE_DG').length,
+    rejected: daList.filter((d: any) => d.statut === 'REJETEE').length,
   };
 
   return (
@@ -251,6 +255,9 @@ export default function DemandeurPage() {
         showRequester={false}
         loading={isLoading}
         searchQuery={search}
+        renderExtraBadge={(d: any) => d.isPieceRechange && (
+          <span className="ml-2 px-2 py-0.5 text-[9px] font-black bg-rose-100 text-rose-600 border border-rose-200 rounded uppercase">SAV / Maintenance</span>
+        )}
         actionLabel={() => 'Voir Détails'}
         showPrice={false}
       />
@@ -259,12 +266,12 @@ export default function DemandeurPage() {
       {selectedDa && (
         <DaModal da={selectedDa} onClose={() => setSelectedDa(null)} title="Détails de la Demande" wide showPrice={false}>
           <div className="space-y-4">
-            {selectedDa.statut === 'AFFECTEE' && (
+            {selectedDa.statut === 'DISPONIBLE_STOCK' && (
               <div className="bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-4 rounded-2xl flex items-center gap-4 animate-pulse">
                 <span className="text-2xl">📦</span>
                 <div>
-                  <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Affectation Directe (Stock)</p>
-                  <p className="text-xs text-emerald-600 dark:text-emerald-400">Votre besoin est couvert par le stock existant. Aucun processus d'achat externe requis.</p>
+                  <p className="text-sm font-bold text-emerald-800 dark:text-emerald-300">Disponible en Stock (Prêt)</p>
+                  <p className="text-xs text-emerald-600 dark:text-emerald-400">Cette pièce est disponible. Veuillez vous présenter au magasinier pour le retrait.</p>
                 </div>
               </div>
             )}
@@ -279,9 +286,9 @@ export default function DemandeurPage() {
                   {submitMutation.isPending ? '...' : <><span>🚀</span> Soumettre la demande</>}
                 </button>
               )}
-              {selectedDa.statut === 'PO_CREE' && (
+              {(selectedDa.statut === 'PO_CREE' || selectedDa.statut === 'APPROUVEE') && (
                 <button 
-                  onClick={() => handleDownloadPo(selectedDa.oid_da || selectedDa.id)}
+                onClick={() => handleDownloadPo((selectedDa as any).id_po || selectedDa.id)}
                   className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100 dark:shadow-none flex items-center gap-2"
                 >
                   <span>📄</span> Télécharger le BC
@@ -413,7 +420,7 @@ export default function DemandeurPage() {
                   >
                     <option value="">Sélectionner une catégorie...</option>
                     {families.map((f: any) => (
-                      <option key={f.id} value={f.id}>
+                      <option key={f.idFamily || f.id} value={f.idFamily || f.id}>
                         {f.name || f.libelle} (Dispo: {formatCurrency(f.budget_restant || 0)})
                       </option>
                     ))}
@@ -427,7 +434,7 @@ export default function DemandeurPage() {
                   >
                     <option value="">Sélectionner une sous-famille...</option>
                     {subFamilies.map((sf: any) => (
-                      <option key={sf.id} value={sf.id}>
+                      <option key={sf.oidSub || sf.id} value={sf.oidSub || sf.id}>
                         {sf.name || sf.libelle} (Dispo: {formatCurrency(sf.budget_restant || 0)})
                       </option>
                     ))}
@@ -544,7 +551,7 @@ export default function DemandeurPage() {
                 <div className="flex gap-2">
                   <button 
                     type="submit" form="da-form" 
-                    onClick={() => setShouldSubmitAfterCreate(false)}
+                    onClick={() => { shouldSubmitRef.current = false; }}
                     disabled={createMutation.isPending || submitMutation.isPending}
                     className="px-6 py-3 rounded-2xl bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-200 transition-all border border-slate-200 dark:border-slate-700"
                   >
@@ -552,7 +559,7 @@ export default function DemandeurPage() {
                   </button>
                   <button 
                     type="submit" form="da-form"
-                    onClick={() => setShouldSubmitAfterCreate(true)}
+                    onClick={() => { shouldSubmitRef.current = true; }}
                     disabled={createMutation.isPending || submitMutation.isPending}
                     className="px-10 py-3 rounded-2xl bg-blue-600 text-white font-black text-sm hover:bg-blue-700 disabled:opacity-50 shadow-xl shadow-blue-200 dark:shadow-none transition-all flex items-center gap-2"
                   >

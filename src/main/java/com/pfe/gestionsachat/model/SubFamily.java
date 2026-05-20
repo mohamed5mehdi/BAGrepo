@@ -73,6 +73,23 @@ public class SubFamily {
         this.budgetEngage = (this.budgetEngage != null ? this.budgetEngage : BigDecimal.ZERO).add(amount);
     }
 
+    public void addBudget(BigDecimal amount) {
+        if (this.budgetRestant != null) {
+            this.budgetRestant = this.budgetRestant.add(amount);
+        }
+        if (this.budgetEngage != null && this.budgetEngage.compareTo(amount) >= 0) {
+            this.budgetEngage = this.budgetEngage.subtract(amount);
+        }
+    }
+
+    @PrePersist
+    @PreUpdate
+    private void checkBudgetIntegrity() {
+        if (budgetRestant != null && budgetRestant.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalStateException("Intégrité compromise: le budget_restant de la sous-famille " + libelle + " ne peut pas être négatif.");
+        }
+    }
+
     // Getters
     public Integer getOidSub() { return oidSub; }
     public Family getFamily() { return family; }

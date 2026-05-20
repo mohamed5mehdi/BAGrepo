@@ -19,8 +19,9 @@ public class StatusHistory {
 
     private String statutApres;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "modifie_par_id")
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private User modifiePar;
 
     private LocalDateTime dateModification;

@@ -6,8 +6,7 @@ import KpiCard from '../components/KpiCard';
 import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
 import { useAuth } from '../context/AuthContext';
-import { getAllDA, validateWorkflow, adjustFamily, getSubFamilies } from '../api/services';
-import { getAIDecision } from '../api/ai-services';
+import api from '../api/axios';
 import type { DaHeader, ValidationDecision, SubFamily } from '../types';
 import { formatCurrency } from '../utils/constants';
 
@@ -22,27 +21,23 @@ export default function DgPage() {
 
   const { data: all = [], isLoading } = useQuery({
     queryKey: ['da', 'all'],
-    queryFn: () => getAllDA().then(r => r.data),
+    queryFn: () => api.get('/demandes/a-valider?userId=' + user!.userId).then(r => r.data),
     refetchInterval: 30_000,
   });
 
   const { data: subFamilies = [] } = useQuery({
     queryKey: ['sub-families'],
-    queryFn: () => getSubFamilies().then(r => r.data),
+    queryFn: () => api.get('/families').then(r => r.data),
   });
 
-  const { data: aiDecision, isLoading: loadingDecision } = useQuery({
-    queryKey: ['ai', 'decision', selectedDa?.oid_da],
-    queryFn: () => getAIDecision(selectedDa!.oid_da).then(r => r.data),
-    enabled: !!selectedDa?.oid_da,
-    staleTime: 60_000,
-  });
+  const aiDecision: any = null;
+  const loadingDecision = false;
 
   const mine = all.filter(d => ['VALIDE_DG'].includes(d.statut));
 
   const validateMutation = useMutation({
     mutationFn: ({ decision }: { decision: ValidationDecision }) =>
-      validateWorkflow(selectedDa!.oid_da, user!.userId, decision, comment),
+      api.put(`/demandes/${selectedDa!.id}/valider-dg?approved=${decision === 'ACCEPTE'}&comment=${encodeURIComponent(comment)}&userId=${user!.userId}`),
     onSuccess: (_, { decision }) => {
       toast.success(decision === 'ACCEPTE' ? '✅ Validation finale effectuée !' : '❌ Dossier rejeté');
       qc.invalidateQueries({ queryKey: ['da'] });
@@ -52,7 +47,7 @@ export default function DgPage() {
   });
 
   const adjustMutation = useMutation({
-    mutationFn: () => adjustFamily(selectedDa!.oid_da, user!.userId, Number(cibleId), parseFloat(montant)),
+    mutationFn: () => api.post(`/families/${cibleId}/adjust?montant=${montant}&userId=${user!.userId}`),
     onSuccess: () => {
       toast.success('✅ Budget famille augmenté — dossier validé !');
       qc.invalidateQueries({ queryKey: ['da'] });

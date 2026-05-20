@@ -21,7 +21,7 @@ services:
     image: procurement-management-app:latest
     container_name: procurement-app
     ports:
-      - "8085:8080"
+      - "8085:8090"
     depends_on:
       db:
         condition: service_healthy

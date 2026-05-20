@@ -110,6 +110,17 @@ public class AchatWorkflowOrchestrator {
     @Transactional
     public DaHeader ajusterBudgetSousFamille(Integer daId, Integer dafId, Integer sourceId, Integer cibleId, BigDecimal montant) {
         DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
+        if (sourceId != null && cibleId != null && montant != null && montant.compareTo(BigDecimal.ZERO) > 0) {
+            SubFamily source = subFamilyRepository.findByIdWithLock(sourceId).orElseThrow();
+            SubFamily cible  = subFamilyRepository.findByIdWithLock(cibleId).orElseThrow();
+            if (!source.hasEnoughBudget(montant)) {
+                throw new IllegalStateException("Budget source insuffisant pour le transfert");
+            }
+            source.deductBudget(montant);
+            cible.addBudget(montant);
+            subFamilyRepository.save(source);
+            subFamilyRepository.save(cible);
+        }
         da.setStatut(StatutDA.EN_ATTENTE_AMG);
         return daHeaderRepository.save(da);
     }
@@ -117,6 +128,11 @@ public class AchatWorkflowOrchestrator {
     @Transactional
     public DaHeader ajusterBudgetFamille(Integer daId, Integer dgId, Integer cibleId, BigDecimal montant) {
         DaHeader da = daHeaderRepository.findById(daId).orElseThrow();
+        if (cibleId != null && montant != null && montant.compareTo(BigDecimal.ZERO) > 0) {
+            Family cible = familyRepository.findByIdWithLock(cibleId).orElseThrow();
+            cible.addBudget(montant);
+            familyRepository.save(cible);
+        }
         da.setStatut(StatutDA.EN_ATTENTE_AMG);
         return daHeaderRepository.save(da);
     }

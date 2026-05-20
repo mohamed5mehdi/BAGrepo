@@ -13,7 +13,7 @@ public class DemandeAchatInterne {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "demandeur_id")
     private User demandeur;
 
@@ -32,12 +32,17 @@ public class DemandeAchatInterne {
     @Enumerated(EnumType.STRING)
     private UrgenceDemande urgence;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "budget_famille_id")
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(
+        {"hibernateLazyInitializer", "handler", "subFamilies"})
     private Family budgetFamille;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "budget_sous_famille_id")
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(
+        {"hibernateLazyInitializer", "handler", "family", "details",
+         "transfersSource", "transfersCible"})
     private SubFamily budgetSousFamille;
 
     @Enumerated(EnumType.STRING)
@@ -50,7 +55,7 @@ public class DemandeAchatInterne {
 
     private BigDecimal prixUnitaire;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "fournisseur_id")
     private Supplier fournisseur;
 
@@ -78,6 +83,16 @@ public class DemandeAchatInterne {
     @OneToOne(mappedBy = "demandeInterne")
     @com.fasterxml.jackson.annotation.JsonIgnore
     private PurchaseOrder purchaseOrder;
+
+    /**
+     * Expose l'id_po du PO associé pour le téléchargement PDF côté frontend.
+     * @JsonIgnore sur purchaseOrder évite la boucle infinie DA→PO→DA.
+     * Ce champ calculé permet au Demandeur de télécharger son BC sans navigation supplémentaire.
+     */
+    @com.fasterxml.jackson.annotation.JsonGetter("id_po")
+    public Integer getIdPoAssociated() {
+        return purchaseOrder != null ? purchaseOrder.getIdPo() : null;
+    }
 
     public DemandeAchatInterne() {
         this.dateCreation = LocalDateTime.now();

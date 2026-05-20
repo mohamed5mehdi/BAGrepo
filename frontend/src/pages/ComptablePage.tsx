@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
@@ -12,6 +13,7 @@ import { formatCurrency } from '../utils/constants';
 
 export default function ComptablePage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [selectedGrn, setSelectedGrn] = useState<GrnHeader | null>(null);
   const [vendorInvoiceAmount, setVendorInvoiceAmount] = useState<number>(0);
@@ -88,6 +90,10 @@ export default function ComptablePage() {
       <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl overflow-hidden">
         <div className="p-6 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center">
             <h2 className="text-lg font-black text-slate-800 dark:text-white">Réceptions Magasin Validées (ENTRY_COMPLETED)</h2>
+            <button onClick={() => navigate('/ai-dashboard')}
+              className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2">
+              📊 Surveillance IA
+            </button>
         </div>
         
         <table className="w-full text-sm text-left">
@@ -105,7 +111,7 @@ export default function ComptablePage() {
               <tr key={grn.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                 <td className="px-6 py-4 font-mono font-bold text-emerald-600">{grn.grnNumber}</td>
                 <td className="px-6 py-4 font-mono text-slate-500">{grn.purchaseOrder?.poNumber}</td>
-                <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-200">{grn.supplier?.nom}</td>
+                <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-200">{grn.purchaseOrder?.fournisseur?.nom || '—'}</td>
                 <td className="px-6 py-4 text-slate-500">{new Date(grn.receiptDate).toLocaleDateString()}</td>
                 <td className="px-6 py-4 text-right">
                   <button onClick={() => openGrcForm(grn)} className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100">

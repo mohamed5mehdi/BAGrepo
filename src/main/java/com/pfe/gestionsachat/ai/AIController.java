@@ -12,32 +12,37 @@ import java.util.Optional;
 /**
  * AIController — Expose les 5 endpoints IA.
  *
- * GET /api/ai/dashboard   → KPIs + DepensesParCategorie + EvolutionMensuelle + ConsommationBudget
- * GET /api/ai/anomalies   → Liste anomalies Z-score
- * GET /api/ai/routing     → Routage de toutes les DAs en attente
+ * GET /api/ai/dashboard → KPIs + DepensesParCategorie + EvolutionMensuelle +
+ * ConsommationBudget
+ * GET /api/ai/anomalies → Liste anomalies Z-score
+ * GET /api/ai/routing → Routage de toutes les DAs en attente
  * GET /api/ai/routing/{id}→ Routage d'une DA spécifique
- * GET /api/ai/insights    → Rapport textuel + résumé chatbot
- * GET /api/ai/delays      → Prédictions délais par rôle
+ * GET /api/ai/insights → Rapport textuel + résumé chatbot
+ * GET /api/ai/delays → Prédictions délais par rôle
  */
 @RestController
 @RequestMapping("/api/ai")
 public class AIController {
 
-    @Autowired private AggregationService    aggregationService;
-    @Autowired private AnomalyDetectionService anomalyService;
-    @Autowired private DynamicRoutingEngine  routingEngine;
-    @Autowired private InsightGeneratorService insightService;
-    @Autowired private DelayPredictionService delayService;
+    @Autowired
+    private AggregationService aggregationService;
+    @Autowired
+    private AnomalyDetectionService anomalyService;
+    @Autowired
+    private DynamicRoutingEngine routingEngine;
+    @Autowired
+    private InsightGeneratorService insightService;
+    @Autowired
+    private DelayPredictionService delayService;
 
     @GetMapping("/dashboard")
     public ResponseEntity<Map<String, Object>> getDashboard() {
         return ResponseEntity.ok(Map.of(
-            "kpi",               aggregationService.getKpiGlobal(),
-            "depensesCategorie", aggregationService.getDepensesParCategorie(),
-            "evolutionMensuelle",aggregationService.getEvolutionMensuelle(),
-            "depensesDepartement",aggregationService.getDepensesParDepartement(),
-            "consommationBudget",aggregationService.getConsommationBudget()
-        ));
+                "kpi", aggregationService.getKpiGlobal(),
+                "depensesCategorie", aggregationService.getDepensesParCategorie(),
+                "evolutionMensuelle", aggregationService.getEvolutionMensuelle(),
+                "depensesDepartement", aggregationService.getDepensesParDepartement(),
+                "consommationBudget", aggregationService.getConsommationBudget()));
     }
 
     @GetMapping("/anomalies")
@@ -68,7 +73,8 @@ public class AIController {
 
     /**
      * GET /api/ai/decision/{daId}
-     * Agrège : routage + anomalie + recommandation finale VALIDER / ATTENTION / REJETER
+     * Agrège : routage + anomalie + recommandation finale VALIDER / ATTENTION /
+     * REJETER
      * Consommé par ValidatorPage et DgPage au moment de l'arbitrage.
      */
     @GetMapping("/decision/{daId}")
@@ -79,45 +85,45 @@ public class AIController {
 
             // ── Recommandation finale ─────────────────────────────────────────────
             String recommandation;
-            String recommandationColor;   // green / orange / red
+            String recommandationColor; // green / orange / red
             String recommandationIcon;
             List<String> justifications = new ArrayList<>(routing.facteurs());
 
             boolean anomalieCritique = anomalie.map(a -> "CRITIQUE".equals(a.niveau())).orElse(false);
-            boolean anomalieSuspect  = anomalie.map(a -> "SUSPECT".equals(a.niveau())).orElse(false);
+            boolean anomalieSuspect = anomalie.map(a -> "SUSPECT".equals(a.niveau())).orElse(false);
 
             if (anomalieCritique || routing.score() >= 85) {
-                recommandation      = "REJETER";
+                recommandation = "REJETER";
                 recommandationColor = "red";
-                recommandationIcon  = "🔴";
-                if (anomalieCritique) justifications.add(0, "⛔ Anomalie financière CRITIQUE détectée (Z-score)");
+                recommandationIcon = "🔴";
+                if (anomalieCritique)
+                    justifications.add(0, "⛔ Anomalie financière CRITIQUE détectée (Z-score)");
             } else if (anomalieSuspect || routing.score() >= 50) {
-                recommandation      = "ATTENTION";
+                recommandation = "ATTENTION";
                 recommandationColor = "orange";
-                recommandationIcon  = "🟠";
-                if (anomalieSuspect) justifications.add(0, "⚠️ Montant statistiquement suspect (Z-score)");
+                recommandationIcon = "🟠";
+                if (anomalieSuspect)
+                    justifications.add(0, "⚠️ Montant statistiquement suspect (Z-score)");
             } else {
-                recommandation      = "VALIDER";
+                recommandation = "VALIDER";
                 recommandationColor = "green";
-                recommandationIcon  = "🟢";
+                recommandationIcon = "🟢";
             }
 
             return ResponseEntity.ok(Map.of(
-                "daId",               daId,
-                "score",              routing.score(),
-                "suggestedRole",      routing.suggestedRole(),
-                "confidence",         routing.confidence(),
-                "recommandation",     recommandation,
-                "recommandationColor",recommandationColor,
-                "recommandationIcon", recommandationIcon,
-                "justifications",     justifications,
-                "anomalie",           anomalie.<Object>map(a -> Map.of(
-                    "niveau",   a.niveau(),
-                    "score",    a.score(),
-                    "raison",   a.raison(),
-                    "zScore",   a.zScore()
-                )).orElse(null)
-            ));
+                    "daId", daId,
+                    "score", routing.score(),
+                    "suggestedRole", routing.suggestedRole(),
+                    "confidence", routing.confidence(),
+                    "recommandation", recommandation,
+                    "recommandationColor", recommandationColor,
+                    "recommandationIcon", recommandationIcon,
+                    "justifications", justifications,
+                    "anomalie", anomalie.<Object>map(a -> Map.of(
+                            "niveau", a.niveau(),
+                            "score", a.score(),
+                            "raison", a.raison(),
+                            "zScore", a.zScore())).orElse(null)));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.notFound().build();
         } catch (Exception e) {
@@ -125,4 +131,3 @@ public class AIController {
         }
     }
 }
-

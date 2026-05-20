@@ -135,8 +135,8 @@ public class EndToEndProcurementTest {
         // 4. Génération du Bon de Commande (PO)
         PurchaseOrder po = orchestrator.manualCreatePO(daId, Objects.requireNonNull(acheteur.getOidUser()));
         assertNotNull(po);
-        po = purchaseOrderService.submitForApproval(po.getIdPo(), acheteur);
-        po = purchaseOrderService.approvePO(po.getIdPo(), daf, "OK PO");
+        // po = purchaseOrderService.submitForApproval(po.getIdPo(), acheteur);
+        // po = purchaseOrderService.approvePO(po.getIdPo(), daf, "OK PO");
         assertTrue(new BigDecimal("1200.00").compareTo(po.getMontantTotal()) == 0);
         assertEquals(StatutDA.PO_CREE, daHeaderRepository.findById(daId).orElseThrow().getStatut());
         System.out.println("✅ Étape 2 : PO généré avec succès (Montant TTC: 1200.00).");

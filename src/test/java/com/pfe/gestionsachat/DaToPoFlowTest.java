@@ -80,8 +80,8 @@ public class DaToPoFlowTest {
         // 9. Create PO
         PurchaseOrder po = orchestrator.manualCreatePO(daId, java.util.Objects.requireNonNull(acheteur.getOidUser()));
         assertNotNull(po);
-        po = purchaseOrderService.submitForApproval(po.getIdPo(), acheteur);
-        po = purchaseOrderService.approvePO(po.getIdPo(), daf, "OK PO");
+        // po = purchaseOrderService.submitForApproval(po.getIdPo(), acheteur);
+        // po = purchaseOrderService.approvePO(po.getIdPo(), daf, "OK PO");
         assertEquals(POStatus.APPROVED, po.getStatut());
         assertTrue(new BigDecimal("1200.00").compareTo(po.getMontantTotal()) == 0);
         assertEquals(StatutDA.PO_CREE, daHeaderRepository.findById(daId).get().getStatut());

@@ -54,6 +54,9 @@ export function getDashboardRoute(role: string): string {
     DAF:             '/daf',
     DG:              '/dg',
     ADMINISTRATEUR:  '/admin',
+    MAGASINIER:      '/magasinier',
+    COMPTABLE:       '/comptable',
+    RESP_ACHAT:      '/resp-achat',
   };
   // Handle case where role might be prefixed with ROLE_
   const cleanRole = role.replace('ROLE_', '');

@@ -17,18 +17,21 @@ public class DaDetails {
     @com.fasterxml.jackson.annotation.JsonProperty("id")
     public Integer getId() { return oidDetail; }
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_da")
     @com.fasterxml.jackson.annotation.JsonIgnore
     private DaHeader daHeader;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_demande_interne")
     @com.fasterxml.jackson.annotation.JsonIgnore
     private DemandeAchatInterne demandeAchatInterne;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_sous_famille")
+    @com.fasterxml.jackson.annotation.JsonIgnoreProperties(
+        {"hibernateLazyInitializer", "handler", "family", "details", 
+         "transfersSource", "transfersCible"})
     private SubFamily subFamily;
 
     private Integer quantite;
@@ -41,7 +44,7 @@ public class DaDetails {
     @com.fasterxml.jackson.annotation.JsonProperty("prix_unitaire")
     private BigDecimal prixUnitaire;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_fournisseur", nullable = true)
     private Supplier fournisseur;
 

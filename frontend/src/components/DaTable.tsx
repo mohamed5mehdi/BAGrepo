@@ -10,12 +10,13 @@ interface Props {
   loading?: boolean;
   searchQuery?: string;
   showPrice?: boolean;
+  renderExtraBadge?: (da: DemandeAchatInterne) => React.ReactNode;
 }
 
 export default function DaTable({
   rows, onRowClick, showRequester = true,
   actionLabel, loading, searchQuery = '',
-  showPrice = true
+  showPrice = true, renderExtraBadge
 }: Props) {
 
   const filtered = rows.filter(da => {
@@ -72,7 +73,10 @@ export default function DaTable({
                         {formatDA(da.id || (da as any).oid_da)}
                     </span>
                   </td>
-                  <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 max-w-[200px] truncate">{da.designation}</td>
+                  <td className="px-4 py-3 font-medium text-slate-700 dark:text-slate-200 max-w-[200px] truncate">
+                    {da.designation}
+                    {renderExtraBadge && renderExtraBadge(da)}
+                  </td>
                   {showRequester && (
                     <td className="px-4 py-3 text-slate-500 dark:text-slate-400">{da.demandeur?.nom ?? '—'}</td>
                   )}

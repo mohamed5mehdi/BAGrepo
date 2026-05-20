@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
@@ -20,6 +21,7 @@ interface Props {
 
 export default function ValidatorPage({ role, myStatut, title, icon, color }: Props) {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [selectedDa, setSelectedDa] = useState<any | null>(null);
   const [decision, setDecision] = useState<'ACCEPTE' | 'REJETE' | null>(null);
@@ -81,7 +83,7 @@ export default function ValidatorPage({ role, myStatut, title, icon, color }: Pr
       <div className="flex gap-3 mb-5">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Rechercher une demande..."
           className="flex-1 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300" />
-        <button onClick={() => window.location.href='/ai-dashboard'}
+        <button onClick={() => navigate('/ai-dashboard')}
           className="px-4 py-2 rounded-xl bg-indigo-600 text-white text-sm font-medium hover:bg-indigo-700 transition-colors flex items-center gap-2">
           📊 Tableau de Bord BI IA
         </button>

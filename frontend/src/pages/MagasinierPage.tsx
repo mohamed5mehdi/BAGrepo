@@ -4,9 +4,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KpiCard from '../components/KpiCard';
 import { useAuth } from '../context/AuthContext';
-import { 
-  getPurchaseOrdersByStatus, createGrn, validateGrn, getPoBalance 
-} from '../api/services';
+import api from '../api/axios';
 import type { PurchaseOrder, GrnHeader, GrnDetails, POStatus } from '../types';
 import { formatCurrency } from '../utils/constants';
 
@@ -21,7 +19,7 @@ export default function MagasinierPage() {
   // 1. Liste PO filtrée : APPROVED uniquement
   const { data: approvedPOs = [], isLoading } = useQuery({
     queryKey: ['pos', 'approved'],
-    queryFn: () => getPurchaseOrdersByStatus('APPROVED' as POStatus).then(r => r.data),
+    queryFn: () => api.get('/purchase-orders/status/APPROVED').then(r => r.data),
     refetchInterval: 15_000,
     enabled: !!user,
   });
@@ -29,7 +27,7 @@ export default function MagasinierPage() {
   // Fetch balance for selected PO
   const { data: poBalance = {}, isFetching: loadingBalance } = useQuery({
     queryKey: ['po-balance', selectedPo?.id_po],
-    queryFn: () => getPoBalance(selectedPo!.id_po).then(r => r.data),
+    queryFn: () => api.get(`/purchase-orders/${selectedPo!.id_po}/balance`).then(r => r.data),
     enabled: !!selectedPo,
   });
 
@@ -61,10 +59,7 @@ export default function MagasinierPage() {
 
   const createGrnMutation = useMutation({
     mutationFn: async (payload: Partial<GrnHeader>) => {
-      const res = await createGrn(payload);
-      if (isEntryCompleted) {
-        await validateGrn(res.data.id);
-      }
+      const res = await api.post('/grn', payload);
       return res.data;
     },
     onSuccess: () => {
@@ -129,7 +124,7 @@ export default function MagasinierPage() {
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-            {approvedPOs.map(po => (
+            {approvedPOs.map((po: any) => (
               <tr key={po.id_po} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                 <td className="px-6 py-4 font-mono font-bold text-blue-600">{po.poNumber || `PO-${po.id_po}`}</td>
                 <td className="px-6 py-4">

@@ -63,6 +63,9 @@ public class Family {
         if (this.budgetRestant != null) {
             this.budgetRestant = this.budgetRestant.add(amount);
         }
+        if (this.budgetEngage != null && this.budgetEngage.compareTo(amount) >= 0) {
+            this.budgetEngage = this.budgetEngage.subtract(amount);
+        }
     }
 
     // Getters

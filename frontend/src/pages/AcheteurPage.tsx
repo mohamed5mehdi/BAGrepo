@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
@@ -9,8 +10,9 @@ import { useAuth } from '../context/AuthContext';
 import {
   getDemandesAValiderInternes, getSuppliers, traiterAchatDemandeInterne, creerPODemandeInterne, 
   getDemandeInterneById, valoriserDemandeInterne, solliciterAjustementDemandeInterne, 
-  getDemandeOffres, getSubFamiliesByFamily, getAllDA, createPO as createClassicPO
+  getDemandeOffres, getSubFamiliesByFamily, getAllDA, createPO as createClassicPO, checkBudgetClassic
 } from '../api/services';
+import { getAIAnomalies } from '../api/ai-services';
 import type { Supplier, SupplierOffer, SubFamily, DaHeader, DemandeAchatInterne } from '../types';
 import { formatCurrency } from '../utils/constants';
 
@@ -18,6 +20,7 @@ const VAT = 0.20;
 
 export default function AcheteurPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const qc = useQueryClient();
   const [selectedDa, setSelectedDa] = useState<any | null>(null);
   const [selectedSupplier, setSelectedSupplier] = useState<number | null>(null);
@@ -73,11 +76,19 @@ export default function AcheteurPage() {
 
   const submitTreatmentMutation = useMutation({
     mutationFn: async () => {
-        await valoriserDemandeInterne(selectedDa.id, prixUnitaire, selectedSupplier!);
-        return traiterAchatDemandeInterne(selectedDa.id, user!.userId);
+        if (isClassicFlux(selectedDa)) {
+            return checkBudgetClassic(selectedDa.oid_da, user!.userId);
+        } else {
+            await valoriserDemandeInterne(selectedDa.id, prixUnitaire, selectedSupplier!);
+            return traiterAchatDemandeInterne(selectedDa.id, user!.userId);
+        }
     },
     onSuccess: () => {
-      toast.success('🚀 Dossier achat transmis pour validation AMG/DAF/DG !');
+      if (selectedDa.isPieceRechange) {
+        toast.success('🚀 Flux SAV : Bypass DG validé ! La demande est prête pour le Bon de Commande.', { duration: 5000 });
+      } else {
+        toast.success('🚀 Dossier achat transmis pour validation AMG/DAF/DG !');
+      }
       qc.invalidateQueries({ queryKey: ['da'] });
       setSelectedDa(null);
     }
@@ -114,7 +125,7 @@ export default function AcheteurPage() {
   const totalHT  = (selectedDa?.quantite || 0) * prixUnitaire;
   const totalTTC = Number((totalHT * (1 + VAT)).toFixed(2));
   const budgetRestant = selectedDa?.budgetSousFamille?.budget_disponible ?? 0;
-  const isBudgetExceeded = totalTTC > budgetRestant && !isClassicFlux(selectedDa);
+  const isBudgetExceeded = totalHT > budgetRestant && !isClassicFlux(selectedDa);
 
   return (
     <DashboardLayout title="Espace Acheteur — BAG Procurement" pendingCount={combinedDAs.length}>
@@ -128,10 +139,17 @@ export default function AcheteurPage() {
       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm mb-6 flex items-center gap-4">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Rechercher une DA..."
           className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm outline-none focus:ring-2 focus:ring-blue-500" />
+        <button onClick={() => navigate('/ai-dashboard')}
+          className="px-4 py-2.5 rounded-xl bg-indigo-600 text-white text-sm font-bold hover:bg-indigo-700 transition-colors flex items-center gap-2">
+          📊 Surveillance IA
+        </button>
         <button onClick={() => qc.invalidateQueries({ queryKey: ['da'] })} className="px-4 py-2.5 rounded-xl bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm">🔄 Actualiser</button>
       </div>
 
       <DaTable rows={combinedDAs} onRowClick={openDa} loading={loadingInternal || loadingClassic} searchQuery={search} showRequester={true} 
+        renderExtraBadge={(d: any) => d.isPieceRechange && (
+          <span className="ml-2 px-2 py-0.5 text-[9px] font-black bg-rose-100 text-rose-600 border border-rose-200 rounded uppercase">SAV / Maintenance</span>
+        )}
         actionLabel={(d: any) => {
           if (d.isPieceRechange && d.isAvailableInStock) return '✅ Valider Stock';
           if (d.statut === 'APPROUVEE' || d.statut === 'VALIDEE' || (d.isPieceRechange && !d.isAvailableInStock)) return '📜 Créer PO';
@@ -185,8 +203,8 @@ export default function AcheteurPage() {
                                         <p className="text-xl font-black text-slate-700">{formatCurrency(budgetRestant)}</p>
                                     </div>
                                     <div className="text-right">
-                                        <p className="text-[10px] text-slate-400 uppercase font-bold">Total DA (avec 20% TVA)</p>
-                                        <p className={`text-xl font-black ${isBudgetExceeded ? 'text-rose-600' : 'text-slate-800'}`}>{formatCurrency(totalTTC)}</p>
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold">Total DA (HT)</p>
+                                        <p className={`text-xl font-black ${isBudgetExceeded ? 'text-rose-600' : 'text-slate-800'}`}>{formatCurrency(totalHT)}</p>
                                     </div>
                                 </div>
                             </div>
@@ -282,7 +300,7 @@ export default function AcheteurPage() {
                         <button onClick={() => setShowPOForm(false)} className="px-6 py-2.5 rounded-xl bg-slate-100 text-slate-600 font-bold text-sm">Retour</button>
                         <button 
                             onClick={() => generatePOMutation.mutate()}
-                            disabled={!poItemCode && !isClassicFlux(selectedDa) || generatePOMutation.isPending}
+                            disabled={(!poItemCode && !isClassicFlux(selectedDa)) || generatePOMutation.isPending}
                             className="px-10 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-700 text-white font-black text-sm shadow-xl shadow-indigo-200"
                         >
                             {generatePOMutation.isPending ? 'Génération...' : '🚀 Confirmer et Générer le BC'}

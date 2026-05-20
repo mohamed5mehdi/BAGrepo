@@ -4,7 +4,7 @@ import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
 import KpiCard from '../components/KpiCard';
 import { useAuth } from '../context/AuthContext';
-import { getPurchaseOrders, approvePO, rejectPO } from '../api/services';
+import api from '../api/axios';
 import { formatCurrency } from '../utils/constants';
 
 export default function RespAchatPage() {
@@ -14,14 +14,14 @@ export default function RespAchatPage() {
   const [commentaire, setCommentaire] = useState('');
 
   const { data: pos = [], isLoading } = useQuery({
-    queryKey: ['purchase-orders', 'all'],
-    queryFn: () => getPurchaseOrders().then(r => r.data),
+    queryKey: ['purchase-orders', 'pending'],
+    queryFn: () => api.get('/purchase-orders/status/PENDING_APPROVAL').then(r => r.data),
   });
 
-  const pendingPOs = pos.filter((po: any) => po.statut === 'DRAFT' || po.statut === 'PENDING_APPROVAL');
+  const pendingPOs = pos;
 
   const approveMutation = useMutation({
-    mutationFn: (id: number) => approvePO(id, user!.userId, commentaire),
+    mutationFn: (id: number) => api.put(`/purchase-orders/${id}/approve?userId=${user!.userId}`),
     onSuccess: () => {
       toast.success('✅ Bon de Commande approuvé avec succès !');
       qc.invalidateQueries({ queryKey: ['purchase-orders'] });
@@ -31,7 +31,7 @@ export default function RespAchatPage() {
   });
 
   const rejectMutation = useMutation({
-    mutationFn: (id: number) => rejectPO(id, user!.userId, commentaire),
+    mutationFn: (id: number) => api.put(`/purchase-orders/${id}/reject?userId=${user!.userId}&motif=${encodeURIComponent(commentaire)}`),
     onSuccess: () => {
       toast.error('❌ Bon de Commande rejeté.');
       qc.invalidateQueries({ queryKey: ['purchase-orders'] });
@@ -65,7 +65,7 @@ export default function RespAchatPage() {
             ) : pendingPOs.length === 0 ? (
               <tr><td colSpan={5} className="px-6 py-10 text-center text-slate-400">Aucun PO en attente d'approbation.</td></tr>
             ) : pendingPOs.map((po: any) => (
-              <tr key={po.idPo} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all cursor-pointer" onClick={() => setSelectedPo(po)}>
+              <tr key={po.id_po} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-all cursor-pointer" onClick={() => setSelectedPo(po)}>
                 <td className="px-6 py-4">
                   <span className="font-mono text-xs font-bold text-blue-600">{po.poNumber}</span>
                 </td>
@@ -73,7 +73,7 @@ export default function RespAchatPage() {
                   <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{po.fournisseur?.nom || '—'}</p>
                 </td>
                 <td className="px-6 py-4 text-right">
-                  <span className="text-sm font-black text-slate-800 dark:text-white">{formatCurrency(po.montantTotal)}</span>
+                  <span className="text-sm font-black text-slate-800 dark:text-white">{formatCurrency(po.montant_total)}</span>
                 </td>
                 <td className="px-6 py-4">
                   <span className="px-3 py-1 rounded-full text-[10px] font-black bg-amber-100 text-amber-700 uppercase tracking-tighter">
@@ -105,7 +105,7 @@ export default function RespAchatPage() {
                 </div>
                 <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-2xl text-right">
                   <p className="text-[10px] font-bold text-slate-400 uppercase">Total TTC</p>
-                  <p className="text-lg font-black text-slate-800 dark:text-white">{formatCurrency(selectedPo.montantTotal)}</p>
+                  <p className="text-lg font-black text-slate-800 dark:text-white">{formatCurrency(selectedPo.montant_total)}</p>
                 </div>
               </div>
 
@@ -121,14 +121,14 @@ export default function RespAchatPage() {
 
               <div className="flex gap-4 pt-4">
                 <button 
-                  onClick={() => rejectMutation.mutate(selectedPo.idPo)}
+                  onClick={() => rejectMutation.mutate(selectedPo.id_po)}
                   disabled={!commentaire || rejectMutation.isPending}
                   className="flex-1 py-3.5 rounded-2xl bg-rose-50 text-rose-600 font-bold text-sm hover:bg-rose-100 transition-all border border-rose-100"
                 >
                   {rejectMutation.isPending ? '...' : '❌ Rejeter'}
                 </button>
                 <button 
-                  onClick={() => approveMutation.mutate(selectedPo.idPo)}
+                  onClick={() => approveMutation.mutate(selectedPo.id_po)}
                   disabled={approveMutation.isPending}
                   className="flex-[2] py-3.5 rounded-2xl bg-blue-600 text-white font-black text-sm hover:bg-blue-700 shadow-xl shadow-blue-100 transition-all"
                 >

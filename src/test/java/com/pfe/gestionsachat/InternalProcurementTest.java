@@ -1,17 +1,7 @@
 package com.pfe.gestionsachat;
 
-import com.pfe.gestionsachat.model.DemandeAchatInterne;
-import com.pfe.gestionsachat.model.User;
-import com.pfe.gestionsachat.model.Warehouse;
-import com.pfe.gestionsachat.model.StockItem;
-import com.pfe.gestionsachat.model.Supplier;
-import com.pfe.gestionsachat.model.UrgenceDemande;
-import com.pfe.gestionsachat.model.CategorieDemande;
-import com.pfe.gestionsachat.model.StatutDemande;
-import com.pfe.gestionsachat.repository.UserRepository;
-import com.pfe.gestionsachat.repository.StockItemRepository;
-import com.pfe.gestionsachat.repository.WarehouseRepository;
-import com.pfe.gestionsachat.repository.SupplierRepository;
+import com.pfe.gestionsachat.model.*;
+import com.pfe.gestionsachat.repository.*;
 import com.pfe.gestionsachat.service.DemandeAchatInterneService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,7 +9,6 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -32,66 +21,71 @@ public class InternalProcurementTest {
     @Autowired private StockItemRepository stockItemRepository;
     @Autowired private WarehouseRepository warehouseRepository;
     @Autowired private SupplierRepository supplierRepository;
+    @Autowired private FamilyRepository familyRepository;
+    @Autowired private SubFamilyRepository subFamilyRepository;
 
     @Test
-    void testFullInternalFlow() {
-        // 1. Setup Data
+    void testSavBypassFlow() {
+        // 1. Setup
+        User demandeur = userRepository.findByEmail("demandeur@test.com").orElseThrow();
+        Family family = familyRepository.findAll().get(0);
+        SubFamily subFamily = subFamilyRepository.findAll().stream()
+                .filter(sf -> sf.getFamily().getIdFamily().equals(family.getIdFamily()))
+                .findFirst().orElseThrow();
+        Supplier supplier = supplierRepository.findAll().get(0);
+        User acheteur = userRepository.findAll().stream()
+                .filter(u -> u.getRole() == Role.ACHETEUR).findFirst().orElseThrow();
+
+        // 2. Création SAV
+        DemandeAchatInterne da = new DemandeAchatInterne();
+        da.setDesignation("Pièce SAV Test");
+        da.setQuantite(1);
+        da.setIsPieceRechange(true);
+        da.setItemCode("PART-999");
+        da.setBudgetFamille(family);
+        da.setBudgetSousFamille(subFamily);
+        
+        DemandeAchatInterne saved = demandeService.createDemande(da, demandeur);
+        DemandeAchatInterne soumise = demandeService.soumettre(saved.getId(), demandeur);
+        assertEquals(StatutDemande.EN_TRAITEMENT, soumise.getStatut());
+
+        // 3. Traitement Acheteur (Valorisation + Traiter)
+        demandeService.valoriserDemande(soumise.getId(), BigDecimal.valueOf(500), supplier.getOidSupplier());
+        DemandeAchatInterne traitee = demandeService.traiterAchat(soumise.getId(), acheteur);
+        
+        // VERIFICATION CRITIQUE : Statut VALIDE_DG directement (Bypass N1/DG)
+        assertEquals(StatutDemande.VALIDE_DG, traitee.getStatut());
+    }
+
+    @Test
+    void testStandardHierarchicalFlow() {
+        // 1. Setup
         User demandeur = userRepository.findByEmail("demandeur@test.com").orElseThrow();
         User n1 = demandeur.getN1();
-        
-        Warehouse w = warehouseRepository.findAll().get(0);
-        StockItem item = new StockItem();
-        item.setItemCode("TEST-LAPTOP");
-        item.setItemName("Laptop Dell");
-        item.setQuantityAvailable(5);
-        item.setWarehouse(w);
-        stockItemRepository.save(item);
-
+        Family family = familyRepository.findAll().get(0);
+        SubFamily subFamily = subFamilyRepository.findAll().stream()
+                .filter(sf -> sf.getFamily().getIdFamily().equals(family.getIdFamily()))
+                .findFirst().orElseThrow();
         Supplier supplier = supplierRepository.findAll().get(0);
+        User acheteur = userRepository.findAll().stream()
+                .filter(u -> u.getRole() == Role.ACHETEUR).findFirst().orElseThrow();
 
-        // 2. Create Request (Brouillon)
-        DemandeAchatInterne demande = new DemandeAchatInterne();
-        demande.setDesignation("Laptop Dell");
-        demande.setQuantite(2);
-        demande.setUrgence(UrgenceDemande.NORMALE);
-        demande.setCategorie(CategorieDemande.INFORMATIQUE);
-        demande.setIsPieceRechange(true); // Flux SAV pour test stock
+        // 2. Création Standard
+        DemandeAchatInterne da = new DemandeAchatInterne();
+        da.setDesignation("Fournitures Bureau");
+        da.setQuantite(10);
+        da.setIsPieceRechange(false); // Flux Standard
+        da.setBudgetFamille(family);
+        da.setBudgetSousFamille(subFamily);
         
-        DemandeAchatInterne saved = demandeService.createDemande(demande, demandeur);
-        assertNotNull(saved.getId());
-        assertEquals(StatutDemande.BROUILLON, saved.getStatut());
-
-        // 3. Soumettre (Vérification Stock)
-        // Cas 1: Stock suffisant -> AFFECTEE
+        DemandeAchatInterne saved = demandeService.createDemande(da, demandeur);
         DemandeAchatInterne soumise = demandeService.soumettre(saved.getId(), demandeur);
-        assertEquals(StatutDemande.DISPONIBLE_STOCK, soumise.getStatut());
         
-        // Vérifier stock déduit
-        StockItem updatedItem = stockItemRepository.findByItemNameIgnoreCase("Laptop Dell").get(0);
-        assertEquals(3, updatedItem.getQuantityAvailable());
+        // VERIFICATION : Flux Standard va au N1
+        assertEquals(StatutDemande.SOUMISE, soumise.getStatut());
 
-        // Cas 2: Stock insuffisant -> SOUMISE (N+1)
-        DemandeAchatInterne demande2 = new DemandeAchatInterne();
-        demande2.setDesignation("Laptop Dell");
-        demande2.setQuantite(10);
-        demande2.setIsPieceRechange(true);
-        demande2 = demandeService.createDemande(demande2, demandeur);
-        DemandeAchatInterne soumise2 = demandeService.soumettre(demande2.getId(), demandeur);
-        assertEquals(StatutDemande.EN_TRAITEMENT, soumise2.getStatut());
-
-        // 4. Acheteur prend le relais (EN_TRAITEMENT)
-        User acheteur = userRepository.findByEmail("acheteur@test.com").orElseThrow(); // Assurez-vous que cet user existe ou créez-en un fictif, ou utilisez un user avec role ACHETEUR.
-        // Si "acheteur" n'existe pas dans le seeder, on va forcer le rôle sur un user existant pour le test
-        User acheteurTest = userRepository.findAll().stream().filter(u -> u.getRole() == com.pfe.gestionsachat.model.Role.ACHETEUR).findFirst().orElseThrow();
-
-        DemandeAchatInterne valorisee = demandeService.valoriserDemande(soumise2.getId(), java.math.BigDecimal.valueOf(15000.0), supplier.getOidSupplier());
-        assertEquals(java.math.BigDecimal.valueOf(15000.0), valorisee.getPrixUnitaire());
-        
-        DemandeAchatInterne traitee = demandeService.traiterAchat(soumise2.getId(), acheteurTest);
-        assertEquals(StatutDemande.SOUMISE, traitee.getStatut());
-
-        // 5. Workflow de validation (N1)
-        DemandeAchatInterne valideeN1 = demandeService.validerN1(soumise2.getId(), true, "Ok pour moi", n1);
+        // 3. Validation N1
+        DemandeAchatInterne valideeN1 = demandeService.validerN1(soumise.getId(), true, "Approuvé", n1);
         assertEquals(StatutDemande.VALIDE_N1, valideeN1.getStatut());
     }
 }

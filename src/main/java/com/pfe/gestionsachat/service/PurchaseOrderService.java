@@ -1,6 +1,7 @@
 package com.pfe.gestionsachat.service;
 
 import com.pfe.gestionsachat.model.*;
+import com.pfe.gestionsachat.repository.FamilyRepository;
 import com.pfe.gestionsachat.repository.PurchaseOrderRepository;
 import com.pfe.gestionsachat.repository.StatusHistoryRepository;
 import com.pfe.gestionsachat.repository.SubFamilyRepository;
@@ -24,6 +25,8 @@ public class PurchaseOrderService {
     @Autowired private StatusHistoryRepository historyRepository;
     @Autowired private GrnHeaderRepository grnRepository;
     @Autowired private SubFamilyRepository subFamilyRepository;
+    @Autowired private FamilyRepository familyRepository;
+    @Autowired @org.springframework.context.annotation.Lazy private DemandeAchatInterneService demandeAchatInterneService;
 
     public List<PurchaseOrder> getAllPurchaseOrders() {
         return purchaseOrderRepository.findAll();
@@ -80,7 +83,15 @@ public class PurchaseOrderService {
         PurchaseOrder po = new PurchaseOrder();
         po.setDemandeInterne(demande);
         po.setFournisseur(demande.getFournisseur());
-        po.setStatut(POStatus.APPROVED);
+        
+        // Règle Schéma 2 : Si c'est une pièce SAV (Bypass DG), le PO doit être approuvé par le Resp. Achat
+        // Si c'est un flux standard, il est déjà validé par la DG.
+        if (Boolean.TRUE.equals(demande.getIsPieceRechange())) {
+            po.setStatut(POStatus.PENDING_APPROVAL);
+        } else {
+            po.setStatut(POStatus.APPROVED);
+        }
+        
         po.setMontantTotal(montantTtc);
         po.setDateCreation(LocalDate.now());
 
@@ -88,10 +99,14 @@ public class PurchaseOrderService {
         saved.setPoNumber(generatePoNumber(saved.getIdPo()));
         purchaseOrderRepository.save(saved);
 
-        logTransition(saved, null, POStatus.APPROVED, null,
-            "PO généré et approuvé automatiquement depuis DA interne #" + demande.getId());
+        String msg = Boolean.TRUE.equals(demande.getIsPieceRechange()) 
+            ? "PO généré en attente d'approbation (Flux SAV Bypass DG)" 
+            : "PO généré et approuvé automatiquement depuis DA interne (Flux Standard post-DG)";
+            
+        logTransition(saved, null, po.getStatut(), null, msg + " #" + demande.getId());
 
-        deduireBudgetInterne(demande);
+        // Le budget est déjà pré-engagé dans DemandeAchatInterneService.valoriserDemande
+        // On ne le déduit plus ici pour éviter un double-dip.
 
         return saved;
     }
@@ -146,6 +161,10 @@ public class PurchaseOrderService {
         assertTransition(po, POStatus.PENDING_APPROVAL, POStatus.APPROVED);
         po.setStatut(POStatus.APPROVED);
         logTransition(po, POStatus.PENDING_APPROVAL, POStatus.APPROVED, responsable, commentaire);
+        
+        // Déduction budgétaire déjà pré-engagée dans le Flux SAV
+        // Pas de déduction supplémentaire ici.
+        
         return purchaseOrderRepository.save(po);
     }
 
@@ -154,6 +173,9 @@ public class PurchaseOrderService {
         PurchaseOrder po = purchaseOrderRepository.findByIdWithLock(poId).orElseThrow();
         assertTransition(po, POStatus.PENDING_APPROVAL, POStatus.REJECTED);
         po.setStatut(POStatus.REJECTED);
+        if (po.getDemandeInterne() != null) {
+            demandeAchatInterneService.rejeterDaSuiteAuPO(po.getDemandeInterne().getId(), responsable, motif);
+        }
         logTransition(po, POStatus.PENDING_APPROVAL, POStatus.REJECTED, responsable, motif);
         return purchaseOrderRepository.save(po);
     }
@@ -169,9 +191,16 @@ public class PurchaseOrderService {
 
     private void deduireBudgetInterne(DemandeAchatInterne da) {
         if (da.getBudgetSousFamille() != null && da.getMontantEstime() != null) {
-            SubFamily sf = subFamilyRepository.findById(da.getBudgetSousFamille().getOidSub()).orElseThrow();
+            SubFamily sf = subFamilyRepository.findByIdWithLock(
+                da.getBudgetSousFamille().getOidSub()).orElseThrow();
             sf.deductBudget(da.getMontantEstime());
             subFamilyRepository.save(sf);
+            if (sf.getFamily() != null) {
+                Family fam = familyRepository.findByIdWithLock(
+                    sf.getFamily().getIdFamily()).orElseThrow();
+                fam.deductBudget(da.getMontantEstime());
+                familyRepository.save(fam);
+            }
         }
     }
 
