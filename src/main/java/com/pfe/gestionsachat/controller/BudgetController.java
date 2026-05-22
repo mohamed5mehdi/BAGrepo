@@ -215,6 +215,22 @@ public class BudgetController {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // GET /api/budget/audit
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Audit complet et non bloquant de l'équation budgétaire sur toutes les entités.
+     * Vérifie que initial = engage + restant pour toutes les familles et sous-familles.
+     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     */
+    @GetMapping("/audit")
+    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    public ResponseEntity<List<com.pfe.gestionsachat.model.AuditLog>> auditGlobalEquations() {
+        log.info("GET /api/budget/audit");
+        return ResponseEntity.ok(budgetSuiviService.auditGlobalEquations());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // Helper – structure d'erreur uniforme
     // ══════════════════════════════════════════════════════════════════════════
 

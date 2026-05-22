@@ -21,6 +21,14 @@ import java.util.HashMap;
 @Service
 public class PurchaseOrderService {
 
+    /**
+     * Taux de TVA par défaut appliqué lors de la génération du PO depuis une DA interne.
+     * Règle BAG ERP : 20% si aucun taux spécifique n'est défini au niveau de la ligne GRC.
+     * À centraliser dans une table de configuration si le taux devient paramétrable.
+     */
+    private static final BigDecimal TVA_DEFAUT = new BigDecimal("0.20");
+    private static final BigDecimal TVA_FACTEUR_DEFAUT = BigDecimal.ONE.add(TVA_DEFAUT); // 1.20
+
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
     @Autowired private StatusHistoryRepository historyRepository;
     @Autowired private GrnHeaderRepository grnRepository;
@@ -77,7 +85,8 @@ public class PurchaseOrderService {
                 "Impossible de créer un PO : DA interne [" + demande.getId() + "] n'est pas valorisée."
             );
         }
-        BigDecimal tva = montantHt.multiply(new BigDecimal("0.20"));
+        // TVA calculée via constante — toute modification du taux se fait en un seul endroit.
+        BigDecimal tva = montantHt.multiply(TVA_DEFAUT).setScale(2, RoundingMode.HALF_UP);
         BigDecimal montantTtc = montantHt.add(tva).setScale(2, RoundingMode.HALF_UP);
 
         PurchaseOrder po = new PurchaseOrder();
@@ -123,7 +132,8 @@ public class PurchaseOrderService {
                 .map(d -> d.getPrixUnitaire().multiply(BigDecimal.valueOf(d.getQuantite())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal montantTtc = totalHt.multiply(new BigDecimal("1.20")).setScale(2, RoundingMode.HALF_UP);
+        // Même constante TVA_DEFAUT — cohérence garantie avec generateFromInternal()
+        BigDecimal montantTtc = totalHt.multiply(TVA_FACTEUR_DEFAUT).setScale(2, RoundingMode.HALF_UP);
 
         Supplier fournisseur = da.getDetails().stream()
                 .map(DaDetails::getFournisseur).filter(java.util.Objects::nonNull).findFirst().orElse(null);

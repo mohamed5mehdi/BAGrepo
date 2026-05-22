@@ -450,12 +450,22 @@ public class DemandeAchatInterneService {
             if (sourceSousFamilleId != null && montantDemande != null && montantDemande.compareTo(java.math.BigDecimal.ZERO) > 0) {
                 com.pfe.gestionsachat.model.SubFamily source = subFamilyRepository.findByIdWithLock(sourceSousFamilleId).orElseThrow();
                 if (!source.hasEnoughBudget(montantDemande)) {
-                    throw new RuntimeException("Budget insuffisant");
+                    throw new RuntimeException("Budget insuffisant dans la sous-famille source pour l'ajustement demandé.");
                 }
-                source.setBudgetEngage((source.getBudgetEngage() != null ? source.getBudgetEngage() : java.math.BigDecimal.ZERO).add(montantDemande));
+                // FIX P4 — deductBudget() décrémente budgetRestant ET incrémente budgetEngage atomiquement.
+                // L'ancienne implémentation n'incrémentait que budgetEngage sans toucher budgetRestant,
+                // laissant le budget disponible faussement élevé (fuite silencieuse).
+                java.math.BigDecimal budgetAvant = source.getBudgetRestant();
+                source.deductBudget(montantDemande);
                 subFamilyRepository.save(source);
-                daAjust.setBudgetAvantDemande("Source: " + source.getBudgetRestant());
-                daAjust.setBudgetApresDemande("Source: " + source.getBudgetRestant().subtract(montantDemande));
+                // Mise à jour de la famille parente pour maintenir la cohérence hiérarchique
+                if (source.getFamily() != null) {
+                    com.pfe.gestionsachat.model.Family fam = familyRepository.findByIdWithLock(source.getFamily().getIdFamily()).orElseThrow();
+                    fam.deductBudget(montantDemande);
+                    familyRepository.save(fam);
+                }
+                daAjust.setBudgetAvantDemande("Source [" + source.getLibelle() + "]: " + budgetAvant);
+                daAjust.setBudgetApresDemande("Source [" + source.getLibelle() + "]: " + source.getBudgetRestant());
             }
         }
         

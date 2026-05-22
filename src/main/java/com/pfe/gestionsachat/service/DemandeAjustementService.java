@@ -193,9 +193,14 @@ public class DemandeAjustementService {
                 + ", Cible: " + cible.getBudgetRestant().add(montantDemande));
         daAjust.setStatutDaAvantAjustement(da.getStatut());
 
-        // Pré-réservation : budget_engage++ sur la source pour bloquer consommations concurrentes
-        source.setBudgetEngage(orZero(source.getBudgetEngage()).add(montantDemande));
+        // Pré-réservation : on déduit le budget (engage++, restant--) pour préserver l'équation
+        source.deductBudget(montantDemande);
         subFamilyRepository.save(source);
+        if (source.getFamily() != null) {
+            Family famSource = familyRepository.findByIdWithLock(source.getFamily().getIdFamily()).orElseThrow();
+            famSource.deductBudget(montantDemande);
+            familyRepository.save(famSource);
+        }
 
         DemandeAjustement saved = demandeAjustementRepository.save(daAjust);
         saveHistory(da, da.getStatut().name(), da.getStatut().name(),
@@ -237,10 +242,12 @@ public class DemandeAjustementService {
             daAjust.setMontantFinal(montantF);
 
             // Transfert réel : réallocation budgetInitial + budgetRestant entre SF.
+            // 1. Annulation totale de la pré-réservation (engage--, restant++)
+            source.addBudget(daAjust.getMontantDemande());
+            
+            // 2. Déduction du montant réel validé (restant--, initial--)
             source.setBudgetRestant(orZero(source.getBudgetRestant()).subtract(montantF));
             source.setBudgetInitial(orZero(source.getBudgetInitial()).subtract(montantF));
-            // Annulation de la pré-réservation (engage--) exactement à hauteur du montant initial demandé
-            source.setBudgetEngage(orZero(source.getBudgetEngage()).subtract(daAjust.getMontantDemande()));
 
             cible.setBudgetRestant(orZero(cible.getBudgetRestant()).add(montantF));
             cible.setBudgetInitial(orZero(cible.getBudgetInitial()).add(montantF));
@@ -281,9 +288,14 @@ public class DemandeAjustementService {
             daAjust.setStatut(StatutAjustement.EN_ATTENTE_ACHETEUR);
 
         } else if ("REJETE".equals(decision)) {
-            // Annulation de la pré-réservation sur la source
-            source.setBudgetEngage(orZero(source.getBudgetEngage()).subtract(daAjust.getMontantDemande()));
+            // Annulation complète de la pré-réservation sur la source
+            source.addBudget(daAjust.getMontantDemande());
             subFamilyRepository.save(source);
+            if (source.getFamily() != null) {
+                Family famSource = familyRepository.findByIdWithLock(source.getFamily().getIdFamily()).orElseThrow();
+                famSource.addBudget(daAjust.getMontantDemande());
+                familyRepository.save(famSource);
+            }
             daAjust.setStatut(StatutAjustement.REJETE);
             if (daAjust.getDemandeInterne() != null) {
                 daAjust.getDemandeInterne().setStatut(StatutDemande.REJETEE);

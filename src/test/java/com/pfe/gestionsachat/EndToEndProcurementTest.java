@@ -74,6 +74,10 @@ public class EndToEndProcurementTest {
         Family family = familyRepository.save(new Family("Pièces Moteur", BigDecimal.valueOf(50000.0)));
         SubFamily subFamily = subFamilyRepository.save(new SubFamily("Pistons", BigDecimal.valueOf(20000.0), family));
         
+        userRepository.findAll().forEach(u -> {
+            u.setWarehouse(null);
+            userRepository.save(u);
+        });
         stockItemRepository.deleteAll();
         warehouseRepository.deleteAll();
 

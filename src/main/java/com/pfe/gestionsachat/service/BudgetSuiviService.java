@@ -255,6 +255,63 @@ public class BudgetSuiviService {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // 6. GET /api/budget/audit
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Audit complet et non bloquant de l'équation budgétaire sur toutes les entités.
+     * Vérifie que initial = engage + restant pour toutes les familles et sous-familles.
+     * Retourne la liste des anomalies trouvées.
+     */
+    @Transactional(readOnly = true)
+    public List<AuditLog> auditGlobalEquations() {
+        List<AuditLog> anomalies = new ArrayList<>();
+
+        // Audit des familles
+        for (Family f : familyRepository.findAll()) {
+            AuditLog anomalie = verifierEtGenererAnomalie(
+                    "Family", f.getIdFamily().longValue(),
+                    f.getBudgetInitial(), f.getBudgetEngage(), f.getBudgetRestant());
+            if (anomalie != null) anomalies.add(anomalie);
+        }
+
+        // Audit des sous-familles
+        for (SubFamily sf : subFamilyRepository.findAll()) {
+            AuditLog anomalie = verifierEtGenererAnomalie(
+                    "SubFamily", sf.getOidSub().longValue(),
+                    sf.getBudgetInitial(), sf.getBudgetEngage(), sf.getBudgetRestant());
+            if (anomalie != null) anomalies.add(anomalie);
+        }
+
+        return anomalies;
+    }
+
+    /**
+     * Vérifie l'équation pour une entité et retourne une anomalie si l'écart dépasse la tolérance.
+     * Ne sauvegarde pas en base, sert juste pour l'endpoint d'audit en direct.
+     */
+    private AuditLog verifierEtGenererAnomalie(String entite, Long entiteId, BigDecimal budgetInitial, BigDecimal budgetEngage, BigDecimal budgetRestant) {
+        if (budgetInitial == null) return null;
+
+        BigDecimal somme = orZero(budgetEngage).add(orZero(budgetRestant));
+        BigDecimal ecart = budgetInitial.subtract(somme).abs();
+
+        if (ecart.compareTo(TOLERANCE) > 0) {
+            String message = String.format(
+                    "ANOMALIE AUDIT [%s id=%s]: initial=%.2f ≠ engage=%.2f + restant=%.2f (Δ=%.2f)",
+                    entite, entiteId, budgetInitial, budgetEngage, budgetRestant, ecart);
+            return new AuditLog(
+                    "ANOMALIE_EQUATION",
+                    entite,
+                    entiteId,
+                    null,
+                    String.format("initial=%.2f, engage=%.2f, restant=%.2f", budgetInitial, budgetEngage, budgetRestant),
+                    message);
+        }
+        return null;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // Helpers internes
     // ══════════════════════════════════════════════════════════════════════════
 

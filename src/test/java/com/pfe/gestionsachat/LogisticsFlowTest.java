@@ -28,6 +28,7 @@ public class LogisticsFlowTest {
     @Autowired private InvoiceRepository invoiceRepository;
     @Autowired private SupplierRepository supplierRepository;
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
+    @Autowired private UserRepository userRepository;
 
     private Warehouse warehouse;
     private StockItem stockItem;
@@ -35,6 +36,10 @@ public class LogisticsFlowTest {
 
     @BeforeEach
     void setup() {
+        userRepository.findAll().forEach(u -> {
+            u.setWarehouse(null);
+            userRepository.save(u);
+        });
         stockItemRepository.deleteAll();
         warehouseRepository.deleteAll();
 

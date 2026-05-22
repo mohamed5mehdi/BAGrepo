@@ -26,12 +26,17 @@ public class GrnFluxDiscriminationTest {
     @Autowired private DaDetailsRepository daDetailsRepository;
     @Autowired private StockItemRepository stockItemRepository;
     @Autowired private WarehouseRepository warehouseRepository;
+    @Autowired private UserRepository userRepository;
 
     private PurchaseOrder poClassic;
     private PurchaseOrder poInterne;
 
     @BeforeEach
     void setup() {
+        userRepository.findAll().forEach(u -> {
+            u.setWarehouse(null);
+            userRepository.save(u);
+        });
         stockItemRepository.deleteAll();
         warehouseRepository.deleteAll();
 

@@ -369,9 +369,9 @@ public class DataInitializer implements CommandLineRunner {
         if (userRepository.findByRole(Role.MAGASINIER_DEST).isEmpty()) {
             User magDest = new User("Karim Alaoui", "magasinier.dest@test.com",
                 encoder.encode("password"), Role.MAGASINIER_DEST);
-            magDest.setWarehouse(magMarrakech);
+            warehouseRepository.findByName("Magasin Marrakech BAG").ifPresent(magDest::setWarehouse);
             userRepository.save(magDest);
-            log.info("👷 MAGASINIER_DEST Karim Alaoui seedé pour warehouse '{}'", magMarrakech.getName());
+            log.info("👷 MAGASINIER_DEST Karim Alaoui seedé pour warehouse 'Magasin Marrakech BAG'");
         }
 
 
