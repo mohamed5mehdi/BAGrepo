@@ -7,6 +7,7 @@ import DemandeurPage from './pages/DemandeurPage';
 import AcheteurPage from './pages/AcheteurPage';
 import AdminPage from './pages/AdminPage';
 import MagasinierPage from './pages/MagasinierPage';
+import MagasinierDestPage from './pages/MagasinierDestPage';
 import ComptablePage from './pages/ComptablePage';
 import ValidatorPage from './pages/ValidatorPage';
 import RespAchatPage from './pages/RespAchatPage';
@@ -35,8 +36,9 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/" element={<RedirectToRole />} />
 
-            <Route path="/demandeur"     element={<RoleProtectedRoute roles={['EMPLOYE']}><DemandeurPage /></RoleProtectedRoute>} />
-            <Route path="/demandeur/new" element={<RoleProtectedRoute roles={['EMPLOYE']}><DemandeurPage /></RoleProtectedRoute>} />
+            <Route path="/demandeur"     element={<RoleProtectedRoute roles={['EMPLOYE']}><DemandeurPage defaultTab="DA" /></RoleProtectedRoute>} />
+            <Route path="/demandeur/new" element={<RoleProtectedRoute roles={['EMPLOYE']}><DemandeurPage defaultTab="DA" /></RoleProtectedRoute>} />
+            <Route path="/demandeur/transferts" element={<RoleProtectedRoute roles={['EMPLOYE']}><DemandeurPage defaultTab="TRANSFERT" /></RoleProtectedRoute>} />
             <Route path="/n1"            element={<RoleProtectedRoute roles={['MANAGER_N1']}><ValidatorPage role="MANAGER_N1" myStatut="SOUMISE" title="Dashboard N+1 — Validation Hiérarchique" icon="✅" color="from-violet-500 to-purple-600" /></RoleProtectedRoute>} />
             <Route path="/tech"          element={<RoleProtectedRoute roles={['TECHNICIEN']}><ValidatorPage role="TECHNICIEN" myStatut="VALIDE_N1" title="Dashboard Technicien — Validation Technique" icon="🔧" color="from-cyan-500 to-teal-600" /></RoleProtectedRoute>} />
             <Route path="/acheteur"      element={<RoleProtectedRoute roles={['ACHETEUR']}><AcheteurPage /></RoleProtectedRoute>} />
@@ -45,6 +47,7 @@ export default function App() {
             <Route path="/dg"            element={<RoleProtectedRoute roles={['DG']}><ValidatorPage role="DG" myStatut="VALIDE_DG" title="Dashboard DG — Direction Générale" icon="🏢" color="from-slate-600 to-slate-800" /></RoleProtectedRoute>} />
             <Route path="/admin"         element={<RoleProtectedRoute roles={['ADMINISTRATEUR']}><AdminPage /></RoleProtectedRoute>} />
             <Route path="/magasinier"    element={<RoleProtectedRoute roles={['MAGASINIER']}><MagasinierPage /></RoleProtectedRoute>} />
+            <Route path="/magasinier-dest" element={<RoleProtectedRoute roles={['MAGASINIER_DEST']}><MagasinierDestPage /></RoleProtectedRoute>} />
             <Route path="/comptable"     element={<RoleProtectedRoute roles={['COMPTABLE']}><ComptablePage /></RoleProtectedRoute>} />
             <Route path="/resp-achat"    element={<RoleProtectedRoute roles={['RESP_ACHAT']}><RespAchatPage /></RoleProtectedRoute>} />
             <Route path="/ai-dashboard"  element={<RoleProtectedRoute roles={['DG', 'ADMINISTRATEUR', 'DAF', 'AMG', 'ACHETEUR', 'COMPTABLE', 'RESP_ACHAT']}><AIDashboardPage /></RoleProtectedRoute>} />

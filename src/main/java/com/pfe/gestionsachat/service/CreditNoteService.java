@@ -6,6 +6,7 @@ import com.pfe.gestionsachat.model.CreditNote;
 import com.pfe.gestionsachat.model.CreditNoteStatus;
 import com.pfe.gestionsachat.model.DaDetails;
 import com.pfe.gestionsachat.model.GrnHeader;
+import com.pfe.gestionsachat.model.Family;
 import com.pfe.gestionsachat.model.MovementType;
 import com.pfe.gestionsachat.model.StockItem;
 import com.pfe.gestionsachat.model.StockMovement;
@@ -41,7 +42,7 @@ public class CreditNoteService {
         CreditNote creditNote = new CreditNote();
         creditNote.setGrnHeader(grn);
         creditNote.setCreditNoteNumber(request.getCreditNoteNumber());
-        creditNote.setCreditNoteDate(new Date());
+        creditNote.setCreditNoteDate(java.time.LocalDate.now());
         creditNote.setStatus(CreditNoteStatus.PENDING);
 
         BigDecimal totalCreditAmount = BigDecimal.ZERO;
@@ -50,7 +51,7 @@ public class CreditNoteService {
             // 1. Mise à jour du stock (Logistique)
             StockItem stockItem = stockItemRepository.findById(rejection.getStockItemId())
                     .orElseThrow(() -> new RuntimeException("Article en stock introuvable : " + rejection.getStockItemId()));
-            
+
             stockItem.setQuantityAvailable(stockItem.getQuantityAvailable() - rejection.getQuantity());
             stockItemRepository.save(stockItem);
 
@@ -59,27 +60,36 @@ public class CreditNoteService {
             movement.setStockItem(stockItem);
             movement.setMovementType(MovementType.OUT_RETURN);
             movement.setQuantity(rejection.getQuantity());
-            movement.setMovementDate(new Date());
+            movement.setMovementDate(java.time.LocalDateTime.now());
             movement.setReferenceDocument("CN-" + request.getCreditNoteNumber());
             stockMovementRepository.save(movement);
 
             // 3. Réversibilité Budgétaire (Finance)
+            // BUG #7 CORRIGÉ : utilise addBudget() qui fait engage-- ET restant++
+            // L'ancien code ne faisait que restant++ sans toucher à engage, rompant l'équation.
             SubFamily subFamily = findSubFamilyForItem(grn, stockItem.getItemCode());
             if (subFamily != null) {
                 BigDecimal unitPrice = rejection.getUnitPrice();
                 BigDecimal amountToCredit = unitPrice.multiply(BigDecimal.valueOf(rejection.getQuantity()));
-                
-                // Lock pessimiste pour éviter les race conditions sur le budget
+
+                // Lock pessimiste sur la sous-famille
                 SubFamily lockedSf = subFamilyRepository.findByIdWithLock(subFamily.getOidSub())
                         .orElseThrow(() -> new RuntimeException("Sous-famille introuvable pour lock: " + subFamily.getOidSub()));
-                
-                lockedSf.setBudgetRestant(lockedSf.getBudgetRestant().add(amountToCredit));
-                if (lockedSf.getFamily() != null) {
-                    lockedSf.getFamily().setBudgetRestant(lockedSf.getFamily().getBudgetRestant().add(amountToCredit));
-                    familyRepository.save(lockedSf.getFamily());
-                }
+
+                // BUG #7 CORRIGÉ : addBudget() maintient l'invariant initial = engage + restant
+                lockedSf.addBudget(amountToCredit);
                 subFamilyRepository.save(lockedSf);
-                
+
+                // BUG #7 CORRIGÉ : Lock pessimiste sur la famille (l'ancien code accédait via proxy Lazy sans lock)
+                if (lockedSf.getFamily() != null) {
+                    Family lockedFamily = familyRepository.findByIdWithLock(
+                            lockedSf.getFamily().getIdFamily())
+                            .orElseThrow(() -> new RuntimeException(
+                                    "Famille introuvable pour lock: " + lockedSf.getFamily().getIdFamily()));
+                    lockedFamily.addBudget(amountToCredit);
+                    familyRepository.save(lockedFamily);
+                }
+
                 totalCreditAmount = totalCreditAmount.add(amountToCredit);
             }
         }

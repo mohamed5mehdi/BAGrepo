@@ -199,6 +199,62 @@ public class BudgetSuiviService {
     }
 
     // ══════════════════════════════════════════════════════════════════════════
+    // 5. GET /api/budget/allocation/verification  &  /{id}
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Vérifie l'invariant Σ SubFamily.budgetInitial = Family.budgetInitial
+     * pour toutes les familles.
+     *
+     * NON BLOQUANT — retourne la liste des écarts pour affichage rouge dans l'UI.
+     * Un écart = 0 → niveau "OK". Écart != 0 → niveau "SOUS_ALLOUE" ou "SUR_ALLOUE".
+     */
+    @Transactional(readOnly = true)
+    public List<AlerteAllocationDto> verifierAllocationGlobale() {
+        List<AlerteAllocationDto> alertes = new ArrayList<>();
+        for (Family f : familyRepository.findAll()) {
+            alertes.add(verifierAllocationFamille(f));
+        }
+        return alertes;
+    }
+
+    /**
+     * Vérifie l'invariant Σ SF.budgetInitial = Family.budgetInitial pour une famille donnée.
+     */
+    @Transactional(readOnly = true)
+    public AlerteAllocationDto verifierAllocationFamilleParId(Integer familleId) {
+        Family famille = familyRepository.findById(familleId)
+                .orElseThrow(() -> new IllegalArgumentException("Famille introuvable : id=" + familleId));
+        return verifierAllocationFamille(famille);
+    }
+
+    /**
+     * Construit une AlerteAllocationDto pour une famille donnée.
+     * Aussi appelée par DemandeAjustementService après chaque mutation de budgetInitial de SF.
+     */
+    @Transactional(readOnly = true)
+    public AlerteAllocationDto verifierAllocationFamille(Family famille) {
+        List<SubFamily> sfs = subFamilyRepository.findByFamilyId(famille.getIdFamily());
+        BigDecimal sommeSf = sfs.stream()
+                .map(sf -> orZero(sf.getBudgetInitial()))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
+
+        AlerteAllocationDto alerte = new AlerteAllocationDto(
+                famille.getIdFamily(),
+                famille.getLibelle(),
+                orZero(famille.getBudgetInitial()),
+                sommeSf);
+
+        if (!"OK".equals(alerte.getNiveau())) {
+            log.warn("ALERTE ALLOCATION [Famille id={} '{}'] : budgetInitial={} ≠ Σ SF={} (écart={})",
+                    famille.getIdFamily(), famille.getLibelle(),
+                    famille.getBudgetInitial(), sommeSf, alerte.getEcart());
+        }
+
+        return alerte;
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
     // Helpers internes
     // ══════════════════════════════════════════════════════════════════════════
 
@@ -206,29 +262,38 @@ public class BudgetSuiviService {
      * Recalcule les valeurs agrégées d'une famille à partir de ses sous-familles.
      * budget_engage_famille  = Σ budget_engage_sf
      * budget_restant_famille = Σ budget_restant_sf
-     * budget_initial_famille = INCHANGÉ (figé à la création)
+     * budget_initial_famille = INCHANGÉ (figé à la création / ajustement DG)
+     *
+     * Méthode publique — appelée par DemandeAjustementService après toute mutation SF.
      */
     @Transactional
-    protected void recalculerFamille(Family famille) {
-        List<SubFamily> sousF = subFamilyRepository.findByFamilyId(famille.getIdFamily());
+    public void recalculerFamille(Family famille) {
+        if (famille == null) return;
+
+        // Rechargement avec lock pour éviter les stale reads
+        Family familleChargee = familyRepository.findByIdWithLock(famille.getIdFamily())
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Famille introuvable pour recalcul : id=" + famille.getIdFamily()));
+
+        List<SubFamily> sousF = subFamilyRepository.findByFamilyId(familleChargee.getIdFamily());
 
         BigDecimal totalEngage  = sousF.stream()
                 .map(sf -> orZero(sf.getBudgetEngage()))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
-        BigDecimal totalRestant = sousF.stream()
-                .map(sf -> orZero(sf.getBudgetRestant()))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
+        // Au lieu de sommer le restant des SF (ce qui détruit le budget non alloué de la famille)
+        // on calcule le restant de la famille = initial - engage.
+        BigDecimal totalRestant = orZero(familleChargee.getBudgetInitial()).subtract(totalEngage);
 
-        famille.setBudgetEngage(totalEngage);
-        famille.setBudgetRestant(totalRestant);
-        familyRepository.save(famille);
+        familleChargee.setBudgetEngage(totalEngage);
+        familleChargee.setBudgetRestant(totalRestant);
+        familyRepository.save(familleChargee);
 
         // Validation de l'équation sur la famille
-        validerEquation("Family", famille.getIdFamily(),
-                famille.getBudgetInitial(), totalEngage, totalRestant);
+        validerEquation("Family", familleChargee.getIdFamily(),
+                familleChargee.getBudgetInitial(), totalEngage, totalRestant);
 
-        log.debug("Famille {} recalculée : engage={} restant={}", famille.getIdFamily(), totalEngage, totalRestant);
+        log.debug("Famille {} recalculée : engage={} restant={}", familleChargee.getIdFamily(), totalEngage, totalRestant);
     }
 
     /**

@@ -12,8 +12,10 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import java.math.BigDecimal;
+import org.springframework.core.annotation.Order;
 
 @Component
+@Order(1)
 public class DataInitializer implements CommandLineRunner {
 
     @Autowired private UserRepository userRepository;
@@ -29,18 +31,35 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private OffreFournisseurRepository offreFournisseurRepository;
     @Autowired private BCryptPasswordEncoder encoder;
     @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
+    @Autowired private BudgetPiecesRepository budgetPiecesRepository;
 
     private static final Logger log = LoggerFactory.getLogger(DataInitializer.class);
 
     @Override
     @SuppressWarnings("null")
     public void run(String... args) throws Exception {
+        // 0. Drop enum check constraints that prevent adding new roles
+        try {
+            jdbcTemplate.execute("ALTER TABLE users DROP CONSTRAINT IF EXISTS users_role_check");
+        } catch (Exception e) {
+            log.warn("Could not drop users_role_check: {}", e.getMessage());
+        }
+
+        // 1. Nettoyage complet et robuste via TRUNCATE avec RESTART IDENTITY pour éviter les décalages d'IDs
+        try {
+            jdbcTemplate.execute("TRUNCATE TABLE audit_log, status_history, justification, action, budget_transfer, purchase_order, offre_fournisseur, da_details, da_header, demande_achat_interne, demande_ajustement, sub_family, family, warehouse, stock_item, stock_movement, grn_details, grn_header, grc_details, grc_header, credit_note, invoice, transfer_header, transfer_line, users RESTART IDENTITY CASCADE");
+            log.info("✅ Nettoyage par TRUNCATE terminé.");
+        } catch (Exception e) {
+            log.warn("⚠️ Échec du TRUNCATE : {}", e.getMessage());
+            familyRepository.deleteAll();
+            userRepository.deleteAll();
+        }
+
         // On récupère ou on crée le demandeur
         User demandeur;
         if (userRepository.count() == 0) {
-            log.info("⏳ Création des utilisateurs (Encadrants: Abdelhamid Barakate & Ibtissame Saadalh)...");
+            log.info("👥 Création des utilisateurs système...");
             
-            // Distribution des acteurs
             User n1       = new User("Younesse Filali",    "n1@test.com",       encoder.encode("password"), Role.MANAGER_N1);
             User tech     = new User("Halim Mansouri",     "tech@test.com",     encoder.encode("password"), Role.TECHNICIEN);
             User acheteur = new User("Abdsamad Alami",     "acheteur@test.com", encoder.encode("password"), Role.ACHETEUR);
@@ -60,27 +79,6 @@ public class DataInitializer implements CommandLineRunner {
             userRepository.saveAll(List.of(n1, tech, acheteur, amg, daf, dg, admin, demandeur, magasinier, comptable, respAchat));
         } else {
             demandeur = userRepository.findByEmail("demandeur@test.com").orElse(null);
-        }
-
-        // 2. Nettoyage complet et robuste (Ordre inverse des dépendances)
-        /*
-        if (familyRepository.count() > 0 || daHeaderRepository.count() > 0 || demandeAchatInterneRepository.count() > 0) {
-            log.info("♻️ Nettoyage complet via TRUNCATE CASCADE (BAG)...");
-            try {
-                jdbcTemplate.execute("TRUNCATE TABLE audit_log, status_history, justification, action, budget_transfer, purchase_order, offre_fournisseur, da_details, da_header, demande_achat_interne, demande_ajustement, sub_family, family, warehouse, stock_item, stock_movement, grn_details, grn_header, grc_details, grc_header, credit_note, invoice, transfer_request CASCADE");
-                log.info("✅ Nettoyage par TRUNCATE terminé.");
-            } catch (Exception e) {
-                log.warn("⚠️ Échec du TRUNCATE, tentative via repository : {}", e.getMessage());
-                // Fallback (déjà implémenté précédemment mais on simplifie ici)
-                familyRepository.deleteAll(); 
-            }
-        }
-        */
-
-
-        if (familyRepository.count() > 0) {
-            log.info("ℹ️ Données déjà présentes (Familles > 0). Fin de l'initialisation.");
-            return;
         }
 
         log.info("🏗️ Début du seeding des données...");
@@ -270,31 +268,112 @@ public class DataInitializer implements CommandLineRunner {
             StockItem h1 = new StockItem();
             h1.setWarehouse(central); h1.setItemCode("HUI-POMP-001"); h1.setItemName("Huile à pompe hydraulique");
             h1.setCategory(ItemCategory.PIECE_RECHANGE); h1.setLocationCode("RAYON-LUBRIFIANT");
-            h1.setQuantityAvailable(10); h1.setUnitCost(150.0);
+            h1.setQuantityAvailable(10); h1.setUnitCost(BigDecimal.valueOf(150.0));
             
             StockItem r1 = new StockItem();
             r1.setWarehouse(central); r1.setItemCode("ROUE-SEC-045"); r1.setItemName("Roue de secours 17 pouces");
             r1.setCategory(ItemCategory.PIECE_RECHANGE); r1.setLocationCode("RAYON-MECANIQUE");
-            r1.setQuantityAvailable(4); r1.setUnitCost(1200.0);
+            r1.setQuantityAvailable(4); r1.setUnitCost(BigDecimal.valueOf(1200.0));
             
             StockItem b1 = new StockItem();
             b1.setWarehouse(central); b1.setItemCode("BAT-V12-70AH"); b1.setItemName("Batterie 12V 70Ah");
             b1.setCategory(ItemCategory.PIECE_RECHANGE); b1.setLocationCode("RAYON-ELECTRIQUE");
-            b1.setQuantityAvailable(0); b1.setUnitCost(850.0); // Hors stock pour tester le flux achat
+            b1.setQuantityAvailable(0); b1.setUnitCost(BigDecimal.valueOf(850.0)); // Hors stock pour tester le flux achat
             
             StockItem c1 = new StockItem();
             c1.setWarehouse(central); c1.setItemCode("CLE-DYN-SMALL"); c1.setItemName("Clé dynamométrique 1/4");
             c1.setCategory(ItemCategory.PIECE_RECHANGE); c1.setLocationCode("RAYON-OUTILLAGE");
-            c1.setQuantityAvailable(2); c1.setUnitCost(450.0);
+            c1.setQuantityAvailable(2); c1.setUnitCost(BigDecimal.valueOf(450.0));
             
             StockItem p1 = new StockItem();
             p1.setWarehouse(central); p1.setItemCode("PNEU-MIC-205"); p1.setItemName("Pneu Michelin 205/55 R16");
             p1.setCategory(ItemCategory.PIECE_RECHANGE); p1.setLocationCode("RAYON-PNEUMATIQUE");
-            p1.setQuantityAvailable(8); p1.setUnitCost(950.0);
+            p1.setQuantityAvailable(8); p1.setUnitCost(BigDecimal.valueOf(950.0));
             
-            stockItemRepository.saveAll(List.of(h1, r1, b1, c1, p1));
-            log.info("✅ 5 Rayons et articles seedés pour le flux Pièces.");
+            // Nouveaux magasins pour le transfert inter-sites
+            Warehouse magTanger = warehouseRepository.findByName("Magasin Tanger BAG").orElseGet(() -> {
+                Warehouse w = new Warehouse(); w.setName("Magasin Tanger BAG"); w.setLocation("Tanger"); w.setType(WarehouseType.REGIONAL); return warehouseRepository.save(w);
+            });
+            Warehouse magMarrakech = warehouseRepository.findByName("Magasin Marrakech BAG").orElseGet(() -> {
+                Warehouse w = new Warehouse(); w.setName("Magasin Marrakech BAG"); w.setLocation("Marrakech"); w.setType(WarehouseType.REGIONAL); return warehouseRepository.save(w);
+            });
+            Warehouse magAgadir = warehouseRepository.findByName("Magasin Agadir BAG").orElseGet(() -> {
+                Warehouse w = new Warehouse(); w.setName("Magasin Agadir BAG"); w.setLocation("Agadir"); w.setType(WarehouseType.REGIONAL); return warehouseRepository.save(w);
+            });
+
+            // Pièces pour Tanger
+            StockItem t1 = new StockItem();
+            t1.setWarehouse(magTanger); t1.setItemCode("FILTRE-HUILE-01"); t1.setItemName("Filtre à huile Premium");
+            t1.setCategory(ItemCategory.PIECE_RECHANGE); t1.setLocationCode("RAYON-FILTRATION");
+            t1.setQuantityAvailable(15); t1.setUnitCost(BigDecimal.valueOf(45.0));
+
+            // Pièces pour Marrakech
+            StockItem m1 = new StockItem();
+            m1.setWarehouse(magMarrakech); m1.setItemCode("PLAQUETTE-FREIN"); m1.setItemName("Plaquettes de frein avant");
+            m1.setCategory(ItemCategory.PIECE_RECHANGE); m1.setLocationCode("RAYON-FREINAGE");
+            m1.setQuantityAvailable(6); m1.setUnitCost(BigDecimal.valueOf(320.0));
+
+            // Pièces pour Agadir
+            StockItem a1 = new StockItem();
+            a1.setWarehouse(magAgadir); a1.setItemCode("COURROIE-DIST"); a1.setItemName("Courroie de distribution");
+            a1.setCategory(ItemCategory.PIECE_RECHANGE); a1.setLocationCode("RAYON-MOTEUR");
+            a1.setQuantityAvailable(3); a1.setUnitCost(BigDecimal.valueOf(600.0));
+
+            stockItemRepository.saveAll(List.of(h1, r1, b1, c1, p1, t1, m1, a1));
+            log.info("✅ Rayons et articles seedés pour le flux Pièces et Transferts Inter-Sites.");
         }
+
+        // 10. Budget Pièces de Rechange
+        if (budgetPiecesRepository.count() == 0) {
+            String currentYear = String.valueOf(java.time.LocalDate.now().getYear());
+            log.info("💰 Initialisation du pool Budget Pièces de Rechange (Exercice {})...", currentYear);
+            BudgetPieces bpCurrent = new BudgetPieces(currentYear, java.math.BigDecimal.valueOf(1000000.0));
+            budgetPiecesRepository.save(bpCurrent);
+            log.info("✅ Pool Budget Pièces {} créé avec 1,000,000.0 DZD.", currentYear);
+        }
+
+        // ── RISQUE-19 + RISQUE-26 : Seed flux Transfert Inter-Sites ──────────────────────────
+        // MAJEUR-03 (corrigé) : findByName() deterministe — findAll().get(0) sans ORDER BY ne l'est pas.
+
+        // 11. Warehouse central (référence) + Agence Casablanca (destination)
+        Warehouse central = warehouseRepository.findByName("Magasin Central BAG")
+            .orElseGet(() -> {
+                Warehouse w = new Warehouse();
+                w.setName("Magasin Central BAG");
+                w.setLocation("Casablanca - Siège");
+                w.setType(WarehouseType.CENTRAL);
+                return warehouseRepository.save(w);
+            });
+
+        Warehouse agenceCasa = warehouseRepository.findByName("Agence Casablanca")
+            .orElseGet(() -> {
+                Warehouse w = new Warehouse();
+                w.setName("Agence Casablanca");
+                w.setLocation("Casablanca - Agence Commerciale");
+                w.setType(WarehouseType.REGIONAL);
+                Warehouse saved = warehouseRepository.save(w);
+                log.info("🏭 Warehouse seedé : Agence Casablanca (id={})", saved.getId());
+                return saved;
+            });
+
+        // Assigner le magasinier source au warehouse central s'il ne l'est pas encore
+        userRepository.findByEmail("magasinier@test.com").ifPresent(mag -> {
+            if (mag.getWarehouse() == null) {
+                mag.setWarehouse(central);
+                userRepository.save(mag);
+                log.info("🔗 Magasinier Hassan Rahhali assigné à '{}'", central.getName());
+            }
+        });
+
+        // 12. MAGASINIER_DEST — garanti d'avoir un warehouse
+        if (userRepository.findByRole(Role.MAGASINIER_DEST).isEmpty()) {
+            User magDest = new User("Karim Alaoui", "magasinier.dest@test.com",
+                encoder.encode("password"), Role.MAGASINIER_DEST);
+            magDest.setWarehouse(magMarrakech);
+            userRepository.save(magDest);
+            log.info("👷 MAGASINIER_DEST Karim Alaoui seedé pour warehouse '{}'", magMarrakech.getName());
+        }
+
 
         log.info("Encadrants : M. Abdelhamid Barakate & Mme Ibtissame Saadalh");
     }

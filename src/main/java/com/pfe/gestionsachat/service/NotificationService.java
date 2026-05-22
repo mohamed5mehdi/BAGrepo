@@ -55,7 +55,7 @@ public class NotificationService {
             if (subject != null) helper.setSubject(subject);
             helper.setFrom("pfe.gestionsachat@bag-group.com");
             
-            // mailSender.send(mimeMessage); // Commuté en commentaire car pas de serveur SMTP configuré
+            mailSender.send(mimeMessage);
         } catch (Exception e) {
             System.err.println("Erreur lors de l'envoi de l'email: " + e.getMessage());
         }

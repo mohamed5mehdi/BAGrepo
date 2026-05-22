@@ -1,5 +1,6 @@
 package com.pfe.gestionsachat.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import jakarta.persistence.*;
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +34,12 @@ public class User {
 
     private Boolean actif;
 
+    /** Entrepôt associé au magasinier (MAGASINIER ou MAGASINIER_DEST). Nullable pour les autres rôles. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "warehouse_id")
+    @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
+    private Warehouse warehouse;
+
     @OneToMany(mappedBy = "user")
     @com.fasterxml.jackson.annotation.JsonIgnore
     private List<Action> actions = new ArrayList<>();
@@ -56,6 +63,7 @@ public class User {
     public String getService() { return service; }
     public User getN1() { return n1; }
     public Boolean getActif() { return actif; }
+    public Warehouse getWarehouse() { return warehouse; }
     public List<Action> getActions() { return actions; }
 
     @com.fasterxml.jackson.annotation.JsonProperty("n1_id")
@@ -72,5 +80,6 @@ public class User {
     public void setService(String service) { this.service = service; }
     public void setN1(User n1) { this.n1 = n1; }
     public void setActif(Boolean actif) { this.actif = actif; }
+    public void setWarehouse(Warehouse warehouse) { this.warehouse = warehouse; }
     public void setActions(List<Action> actions) { this.actions = actions; }
 }

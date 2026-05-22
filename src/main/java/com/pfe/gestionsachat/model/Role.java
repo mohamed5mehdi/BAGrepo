@@ -10,6 +10,8 @@ public enum Role {
     RESP_ACHAT,
     /** Magasinier — BAG ERP : reçoit les marchandises et génère le GRN */
     MAGASINIER,
+    /** Magasinier Destination — BAG ERP : valide la réception d'un transfert inter-sites (LTI) */
+    MAGASINIER_DEST,
     /** Comptable — BAG ERP : valide le GRC (costing financier) */
     COMPTABLE,
     AMG,

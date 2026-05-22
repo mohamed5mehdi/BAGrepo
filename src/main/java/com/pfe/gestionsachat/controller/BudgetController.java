@@ -3,6 +3,7 @@ package com.pfe.gestionsachat.controller;
 import com.pfe.gestionsachat.dto.*;
 import com.pfe.gestionsachat.exception.BudgetInsuffisantException;
 import com.pfe.gestionsachat.exception.EquationBudgetaireException;
+import com.pfe.gestionsachat.service.BudgetPiecesService;
 import com.pfe.gestionsachat.service.BudgetSuiviService;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
@@ -24,39 +25,33 @@ import java.util.Map;
  *
  * Équation fondamentale garantie :
  *   opening_val (budget_initial) = consumed_val (budget_engage) + current_val (budget_restant)
+ *
+ * Deux pools totalement étanches :
+ *   - Familles/Sous-Familles : achats généraux (isPieceRechange=false)
+ *   - Pièces               : achats pièces de rechange (isPieceRechange=true)
  */
 @RestController
 @RequestMapping("/api/budget")
-
 public class BudgetController {
 
     private static final Logger log = LoggerFactory.getLogger(BudgetController.class);
 
-    @Autowired
-    private BudgetSuiviService budgetSuiviService;
+    @Autowired private BudgetSuiviService  budgetSuiviService;
+    @Autowired private BudgetPiecesService budgetPiecesService;
 
     // ══════════════════════════════════════════════════════════════════════════
     // GET /api/budget/suivi
     // ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Tableau de bord budgétaire global.
-     *
-     * Retourne pour chaque famille :
-     *   - opening_val  : budget initial (figé)
-     *   - consumed_val : budget engagé (Σ imputations)
-     *   - current_val  : budget restant
-     *   - taux_consommation : consumed_val / opening_val × 100
-     *   - sous_familles : la même décomposition par sous-famille
-     *
+     * Tableau de bord budgétaire global (familles + sous-familles).
      * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
      */
     @GetMapping("/suivi")
     @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
     public ResponseEntity<List<BudgetFamilleDto>> getSuiviBudgetaire() {
         log.info("GET /api/budget/suivi");
-        List<BudgetFamilleDto> suivi = budgetSuiviService.getSuiviBudgetaire();
-        return ResponseEntity.ok(suivi);
+        return ResponseEntity.ok(budgetSuiviService.getSuiviBudgetaire());
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -64,22 +59,7 @@ public class BudgetController {
     // ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Imputation d'une DA validée sur une sous-famille.
-     *
-     * Corps de la requête :
-     * {
-     *   "da_id"          : 42,
-     *   "sous_famille_id": 7,
-     *   "montant"        : 5000.00
-     * }
-     *
-     * Règles métier :
-     *  1. La DA doit être dans un statut permettant l'imputation (VALIDEE_TECH / EN_TRAITEMENT / VALIDEE_FINALE)
-     *  2. budget_restant de la SF doit être ≥ montant (sinon BudgetInsuffisantException)
-     *  3. Après imputation : budget_engage += montant, budget_restant -= montant
-     *  4. La famille parente est recalculée par agrégation
-     *  5. L'équation est vérifiée ; toute rupture est loggée dans audit_log
-     *
+     * Imputation d'une DA validée sur une sous-famille (achats généraux uniquement).
      * Rôles autorisés : FINANCIER, ADMIN
      */
     @PostMapping("/consommer")
@@ -105,11 +85,11 @@ public class BudgetController {
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
                     .body(erreur("EQUATION_BUDGETAIRE_ROMPUE", e.getMessage(),
                             Map.of(
-                                    "entite",         e.getEntite(),
-                                    "entite_id",      e.getEntiteId(),
-                                    "opening_val",    e.getBudgetInitial(),
-                                    "consumed_val",   e.getBudgetEngage(),
-                                    "current_val",    e.getBudgetRestant())));
+                                    "entite",      e.getEntite(),
+                                    "entite_id",   e.getEntiteId(),
+                                    "opening_val", e.getBudgetInitial(),
+                                    "consumed_val",e.getBudgetEngage(),
+                                    "current_val", e.getBudgetRestant())));
 
         } catch (IllegalArgumentException e) {
             log.warn("Argument invalide : {}", e.getMessage());
@@ -129,7 +109,6 @@ public class BudgetController {
 
     /**
      * Détail d'une famille budgétaire avec toutes ses sous-familles.
-     *
      * Rôles autorisés : FINANCIER, ADMIN, DAF, DG, ACHETEUR
      */
     @GetMapping("/famille/{id}")
@@ -137,8 +116,7 @@ public class BudgetController {
     public ResponseEntity<?> getFamilleDetail(@PathVariable Integer id) {
         log.info("GET /api/budget/famille/{}", id);
         try {
-            BudgetFamilleDto detail = budgetSuiviService.getFamilleDetail(id);
-            return ResponseEntity.ok(detail);
+            return ResponseEntity.ok(budgetSuiviService.getFamilleDetail(id));
         } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND)
                     .body(erreur("RESSOURCE_INTROUVABLE", e.getMessage(), null));
@@ -150,23 +128,90 @@ public class BudgetController {
     // ══════════════════════════════════════════════════════════════════════════
 
     /**
-     * Liste toutes les familles et sous-familles dont le taux de consommation
-     * dépasse 80 % (seuil configurable dans BudgetSuiviService.SEUIL_ALERTE).
-     *
-     * Chaque alerte expose :
-     *   - type_entite       : "FAMILLE" ou "SOUS_FAMILLE"
-     *   - opening_val / consumed_val / current_val
-     *   - taux_consommation : en pourcentage
-     *   - seuil_alerte      : valeur du seuil déclencheur
-     *
+     * Liste toutes les familles et sous-familles dont le taux de consommation dépasse 80%.
      * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
      */
     @GetMapping("/alertes")
     @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
     public ResponseEntity<List<AlerteBudgetaireDto>> getAlertes() {
         log.info("GET /api/budget/alertes");
-        List<AlerteBudgetaireDto> alertes = budgetSuiviService.getAlertes();
-        return ResponseEntity.ok(alertes);
+        return ResponseEntity.ok(budgetSuiviService.getAlertes());
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // GET /api/budget/pieces
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * État du pool budgétaire global dédié aux pièces de rechange (exercice courant).
+     * Pool totalement étanche du circuit Famille/Sous-Famille.
+     *
+     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     */
+    @GetMapping("/pieces")
+    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    public ResponseEntity<?> getBudgetPieces() {
+        log.info("GET /api/budget/pieces");
+        try {
+            return ResponseEntity.ok(budgetPiecesService.getEtatBudgetPieces());
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(erreur("POOL_PIECES_INTROUVABLE", e.getMessage(), null));
+        }
+    }
+
+    /**
+     * État du pool budgétaire pièces pour un exercice donné.
+     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     */
+    @GetMapping("/pieces/{exercice}")
+    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    public ResponseEntity<?> getBudgetPiecesParExercice(@PathVariable String exercice) {
+        log.info("GET /api/budget/pieces/{}", exercice);
+        try {
+            return ResponseEntity.ok(budgetPiecesService.getEtatBudgetPiecesParExercice(exercice));
+        } catch (IllegalStateException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(erreur("POOL_PIECES_INTROUVABLE", e.getMessage(), null));
+        }
+    }
+
+    // ══════════════════════════════════════════════════════════════════════════
+    // GET /api/budget/allocation/verification
+    // GET /api/budget/allocation/verification/{familleId}
+    // ══════════════════════════════════════════════════════════════════════════
+
+    /**
+     * Vérifie l'invariant Σ SubFamily.budgetInitial = Family.budgetInitial pour toutes les familles.
+     *
+     * NON BLOQUANT — retourne la liste des écarts pour affichage rouge dans l'interface.
+     * niveau = "OK"          → équation respectée
+     * niveau = "SOUS_ALLOUE" → Σ SF < Family (budget non entièrement distribué)
+     * niveau = "SUR_ALLOUE"  → Σ SF > Family (les SF dépassent l'enveloppe — CRITIQUE)
+     *
+     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     */
+    @GetMapping("/allocation/verification")
+    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    public ResponseEntity<List<AlerteAllocationDto>> verifierAllocationGlobale() {
+        log.info("GET /api/budget/allocation/verification");
+        return ResponseEntity.ok(budgetSuiviService.verifierAllocationGlobale());
+    }
+
+    /**
+     * Vérifie l'invariant Σ SF.budgetInitial = Family.budgetInitial pour une famille donnée.
+     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     */
+    @GetMapping("/allocation/verification/{familleId}")
+    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    public ResponseEntity<?> verifierAllocationFamille(@PathVariable Integer familleId) {
+        log.info("GET /api/budget/allocation/verification/{}", familleId);
+        try {
+            return ResponseEntity.ok(budgetSuiviService.verifierAllocationFamilleParId(familleId));
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                    .body(erreur("RESSOURCE_INTROUVABLE", e.getMessage(), null));
+        }
     }
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -187,4 +232,3 @@ public class BudgetController {
                 "timestamp", LocalDateTime.now().toString());
     }
 }
-

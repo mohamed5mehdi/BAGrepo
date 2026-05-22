@@ -82,6 +82,15 @@ public class Family {
     }
     public List<SubFamily> getSubFamilies() { return subFamilies; }
 
+    @PrePersist
+    @PreUpdate
+    private void checkBudgetIntegrity() {
+        if (budgetRestant != null && budgetRestant.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalStateException(
+                "Intégrité compromise: le budget_restant de la famille '" + libelle + "' ne peut pas être négatif.");
+        }
+    }
+
     // Setters
     public void setIdFamily(Integer idFamily) { this.idFamily = idFamily; }
     public void setLibelle(String libelle) { this.libelle = libelle; }

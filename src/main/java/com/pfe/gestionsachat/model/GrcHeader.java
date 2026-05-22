@@ -13,7 +13,7 @@ public class GrcHeader {
 
     @OneToOne
     @JoinColumn(name = "grn_header_id")
-    @com.fasterxml.jackson.annotation.JsonIgnore
+    @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     private GrnHeader grnHeader;
 
     private LocalDate costingDate = LocalDate.now();

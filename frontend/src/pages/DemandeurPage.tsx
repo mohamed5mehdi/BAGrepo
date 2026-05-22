@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import DashboardLayout from '../components/DashboardLayout';
@@ -7,7 +7,7 @@ import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
 import ChatbotWidget from '../components/ChatbotWidget';
 import { useAuth } from '../context/AuthContext';
-import { getMesDemandesInternes, createDemandeInterne, soumettreDemandeInterne, getFamilies, getSubFamiliesByFamily, downloadPOByDA, getStockItems } from '../api/services';
+import { getMesDemandesInternes, createDemandeInterne, soumettreDemandeInterne, getFamilies, getSubFamiliesByFamily, downloadPOByDA, getStockItems, submitTransfer, getMyTransfers, getAvailableStock, getWarehouses } from '../api/services';
 import { formatCurrency } from '../utils/constants';
 import type { DemandeAchatInterne, SubFamily, DaDetails } from '../types';
 
@@ -19,7 +19,7 @@ interface ItemRow {
   justification: string;
 }
 
-export default function DemandeurPage() {
+export default function DemandeurPage({ defaultTab = 'DA' }: { defaultTab?: 'DA' | 'TRANSFERT' }) {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [selectedDa, setSelectedDa] = useState<DemandeAchatInterne | null>(null);
@@ -27,6 +27,14 @@ export default function DemandeurPage() {
   const [showPieceForm, setShowPieceForm] = useState(false);
   const [showChatbot, setShowChatbot] = useState(false);
   const [search, setSearch] = useState('');
+  const [activeTab, setActiveTab] = useState<'DA' | 'TRANSFERT'>(defaultTab);
+
+  // Synchronise state with prop changes if navigation occurs
+  useEffect(() => {
+    setActiveTab(defaultTab);
+  }, [defaultTab]);
+
+  const [showTransferForm, setShowTransferForm] = useState(false);
 
   // Pièce Form State
   const [selectedPieceCode, setSelectedPieceCode] = useState('');
@@ -50,6 +58,22 @@ export default function DemandeurPage() {
     queryKey: ['da', 'mes-demandes', user?.userId],
     queryFn: () => getMesDemandesInternes(user!.userId).then(r => r.data),
     enabled: !!user,
+  });
+
+  const { data: myTransfers = [], isLoading: isLoadingTransfers } = useQuery({
+    queryKey: ['transfers', 'my', user?.userId],
+    queryFn: () => getMyTransfers(user!.userId).then(r => r.data),
+    enabled: !!user,
+  });
+
+  const { data: availableStock = [] } = useQuery({
+    queryKey: ['transfers', 'stock'],
+    queryFn: () => getAvailableStock().then(r => r.data),
+  });
+
+  const { data: warehouses = [] } = useQuery({
+    queryKey: ['warehouses'],
+    queryFn: () => getWarehouses().then(r => r.data),
   });
 
   const { data: families = [] } = useQuery({
@@ -111,6 +135,47 @@ export default function DemandeurPage() {
       toast.error(err.response?.data?.message || 'Erreur lors de la soumission');
     },
   });
+
+  const [transferDestId, setTransferDestId] = useState('');
+  const [transferLines, setTransferLines] = useState<{stockItemId: number, qty: number, maxQty: number, itemCode: string, itemName: string, warehouseSourceId: number}[]>([]);
+
+  const submitTransferMut = useMutation({
+    mutationFn: (payload: any) => submitTransfer(payload, user!.userId),
+    onSuccess: () => {
+      toast.success('Demande de transfert soumise avec succès !');
+      qc.invalidateQueries({ queryKey: ['transfers', 'my'] });
+      setShowTransferForm(false);
+      setTransferLines([]);
+      setTransferDestId('');
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Erreur lors de la soumission du transfert');
+    },
+  });
+
+  const handleSubmitTransfer = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!transferDestId) return toast.error("Veuillez sélectionner un entrepôt de destination");
+    if (transferLines.length === 0) return toast.error("Veuillez ajouter au moins un article");
+    
+    const sourceIds = new Set(transferLines.map(l => l.warehouseSourceId));
+    if (sourceIds.size > 1) return toast.error("Tous les articles doivent provenir du même entrepôt source");
+    const sourceId = Array.from(sourceIds)[0];
+    
+    if (sourceId.toString() === transferDestId.toString()) {
+        return toast.error("L'entrepôt source et destination doivent être différents");
+    }
+
+    const payload = {
+      warehouseSource: { id: sourceId },
+      warehouseDest: { id: parseInt(transferDestId) },
+      lines: transferLines.map(l => ({
+        stockItem: { id: l.stockItemId },
+        quantityRequested: l.qty
+      }))
+    };
+    submitTransferMut.mutate(payload);
+  };
 
   const resetForm = () => {
     setUrgency('NORMALE');
@@ -216,51 +281,130 @@ export default function DemandeurPage() {
         <KpiCard label="Refusées" value={kpis.rejected} icon="❌" color="from-rose-500 to-red-700" />
       </div>
 
+      {/* Tabs */}
+      <div className="flex space-x-2 mb-6 bg-white dark:bg-slate-800 p-1 rounded-xl w-max shadow-sm border border-slate-100 dark:border-slate-700">
+        <button
+          onClick={() => setActiveTab('DA')}
+          className={`px-6 py-2 rounded-lg font-semibold text-sm transition-all ${
+            activeTab === 'DA' 
+              ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' 
+              : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+          }`}
+        >
+          Mes Demandes d'Achat
+        </button>
+        <button
+          onClick={() => setActiveTab('TRANSFERT')}
+          className={`px-6 py-2 rounded-lg font-semibold text-sm transition-all ${
+            activeTab === 'TRANSFERT' 
+              ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' 
+              : 'text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-700/50'
+          }`}
+        >
+          Mes Transferts Inter-Sites
+        </button>
+      </div>
+
       {/* Action Header */}
       <div className="bg-white dark:bg-slate-800 p-4 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm mb-6 flex flex-wrap items-center gap-4">
         <div className="relative flex-1 min-w-[250px]">
           <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">🔍</span>
           <input
             value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Rechercher une demande (Code, Objet...)"
+            placeholder="Rechercher..."
             className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
           />
         </div>
         <div className="flex gap-2">
-          <button
-            onClick={() => setShowChatbot(true)}
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-sm hover:from-violet-700 hover:to-indigo-700 transition-all shadow-lg shadow-violet-200 dark:shadow-none flex items-center gap-2"
-          >
-            <span>🤖</span> Créer par IA
-          </button>
-          <button
-            onClick={() => { setSelectedPieceCode(''); setPieceQty(1); setShowPieceForm(true); }}
-            className="px-6 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-700 text-white font-bold text-sm hover:from-indigo-700 hover:to-blue-800 transition-all shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2"
-          >
-            <span>🛠️</span> Demande de Pièces
-          </button>
-          <button
-            onClick={() => { resetForm(); setShowNewForm(true); }}
-            className="px-6 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-all shadow-lg shadow-blue-200 dark:shadow-none flex items-center gap-2"
-          >
-            <span>➕</span> Nouvelle Demande d'Achat
-          </button>
+          {activeTab === 'DA' ? (
+            <>
+              <button
+                onClick={() => setShowChatbot(true)}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-violet-600 to-indigo-600 text-white font-bold text-sm hover:from-violet-700 hover:to-indigo-700 transition-all shadow-lg flex items-center gap-2"
+              >
+                <span>🤖</span> Créer par IA
+              </button>
+              <button
+                onClick={() => { setSelectedPieceCode(''); setPieceQty(1); setShowPieceForm(true); }}
+                className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-blue-700 text-white font-bold text-sm hover:from-indigo-700 hover:to-blue-800 transition-all shadow-lg flex items-center gap-2"
+              >
+                <span>🛠️</span> Demande de Pièces
+              </button>
+              <button
+                onClick={() => { resetForm(); setShowNewForm(true); }}
+                className="px-4 py-2.5 rounded-xl bg-blue-600 text-white font-bold text-sm hover:bg-blue-700 transition-all shadow-lg flex items-center gap-2"
+              >
+                <span>➕</span> Nouvelle DA
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={() => { setTransferLines([]); setTransferDestId(''); setShowTransferForm(true); }}
+              className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-bold text-sm hover:bg-indigo-700 transition-all shadow-lg flex items-center gap-2"
+            >
+              <span>🔄</span> Nouveau Transfert
+            </button>
+          )}
         </div>
       </div>
 
       {/* Main Table */}
-      <DaTable
-        rows={daList}
-        onRowClick={setSelectedDa}
-        showRequester={false}
-        loading={isLoading}
-        searchQuery={search}
-        renderExtraBadge={(d: any) => d.isPieceRechange && (
-          <span className="ml-2 px-2 py-0.5 text-[9px] font-black bg-rose-100 text-rose-600 border border-rose-200 rounded uppercase">SAV / Maintenance</span>
-        )}
-        actionLabel={() => 'Voir Détails'}
-        showPrice={false}
-      />
+      {activeTab === 'DA' ? (
+        <DaTable
+          rows={daList}
+          onRowClick={setSelectedDa}
+          showRequester={false}
+          loading={isLoading}
+          searchQuery={search}
+          renderExtraBadge={(d: any) => d.isPieceRechange && (
+            <span className="ml-2 px-2 py-0.5 text-[9px] font-black bg-rose-100 text-rose-600 border border-rose-200 rounded uppercase">SAV / Maintenance</span>
+          )}
+          actionLabel={() => 'Voir Détails'}
+          showPrice={false}
+        />
+      ) : (
+        <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-100 dark:border-slate-700 overflow-hidden">
+          {isLoadingTransfers ? (
+            <div className="p-8 text-center text-slate-500">Chargement des transferts...</div>
+          ) : myTransfers.length === 0 ? (
+            <div className="p-8 text-center text-slate-500">Aucun transfert inter-sites trouvé.</div>
+          ) : (
+            <table className="w-full text-left text-sm text-slate-600 dark:text-slate-300">
+              <thead className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 font-semibold border-b border-slate-100 dark:border-slate-700">
+                <tr>
+                  <th className="px-4 py-3">ID</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Source → Dest</th>
+                  <th className="px-4 py-3">Lignes</th>
+                  <th className="px-4 py-3">Statut</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-700/50">
+                {myTransfers.filter((t:any) => search === '' || t.id.toString().includes(search)).map((t: any) => (
+                  <tr key={t.id} className="hover:bg-slate-50 dark:hover:bg-slate-750 transition-colors">
+                    <td className="px-4 py-3 font-medium">TRF-{t.id}</td>
+                    <td className="px-4 py-3">{new Date(t.createdAt).toLocaleDateString()}</td>
+                    <td className="px-4 py-3 font-medium text-slate-900 dark:text-white">
+                      {t.warehouseSource?.name} <span className="text-slate-400 mx-1">→</span> {t.warehouseDest?.name}
+                    </td>
+                    <td className="px-4 py-3">{t.lines?.length || 0} art.</td>
+                    <td className="px-4 py-3">
+                      <span className={`px-2 py-1 rounded text-xs font-bold ${
+                        t.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
+                        t.status === 'IN_TRANSIT' ? 'bg-blue-100 text-blue-700' :
+                        t.status === 'RECEIVED' ? 'bg-emerald-100 text-emerald-700' :
+                        'bg-rose-100 text-rose-700'
+                      }`}>
+                        {t.status}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
 
       {/* Detail Modal */}
       {selectedDa && (
@@ -568,6 +712,91 @@ export default function DemandeurPage() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showTransferForm && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-md z-[60] flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl w-full max-w-4xl flex flex-col overflow-hidden">
+            <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-indigo-50 dark:bg-indigo-900/20">
+              <h2 className="text-xl font-bold text-indigo-700 dark:text-indigo-400">Nouveau Transfert Inter-Sites</h2>
+              <button onClick={() => setShowTransferForm(false)} className="text-slate-400 hover:text-slate-600">✕</button>
+            </div>
+            <form onSubmit={handleSubmitTransfer} className="p-8 space-y-6">
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-slate-500 uppercase">Entrepôt de destination (Votre entrepôt)</label>
+                <select 
+                  value={transferDestId} onChange={e => setTransferDestId(e.target.value)} required
+                  className="w-full p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500"
+                >
+                  <option value="">Sélectionner une destination...</option>
+                  {warehouses.map((w: any) => (
+                    <option key={w.id} value={w.id}>
+                      {w.name} {w.location ? `- ${w.location}` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold text-slate-700 dark:text-slate-300">Articles disponibles en stock</h3>
+                <div className="max-h-60 overflow-y-auto border border-slate-200 dark:border-slate-700 rounded-xl">
+                  <table className="w-full text-sm text-left">
+                    <thead className="bg-slate-50 dark:bg-slate-800 sticky top-0">
+                      <tr>
+                        <th className="px-4 py-2 font-semibold">Article</th>
+                        <th className="px-4 py-2 font-semibold">Source</th>
+                        <th className="px-4 py-2 font-semibold">Disponible</th>
+                        <th className="px-4 py-2 font-semibold w-32">Demander</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                      {availableStock.filter((s:any) => s.quantityAvailable > 0).map((stock: any) => {
+                        const line = transferLines.find(l => l.stockItemId === stock.id);
+                        return (
+                          <tr key={stock.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors">
+                            <td className="px-4 py-3 font-medium">{stock.itemCode} - {stock.itemName}</td>
+                            <td className="px-4 py-3">{stock.warehouse?.name} {stock.warehouse?.location ? `- ${stock.warehouse.location}` : ''}</td>
+                            <td className="px-4 py-3 text-emerald-600 font-bold">{stock.quantityAvailable}</td>
+                            <td className="px-4 py-3">
+                              <input 
+                                type="number" min="0" max={stock.quantityAvailable}
+                                value={line?.qty || ''}
+                                onChange={e => {
+                                  const val = parseInt(e.target.value) || 0;
+                                  if (val > 0) {
+                                    setTransferLines(prev => {
+                                      if (prev.length > 0 && prev.some(p => p.warehouseSourceId !== stock.warehouse?.id)) {
+                                        toast.error("Règle Métier : Un transfert ne peut provenir que d'un seul site source.");
+                                        return prev;
+                                      }
+                                      const filtered = prev.filter(p => p.stockItemId !== stock.id);
+                                      return [...filtered, { stockItemId: stock.id, qty: Math.min(val, stock.quantityAvailable), maxQty: stock.quantityAvailable, itemCode: stock.itemCode, itemName: stock.itemName, warehouseSourceId: stock.warehouse?.id }];
+                                    });
+                                  } else {
+                                    setTransferLines(prev => prev.filter(p => p.stockItemId !== stock.id));
+                                  }
+                                }}
+                                className="w-full p-2 border rounded text-center dark:bg-slate-700 dark:border-slate-600"
+                                placeholder="0"
+                              />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+              
+              <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3">
+                <button type="button" onClick={() => setShowTransferForm(false)} className="px-6 py-2 rounded-xl text-slate-600 dark:text-slate-300 font-semibold hover:bg-slate-100 dark:hover:bg-slate-800">Annuler</button>
+                <button type="submit" disabled={submitTransferMut.isPending} className="px-8 py-2 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700">
+                  {submitTransferMut.isPending ? 'Envoi...' : 'Soumettre Transfert'}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

@@ -55,6 +55,7 @@ export function getDashboardRoute(role: string): string {
     DG:              '/dg',
     ADMINISTRATEUR:  '/admin',
     MAGASINIER:      '/magasinier',
+    MAGASINIER_DEST: '/magasinier-dest',
     COMPTABLE:       '/comptable',
     RESP_ACHAT:      '/resp-achat',
   };

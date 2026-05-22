@@ -86,11 +86,9 @@ public class PurchaseOrderService {
         
         // Règle Schéma 2 : Si c'est une pièce SAV (Bypass DG), le PO doit être approuvé par le Resp. Achat
         // Si c'est un flux standard, il est déjà validé par la DG.
-        if (Boolean.TRUE.equals(demande.getIsPieceRechange())) {
-            po.setStatut(POStatus.PENDING_APPROVAL);
-        } else {
-            po.setStatut(POStatus.APPROVED);
-        }
+        // Toutes les commandes générées à partir d'une DI (qu'elles soient SAV ou Standard)
+        // nécessitent l'approbation du Responsable Achat (Omar Kettani) pour acquérir le statut APPROVED.
+        po.setStatut(POStatus.PENDING_APPROVAL);
         
         po.setMontantTotal(montantTtc);
         po.setDateCreation(LocalDate.now());
@@ -101,7 +99,7 @@ public class PurchaseOrderService {
 
         String msg = Boolean.TRUE.equals(demande.getIsPieceRechange()) 
             ? "PO généré en attente d'approbation (Flux SAV Bypass DG)" 
-            : "PO généré et approuvé automatiquement depuis DA interne (Flux Standard post-DG)";
+            : "PO généré en attente d'approbation (Flux Standard post-DG)";
             
         logTransition(saved, null, po.getStatut(), null, msg + " #" + demande.getId());
 

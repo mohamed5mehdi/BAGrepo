@@ -54,11 +54,12 @@ public class MatchingService {
         java.math.BigDecimal grcAmount = grc.getTotalAmount() != null ? grc.getTotalAmount() : java.math.BigDecimal.ZERO;
         java.math.BigDecimal invAmount = invoice.getMontantTTC() != null ? invoice.getMontantTTC() : java.math.BigDecimal.ZERO;
 
-        // On autorise une petite marge d'erreur pour les arrondis (0.01)
-        boolean amountsMatch = poAmount.subtract(grcAmount).abs().doubleValue() < 0.1
-                && grcAmount.subtract(invAmount).abs().doubleValue() < 0.1;
+        // Tolérance d'arrondi maximale : 0.01 MAD (norme comptable grande entreprise)
+        boolean amountsMatch = poAmount.subtract(grcAmount).abs().compareTo(new java.math.BigDecimal("0.01")) < 0
+                && grcAmount.subtract(invAmount).abs().compareTo(new java.math.BigDecimal("0.01")) < 0;
 
         invoice.setStatus(amountsMatch ? InvoiceStatus.MATCHED : InvoiceStatus.REJECTED);
+        invoice.setGrcHeader(grc);
 
         return invoiceRepository.save(invoice);
     }

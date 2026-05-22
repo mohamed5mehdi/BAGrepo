@@ -15,6 +15,8 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.*;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.annotation.Order;
 
 /**
  * AIDataSeeder — Ordre 2, s'exécute après DataInitializer.
@@ -29,6 +31,7 @@ import java.util.*;
  */
 @Component
 @Order(2)
+@Slf4j
 public class AIDataSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(AIDataSeeder.class);

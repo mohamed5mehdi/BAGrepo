@@ -203,8 +203,8 @@ public class PdfExportService {
                                    (d.getGrnDetail() != null && d.getGrnDetail().getItemName() != null ? " - " + d.getGrnDetail().getItemName() : "");
                     table.addCell(new Phrase(label.isEmpty() ? "—" : label, fontData));
                     table.addCell(new Phrase(String.valueOf(d.getAcceptedQuantity()), fontData));
-                    table.addCell(new Phrase(String.format("%.2f MAD", d.getUnitCost() != null ? d.getUnitCost() : 0.0), fontData));
-                    table.addCell(new Phrase(String.format("%.2f MAD", d.getMontantTTC() != null ? d.getMontantTTC() : 0.0), fontData));
+                    table.addCell(new Phrase(String.format("%.2f MAD", d.getUnitCost() != null ? d.getUnitCost().doubleValue() : 0.0), fontData));
+                    table.addCell(new Phrase(String.format("%.2f MAD", d.getMontantTTC() != null ? d.getMontantTTC().doubleValue() : 0.0), fontData));
                 }
             }
             document.add(table);

@@ -1,6 +1,7 @@
 package com.pfe.gestionsachat.model;
 
 import jakarta.persistence.*;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "stock_item", uniqueConstraints = {
@@ -27,9 +28,10 @@ public class StockItem {
     /**
      * Code emplacement — généré automatiquement, logique virtuel (BAG ERP).
      * Format : LOC-{YYYYMM}-{UUID_SHORT}
-     * Règle : 1 emplacement = 1 article unique (unicité stricte via @UniqueConstraint).
+     * Unicité garantie par @UniqueConstraint (item_code, warehouse_id) — pas par location_code seul.
+     * CRITIQUE-03 : unique=true global supprimé pour permettre la création auto à destination.
      */
-    @Column(name = "location_code", unique = true)
+    @Column(name = "location_code")
     private String locationCode;
 
     private Integer quantityAvailable;
@@ -37,7 +39,7 @@ public class StockItem {
 
     private Integer minStock;
     private Integer reorderPoint;
-    private Double unitCost;
+    private BigDecimal unitCost;
 
     // Getters and Setters
     public Long getId() { return id; }
@@ -60,6 +62,6 @@ public class StockItem {
     public void setMinStock(Integer minStock) { this.minStock = minStock; }
     public Integer getReorderPoint() { return reorderPoint; }
     public void setReorderPoint(Integer reorderPoint) { this.reorderPoint = reorderPoint; }
-    public Double getUnitCost() { return unitCost; }
-    public void setUnitCost(Double unitCost) { this.unitCost = unitCost; }
+    public BigDecimal getUnitCost() { return unitCost; }
+    public void setUnitCost(BigDecimal unitCost) { this.unitCost = unitCost; }
 }

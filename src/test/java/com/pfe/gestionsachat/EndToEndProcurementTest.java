@@ -177,8 +177,8 @@ public class EndToEndProcurementTest {
         grcDetail.setGrnDetail(validatedGrn.getDetails().get(0));
         grcDetail.setItemCode("PIST-001");
         grcDetail.setAcceptedQuantity(10);
-        grcDetail.setUnitCost(100.0);
-        grcDetail.setTaxRate(20.0); // 20% tax to make total 1200.0
+        grcDetail.setUnitCost(java.math.BigDecimal.valueOf(100.0));
+        grcDetail.setTaxRate(java.math.BigDecimal.valueOf(20.0)); // 20% tax to make total 1200.0
         grc.setDetails(new ArrayList<>(List.of(grcDetail)));
 
         grc = grcService.createGrc(grc);

@@ -1,7 +1,7 @@
 package com.pfe.gestionsachat.model;
 
 import jakarta.persistence.*;
-import java.util.Date;
+import java.time.LocalDate;
 
 @Entity
 @Table(name = "credit_note")
@@ -15,7 +15,7 @@ public class CreditNote {
     private GrnHeader grnHeader;
 
     private String creditNoteNumber;
-    private java.util.Date creditNoteDate;
+    private LocalDate creditNoteDate;
     private java.math.BigDecimal montant;
 
     @Enumerated(EnumType.STRING)
@@ -28,8 +28,8 @@ public class CreditNote {
     public void setGrnHeader(GrnHeader grnHeader) { this.grnHeader = grnHeader; }
     public String getCreditNoteNumber() { return creditNoteNumber; }
     public void setCreditNoteNumber(String creditNoteNumber) { this.creditNoteNumber = creditNoteNumber; }
-    public Date getCreditNoteDate() { return creditNoteDate; }
-    public void setCreditNoteDate(Date creditNoteDate) { this.creditNoteDate = creditNoteDate; }
+    public LocalDate getCreditNoteDate() { return creditNoteDate; }
+    public void setCreditNoteDate(LocalDate creditNoteDate) { this.creditNoteDate = creditNoteDate; }
     public java.math.BigDecimal getMontant() { return montant; }
     public void setMontant(java.math.BigDecimal montant) { this.montant = montant; }
     public CreditNoteStatus getStatus() { return status; }

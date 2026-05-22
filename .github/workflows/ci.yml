@@ -1,4 +1,4 @@
-name: Antigravity CI/CD Pipeline
+name: Procurement Management CI/CD Pipeline
 
 on:
   push:

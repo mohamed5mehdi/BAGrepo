@@ -61,7 +61,7 @@ public class GrcNumberSyncTest {
         detail.setGrnDetail(grn.getDetails().get(0));
         detail.setItemCode("TEST-SYNC");
         detail.setAcceptedQuantity(10);
-        detail.setUnitCost(10.0);
+        detail.setUnitCost(java.math.BigDecimal.valueOf(10.0));
         grc.setDetails(new java.util.ArrayList<>(List.of(detail)));
 
         GrcHeader savedGrc = grcService.createGrc(grc);
@@ -81,7 +81,7 @@ public class GrcNumberSyncTest {
         detail.setGrnDetail(grn.getDetails().get(0));
         detail.setItemCode("TEST-SYNC");
         detail.setAcceptedQuantity(10);
-        detail.setUnitCost(10.0);
+        detail.setUnitCost(java.math.BigDecimal.valueOf(10.0));
         grc.setDetails(new java.util.ArrayList<>(List.of(detail)));
 
         GrcHeader savedGrc = grcService.createGrc(grc);

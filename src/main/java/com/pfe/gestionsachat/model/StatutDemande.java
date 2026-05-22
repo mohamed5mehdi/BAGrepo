@@ -14,5 +14,7 @@ public enum StatutDemande {
     APPROUVEE,
     PO_CREE,
     EN_LIVRAISON, // Restauré pour compatibilité historique
-    AFFECTEE      // Restauré pour compatibilité historique
+    AFFECTEE,     // Restauré pour compatibilité historique
+    EN_ATTENTE_AJUSTEMENT_DAF,
+    EN_ATTENTE_AJUSTEMENT_DG
 }

@@ -8,6 +8,7 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: string; to: string }[]> =
   EMPLOYE: [
     { label: 'Mes Demandes', icon: '📋', to: '/demandeur' },
     { label: 'Nouvelle DA',  icon: '➕', to: '/demandeur/new' },
+    { label: 'Transferts Stock', icon: '🔄', to: '/demandeur/transferts' },
   ],
   MANAGER_N1:        [{ label: 'À Valider', icon: '✅', to: '/n1' }],
   TECHNICIEN:[{ label: 'À Valider', icon: '🔧', to: '/tech' }],

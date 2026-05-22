@@ -56,6 +56,9 @@ public class DialogService {
     private UserRepository userRepository;
 
     @Autowired
+    private com.pfe.gestionsachat.repository.StockItemRepository stockItemRepository;
+
+    @Autowired
     private ObjectMapper objectMapper;
 
     @Autowired
@@ -300,6 +303,12 @@ public class DialogService {
         da.setJustification(slots.getJustification());
         da.setUrgence(slots.getUrgence());
         da.setSubmissionToken(session.getId()); // UUID session réutilisé → idempotence
+
+        java.util.List<com.pfe.gestionsachat.model.StockItem> items = stockItemRepository.findByItemNameIgnoreCase(slots.getDesignation());
+        if (!items.isEmpty()) {
+            da.setIsPieceRechange(true);
+            da.setItemCode(items.get(0).getItemCode());
+        }
 
         // Résoudre et setter budgetFamille
         Family family = familyRepository.findById(slots.getFamilyId())

@@ -6,9 +6,11 @@ import com.pfe.gestionsachat.repository.UserRepository;
 import org.springframework.lang.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
+@Transactional(readOnly = true)
 public class UserService {
 
     @Autowired
@@ -17,6 +19,7 @@ public class UserService {
     @Autowired
     private org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder encoder;
 
+    @Transactional
     public User createUser(@NonNull User user) {
         if (userRepository.existsByEmail(user.getEmail())) {
             throw new RuntimeException("Email déjà utilisé");
@@ -31,7 +34,7 @@ public class UserService {
 
     @NonNull
     public User getUserById(@NonNull Integer id) {
-        return java.util.Objects.requireNonNull(userRepository.findById(id)
+        return java.util.Objects.requireNonNull(userRepository.findByIdWithWarehouse(id)
                 .orElseThrow(() -> new RuntimeException("Utilisateur non trouvé")));
     }
 
@@ -45,21 +48,25 @@ public class UserService {
         return userRepository.findByRole(role);
     }
 
+    @Transactional
     public User updateUser(@NonNull Integer id, @NonNull User userDetails) {
         User user = getUserById(id);
         user.setNom(userDetails.getNom());
         user.setEmail(userDetails.getEmail());
         user.setRole(userDetails.getRole());
         user.setActif(userDetails.getActif());
+        user.setWarehouse(userDetails.getWarehouse()); // assignation entrepôt magasinier
         return userRepository.save(user);
     }
 
+    @Transactional
     public User changePassword(@NonNull Integer id, @NonNull String newPassword) {
         User user = getUserById(id);
         user.setPassword(encoder.encode(newPassword));
         return userRepository.save(user);
     }
 
+    @Transactional
     public void deleteUser(@NonNull Integer id) {
         User user = getUserById(id);
         userRepository.delete(user);

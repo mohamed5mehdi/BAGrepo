@@ -2,6 +2,7 @@ package com.pfe.gestionsachat.model;
 
 import jakarta.persistence.*;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import java.math.BigDecimal;
 
 @Entity
 @Table(name = "grc_details")
@@ -21,10 +22,10 @@ public class GrcDetails {
 
     private String itemCode;
     private Integer acceptedQuantity;
-    private Double unitCost;
-    private Double totalCost;
-    private Double taxRate;
-    private Double montantTTC;
+    private BigDecimal unitCost;
+    private BigDecimal totalCost;
+    private BigDecimal taxRate;
+    private BigDecimal montantTTC;
 
     private String mainAccount;
     private String subAccount;
@@ -40,14 +41,14 @@ public class GrcDetails {
     public void setItemCode(String itemCode) { this.itemCode = itemCode; }
     public Integer getAcceptedQuantity() { return acceptedQuantity; }
     public void setAcceptedQuantity(Integer acceptedQuantity) { this.acceptedQuantity = acceptedQuantity; }
-    public Double getUnitCost() { return unitCost; }
-    public void setUnitCost(Double unitCost) { this.unitCost = unitCost; }
-    public Double getTotalCost() { return totalCost; }
-    public void setTotalCost(Double totalCost) { this.totalCost = totalCost; }
-    public Double getTaxRate() { return taxRate; }
-    public void setTaxRate(Double taxRate) { this.taxRate = taxRate; }
-    public Double getMontantTTC() { return montantTTC; }
-    public void setMontantTTC(Double montantTTC) { this.montantTTC = montantTTC; }
+    public BigDecimal getUnitCost() { return unitCost; }
+    public void setUnitCost(BigDecimal unitCost) { this.unitCost = unitCost; }
+    public BigDecimal getTotalCost() { return totalCost; }
+    public void setTotalCost(BigDecimal totalCost) { this.totalCost = totalCost; }
+    public BigDecimal getTaxRate() { return taxRate; }
+    public void setTaxRate(BigDecimal taxRate) { this.taxRate = taxRate; }
+    public BigDecimal getMontantTTC() { return montantTTC; }
+    public void setMontantTTC(BigDecimal montantTTC) { this.montantTTC = montantTTC; }
 
     public String getMainAccount() { return mainAccount; }
     public void setMainAccount(String mainAccount) { this.mainAccount = mainAccount; }

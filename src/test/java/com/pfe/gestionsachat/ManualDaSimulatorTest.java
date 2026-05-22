@@ -5,10 +5,16 @@ import com.pfe.gestionsachat.repository.*;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.annotation.Rollback;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
 @SpringBootTest
+@ActiveProfiles("test")
+@Transactional
+@Rollback
 public class ManualDaSimulatorTest {
 
     @Autowired private DemandeAchatInterneRepository demandeRepository;
@@ -17,6 +23,7 @@ public class ManualDaSimulatorTest {
     @Autowired private SubFamilyRepository subFamilyRepository;
 
     @Test
+    @Rollback
     public void createReadyDa() {
         User demandeur = userRepository.findByEmail("demandeur@test.com").orElseThrow();
         Supplier supplier = supplierRepository.findAll().stream().findFirst().orElseThrow();

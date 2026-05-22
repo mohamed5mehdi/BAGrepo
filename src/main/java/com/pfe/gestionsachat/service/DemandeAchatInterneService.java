@@ -38,6 +38,8 @@ public class DemandeAchatInterneService {
     private FamilyRepository familyRepository;
     @Autowired
     private SubFamilyRepository subFamilyRepository;
+    @Autowired
+    private BudgetPiecesService budgetPiecesService;
 
     // ── Création ─────────────────────────────────────────────────────────────
 
@@ -301,36 +303,47 @@ public class DemandeAchatInterneService {
         DemandeAchatInterne da = repository.findById(id).orElseThrow();
         if (da.getStatut() != StatutDemande.EN_TRAITEMENT)
             throw new IllegalStateException("Attendu: EN_TRAITEMENT");
-            
-        // Sécurité PhD : Empêcher la valorisation sans affectation budgétaire
-        if (da.getBudgetSousFamille() == null) {
-            throw new IllegalStateException("La demande doit être affectée à une sous-famille budgétaire avant valorisation.");
-        }
 
         da.setPrixUnitaire(prix);
         java.math.BigDecimal newTotal = prix.multiply(java.math.BigDecimal.valueOf(da.getQuantite() != null ? da.getQuantite() : 1));
-        
-        SubFamily sf = subFamilyRepository.findByIdWithLock(da.getBudgetSousFamille().getOidSub()).orElseThrow();
-        if (da.getMontantEstime() != null) sf.addBudget(da.getMontantEstime());
-        if (!sf.hasEnoughBudget(newTotal)) throw new IllegalStateException("Budget insuffisant pour valoriser cette demande.");
-        
-        sf.deductBudget(newTotal);
-        subFamilyRepository.save(sf);
-        if (sf.getFamily() != null) {
-            Family fam = familyRepository.findByIdWithLock(sf.getFamily().getIdFamily()).orElseThrow();
-            if (da.getMontantEstime() != null) fam.addBudget(da.getMontantEstime());
-            fam.deductBudget(newTotal);
-            familyRepository.save(fam);
+
+        if (Boolean.TRUE.equals(da.getIsPieceRechange())) {
+            // ── Flux B Pièces : consommation sur le pool dédié, JAMAIS sur une SF ──
+            // Restitution de l'ancienne estimation si re-valorisation
+            if (da.getMontantEstime() != null) {
+                budgetPiecesService.restituterBudgetPieces(da.getMontantEstime(), da.getId());
+            }
+            budgetPiecesService.consommerBudgetPieces(newTotal, da.getId());
+        } else {
+            // ── Flux A Général : consommation sur la sous-famille budgétaire ──
+            if (da.getBudgetSousFamille() == null) {
+                throw new IllegalStateException(
+                    "La demande doit être affectée à une sous-famille budgétaire avant valorisation.");
+            }
+            SubFamily sf = subFamilyRepository.findByIdWithLock(da.getBudgetSousFamille().getOidSub()).orElseThrow();
+            // Restitution de l'ancienne estimation si re-valorisation
+            if (da.getMontantEstime() != null) sf.addBudget(da.getMontantEstime());
+            if (!sf.hasEnoughBudget(newTotal)) {
+                throw new IllegalStateException("Budget insuffisant dans la sous-famille pour valoriser cette demande.");
+            }
+            sf.deductBudget(newTotal);
+            subFamilyRepository.save(sf);
+            if (sf.getFamily() != null) {
+                Family fam = familyRepository.findByIdWithLock(sf.getFamily().getIdFamily()).orElseThrow();
+                if (da.getMontantEstime() != null) fam.addBudget(da.getMontantEstime());
+                fam.deductBudget(newTotal);
+                familyRepository.save(fam);
+            }
         }
 
         da.setMontantEstime(newTotal);
         da.setFournisseur(new Supplier(supplierId));
-        
+
         // Synchroniser le prix dans les détails pour le PO
         if (da.getDetails() != null && !da.getDetails().isEmpty()) {
             da.getDetails().forEach(d -> d.setPrixUnitaire(prix));
         }
-        
+
         return repository.save(da);
     }
 
@@ -404,10 +417,50 @@ public class DemandeAchatInterneService {
         };
     }
 
+    @Autowired
+    private com.pfe.gestionsachat.repository.DemandeAjustementRepository demandeAjustementRepository;
+
     @Transactional
-    public DemandeAchatInterne ajustementBudget(Long id, TypeAjustement type, User user) {
+    public DemandeAchatInterne ajustementBudget(Long id, TypeAjustement type, 
+            java.math.BigDecimal montantDemande, Integer sourceSousFamilleId, 
+            Integer cibleSousFamilleId, Integer familleCibleId, 
+            String justification, User user) {
         DemandeAchatInterne da = repository.findById(id).orElseThrow();
-        log(da, da.getStatut(), da.getStatut(), user, "Ajustement : " + type);
+        StatutDemande from = da.getStatut();
+        da.setTypeAjustement(type);
+        
+        com.pfe.gestionsachat.model.DemandeAjustement daAjust = new com.pfe.gestionsachat.model.DemandeAjustement();
+        daAjust.setDemandeInterne(da);
+        daAjust.setType(type);
+        daAjust.setMontantDemande(montantDemande != null ? montantDemande : java.math.BigDecimal.ZERO);
+        daAjust.setAcheteurId((long) user.getOidUser());
+        daAjust.setJustificationAcheteur(justification != null ? justification : "Ajustement requis");
+        daAjust.setStatutDemandeInterneAvantAjustement(from);
+
+        if (type == TypeAjustement.FAMILLE) {
+            da.setStatut(StatutDemande.EN_ATTENTE_AJUSTEMENT_DG);
+            daAjust.setStatut(com.pfe.gestionsachat.model.StatutAjustement.EN_ATTENTE_DG);
+            daAjust.setFamilleCibleId(familleCibleId);
+        } else {
+            da.setStatut(StatutDemande.EN_ATTENTE_AJUSTEMENT_DAF);
+            daAjust.setStatut(com.pfe.gestionsachat.model.StatutAjustement.EN_ATTENTE_DAF);
+            daAjust.setSourceSousFamilleId(sourceSousFamilleId);
+            daAjust.setCibleSousFamilleId(cibleSousFamilleId);
+            
+            if (sourceSousFamilleId != null && montantDemande != null && montantDemande.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                com.pfe.gestionsachat.model.SubFamily source = subFamilyRepository.findByIdWithLock(sourceSousFamilleId).orElseThrow();
+                if (!source.hasEnoughBudget(montantDemande)) {
+                    throw new RuntimeException("Budget insuffisant");
+                }
+                source.setBudgetEngage((source.getBudgetEngage() != null ? source.getBudgetEngage() : java.math.BigDecimal.ZERO).add(montantDemande));
+                subFamilyRepository.save(source);
+                daAjust.setBudgetAvantDemande("Source: " + source.getBudgetRestant());
+                daAjust.setBudgetApresDemande("Source: " + source.getBudgetRestant().subtract(montantDemande));
+            }
+        }
+        
+        demandeAjustementRepository.save(daAjust);
+        log(da, from, da.getStatut(), user, "Ajustement : " + type);
         return repository.save(da);
     }
 
@@ -456,7 +509,13 @@ public class DemandeAchatInterneService {
     }
 
     private void restituerBudgetInterne(DemandeAchatInterne da) {
-        if (da.getMontantEstime() != null && da.getBudgetSousFamille() != null) {
+        if (da.getMontantEstime() == null) return; // Rien à restituer
+
+        if (Boolean.TRUE.equals(da.getIsPieceRechange())) {
+            // ── Flux B Pièces : restitution sur le pool dédié ──────────────
+            budgetPiecesService.restituterBudgetPieces(da.getMontantEstime(), da.getId());
+        } else if (da.getBudgetSousFamille() != null) {
+            // ── Flux A Général : restitution sur la sous-famille ───────────
             SubFamily sf = subFamilyRepository.findByIdWithLock(da.getBudgetSousFamille().getOidSub()).orElseThrow();
             sf.addBudget(da.getMontantEstime());
             subFamilyRepository.save(sf);
@@ -465,7 +524,7 @@ public class DemandeAchatInterneService {
                 fam.addBudget(da.getMontantEstime());
                 familyRepository.save(fam);
             }
-            da.setMontantEstime(null); // Eviter la double restitution
         }
+        da.setMontantEstime(null); // Eviter la double restitution
     }
 }

@@ -13,8 +13,12 @@ public class DemandeAjustement {
     private Long id;
 
     @ManyToOne
-    @JoinColumn(name = "da_id", nullable = false)
+    @JoinColumn(name = "da_id", nullable = true)
     private DaHeader da;
+
+    @ManyToOne
+    @JoinColumn(name = "demande_interne_id", nullable = true)
+    private DemandeAchatInterne demandeInterne;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -55,6 +59,10 @@ public class DemandeAjustement {
     @Column(name = "statut_da_avant_ajustement")
     private StatutDA statutDaAvantAjustement;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "statut_demande_interne_avant_ajustement")
+    private StatutDemande statutDemandeInterneAvantAjustement;
+
     @Column(name = "acheteur_id")
     private Long acheteurId;
 
@@ -81,6 +89,9 @@ public class DemandeAjustement {
 
     public DaHeader getDa() { return da; }
     public void setDa(DaHeader da) { this.da = da; }
+
+    public DemandeAchatInterne getDemandeInterne() { return demandeInterne; }
+    public void setDemandeInterne(DemandeAchatInterne demandeInterne) { this.demandeInterne = demandeInterne; }
 
     public TypeAjustement getType() { return type; }
     public void setType(TypeAjustement type) { this.type = type; }
@@ -117,6 +128,9 @@ public class DemandeAjustement {
 
     public StatutDA getStatutDaAvantAjustement() { return statutDaAvantAjustement; }
     public void setStatutDaAvantAjustement(StatutDA statutDaAvantAjustement) { this.statutDaAvantAjustement = statutDaAvantAjustement; }
+
+    public StatutDemande getStatutDemandeInterneAvantAjustement() { return statutDemandeInterneAvantAjustement; }
+    public void setStatutDemandeInterneAvantAjustement(StatutDemande statutDemandeInterneAvantAjustement) { this.statutDemandeInterneAvantAjustement = statutDemandeInterneAvantAjustement; }
 
     public Long getAcheteurId() { return acheteurId; }
     public void setAcheteurId(Long acheteurId) { this.acheteurId = acheteurId; }

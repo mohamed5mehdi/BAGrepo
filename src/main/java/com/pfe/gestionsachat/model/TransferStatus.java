@@ -1,7 +1,8 @@
 package com.pfe.gestionsachat.model;
 
 public enum TransferStatus {
-    REQUESTED,
+    PENDING,
     IN_TRANSIT,
-    DELIVERED
+    RECEIVED,
+    CANCELLED
 }

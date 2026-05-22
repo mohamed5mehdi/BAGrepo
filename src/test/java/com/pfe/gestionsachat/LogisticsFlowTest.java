@@ -119,8 +119,8 @@ public class LogisticsFlowTest {
         grcDetail.setGrnDetail(managedDetail);
         grcDetail.setAcceptedQuantity(8);
         grcDetail.setItemCode("PART-123"); // Important pour GrcService
-        grcDetail.setUnitCost(100.0);
-        grcDetail.setTaxRate(20.0);
+        grcDetail.setUnitCost(java.math.BigDecimal.valueOf(100.0));
+        grcDetail.setTaxRate(java.math.BigDecimal.valueOf(20.0));
         grc.setDetails(new java.util.ArrayList<>(List.of(grcDetail)));
         grc = grcService.createGrc(grc);
 

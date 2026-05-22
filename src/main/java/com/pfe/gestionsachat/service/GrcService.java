@@ -95,7 +95,7 @@ public class GrcService {
                     + " pour l'article: " + d.getItemCode());
             }
 
-            if (d.getUnitCost() == null || d.getUnitCost() <= 0) {
+            if (d.getUnitCost() == null || d.getUnitCost().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new IllegalArgumentException("Le coût unitaire doit être strictement positif pour l'article: " + d.getItemCode());
             }
 
@@ -164,21 +164,21 @@ public class GrcService {
                 );
             }
 
-            if (detail.getUnitCost() == null || detail.getUnitCost() <= 0) {
+            if (detail.getUnitCost() == null || detail.getUnitCost().compareTo(BigDecimal.ZERO) <= 0) {
                 throw new IllegalArgumentException("Coût unitaire invalide (<= 0) pour l'article: " + detail.getItemCode());
             }
 
-            BigDecimal unitCost = BigDecimal.valueOf(detail.getUnitCost());
+            BigDecimal unitCost = detail.getUnitCost();
             BigDecimal lineHT = unitCost.multiply(BigDecimal.valueOf(grcQty));
-            detail.setTotalCost(lineHT.doubleValue());
+            detail.setTotalCost(lineHT);
 
             // TVA réelle par ligne (défaut 20% si non renseigné)
-            double taxRate = detail.getTaxRate() != null ? detail.getTaxRate() : 20.0;
+            BigDecimal taxRate = detail.getTaxRate() != null ? detail.getTaxRate() : new BigDecimal("20.00");
             if (detail.getTaxRate() == null) detail.setTaxRate(taxRate);
             BigDecimal taxFactor = BigDecimal.ONE.add(
-                BigDecimal.valueOf(taxRate).divide(BigDecimal.valueOf(100)));
+                taxRate.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
             BigDecimal lineTTC = lineHT.multiply(taxFactor);
-            detail.setMontantTTC(lineTTC.setScale(2, RoundingMode.HALF_UP).doubleValue());
+            detail.setMontantTTC(lineTTC.setScale(2, RoundingMode.HALF_UP));
 
             totalHT  = totalHT.add(lineHT);
             totalTTC = totalTTC.add(lineTTC);
@@ -257,7 +257,7 @@ public class GrcService {
         stockItemRepository.findByItemCodeWithLock(itemCode).stream()
             .findFirst()
             .ifPresent(item -> {
-                item.setUnitCost(unitCost.doubleValue());
+                item.setUnitCost(unitCost);
                 stockItemRepository.save(item);
             });
     }

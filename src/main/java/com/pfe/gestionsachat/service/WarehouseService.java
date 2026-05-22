@@ -144,7 +144,7 @@ public class WarehouseService {
         movement.setStockItem(item);
         movement.setMovementType(type);
         movement.setQuantity(qty);
-        movement.setMovementDate(new Date());
+        movement.setMovementDate(java.time.LocalDateTime.now());
         movement.setReferenceDocument(ref);
         stockMovementRepository.save(movement);
     }

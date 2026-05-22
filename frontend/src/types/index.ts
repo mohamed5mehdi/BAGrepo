@@ -273,13 +273,20 @@ export interface StockMovement {
   referenceDocument: string;
 }
 
-export interface TransferRequest {
+export interface TransferLine {
   id: number;
-  sourceWarehouse?: Warehouse;
-  destinationWarehouse?: Warehouse;
-  itemCode: string;
-  quantity: number;
+  stockItem: StockItem;
+  quantityRequested: number;
+}
+
+export interface TransferHeader {
+  id: number;
+  warehouseSource: Warehouse;
+  warehouseDest: Warehouse;
+  requestedBy?: User;
   status: TransferStatus;
+  createdAt: string;
+  lines: TransferLine[];
 }
 
 // ── Auth ─────────────────────────────────────────────────────

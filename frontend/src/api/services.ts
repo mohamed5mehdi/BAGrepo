@@ -109,3 +109,52 @@ export const confirmerChatbotDemande = (sessionId: string, userId: number) =>
 export const getChatbotMessages = (sessionId: string, userId: number) => 
   api.get(`/chatbot/session/${sessionId}/messages?userId=${userId}`);
 
+// ── TRANSFERT INTER-SITES (LTO/LTI) ──────────────────────────────────────────
+export const getWarehouses = () => api.get('/warehouse');
+
+/** Stock disponible avec warehouse (RISQUE-13 : JOIN FETCH garanti côté backend). */
+export const getAvailableStock = () => api.get('/transfers/stock/available');
+
+/** Soumet une nouvelle demande de transfert (EMPLOYE). */
+export const submitTransfer = (payload: any, userId: number) =>
+  api.post(`/transfers?userId=${userId}`, payload);
+
+/** Expédie le transfert PENDING → IN_TRANSIT (MAGASINIER source). */
+export const shipTransfer = (id: number, userId: number) =>
+  api.put(`/transfers/${id}/ship?userId=${userId}`);
+
+/** Valide la réception IN_TRANSIT → RECEIVED (MAGASINIER_DEST). */
+export const receiveTransfer = (id: number, userId: number) =>
+  api.put(`/transfers/${id}/receive?userId=${userId}`);
+
+/** Annule le transfert PENDING → CANCELLED (auteur ou ADMINISTRATEUR). */
+export const cancelTransfer = (id: number, userId: number) =>
+  api.delete(`/transfers/${id}?userId=${userId}`);
+
+/** Historique des transferts soumis par l'employé. */
+export const getMyTransfers = (userId: number) =>
+  api.get(`/transfers/my?userId=${userId}`);
+
+/** File PENDING pour le MAGASINIER source (onglet expédition). */
+export const getSourceTransfers = (userId: number) =>
+  api.get(`/transfers/source?userId=${userId}`);
+
+/** File IN_TRANSIT pour le MAGASINIER_DEST (vue réception). */
+export const getDestTransfers = (userId: number) =>
+  api.get(`/transfers/dest?userId=${userId}`);
+
+/** Historique d'expédition pour MAGASINIER source. */
+export const getSourceHistory = (userId: number) =>
+  api.get(`/transfers/history/source?userId=${userId}`);
+
+/** Historique de réception pour MAGASINIER_DEST. */
+export const getDestHistory = (userId: number) =>
+  api.get(`/transfers/history/dest?userId=${userId}`);
+
+/** Télécharge le LTO en PDF (Blob). */
+export const downloadLtoPdf = (id: number) =>
+  api.get(`/transfers/${id}/pdf/lto`, { responseType: 'blob' });
+
+/** Télécharge le LTI en PDF (Blob). */
+export const downloadLtiPdf = (id: number) =>
+  api.get(`/transfers/${id}/pdf/lti`, { responseType: 'blob' });

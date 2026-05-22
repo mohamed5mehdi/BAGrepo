@@ -109,9 +109,17 @@ public class DemandeAchatInterneController {
     }
 
     @PostMapping("/{id}/ajustement")
-    public ResponseEntity<DemandeAchatInterne> ajustement(@PathVariable @NonNull Long id, @RequestParam @NonNull com.pfe.gestionsachat.model.TypeAjustement type, @RequestParam @NonNull Integer userId) {
+    public ResponseEntity<DemandeAchatInterne> ajustement(
+            @PathVariable @NonNull Long id, 
+            @RequestParam @NonNull com.pfe.gestionsachat.model.TypeAjustement type, 
+            @RequestParam @NonNull Integer userId,
+            @RequestParam(required = false) java.math.BigDecimal montantDemande,
+            @RequestParam(required = false) Integer sourceSousFamilleId,
+            @RequestParam(required = false) Integer cibleSousFamilleId,
+            @RequestParam(required = false) Integer familleCibleId,
+            @RequestParam(required = false) String justification) {
         User user = userRepository.findById(userId).orElseThrow();
-        return ResponseEntity.ok(demandeService.ajustementBudget(id, type, user));
+        return ResponseEntity.ok(demandeService.ajustementBudget(id, type, montantDemande, sourceSousFamilleId, cibleSousFamilleId, familleCibleId, justification, user));
     }
 
     @PostMapping("/{id}/creer-po")

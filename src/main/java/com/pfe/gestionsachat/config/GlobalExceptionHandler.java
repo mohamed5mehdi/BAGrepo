@@ -1,5 +1,6 @@
 package com.pfe.gestionsachat.config;
 
+import com.pfe.gestionsachat.exception.InsufficientStockTransferException;
 import com.pfe.gestionsachat.exception.OverReceptionException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -55,7 +56,7 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Transition d'état invalide (machine à états PO/GRN/GRC) — HTTP 422.
+     * Transition d'état invalide (machine à états PO/GRN/GRC/Transfer) — HTTP 422.
      */
     @ExceptionHandler(IllegalStateException.class)
     public ResponseEntity<Object> handleIllegalState(IllegalStateException ex, WebRequest request) {
@@ -65,6 +66,40 @@ public class GlobalExceptionHandler {
         body.put("message", ex.getMessage());
         body.put("status", HttpStatus.UNPROCESSABLE_ENTITY.value());
         return new ResponseEntity<>(body, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    /**
+     * RISQUE-09 : SecurityException → HTTP 403 FORBIDDEN.
+     * Sans ce handler, SecurityException extends RuntimeException serait interceptée
+     * par handleRuntimeException et retournerait HTTP 500 au frontend.
+     */
+    @ExceptionHandler(SecurityException.class)
+    public ResponseEntity<Object> handleSecurity(SecurityException ex, WebRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("error", "FORBIDDEN");
+        body.put("message", ex.getMessage());
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
+    }
+
+    /**
+     * Stock insuffisant lors d'un transfert — HTTP 409 CONFLICT.
+     * Code métier INSUFFICIENT_STOCK avec détail itemCode/available/requested
+     * pour un message d'erreur précis côté frontend.
+     */
+    @ExceptionHandler(InsufficientStockTransferException.class)
+    public ResponseEntity<Object> handleInsufficientStock(InsufficientStockTransferException ex, WebRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("error", "INSUFFICIENT_STOCK");
+        body.put("message", ex.getMessage());
+        body.put("field", "quantityRequested");
+        body.put("itemCode", ex.getItemCode());
+        body.put("available", ex.getAvailable());
+        body.put("requested", ex.getRequested());
+        body.put("status", HttpStatus.CONFLICT.value());
+        return new ResponseEntity<>(body, HttpStatus.CONFLICT);
     }
     
     @ExceptionHandler(Exception.class)
@@ -79,13 +114,18 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
-    /** Extrait un hint de champ depuis le message d'erreur pour le frontend. */
+    /** RISQUE-25 : Extrait un hint de champ depuis le message d'erreur pour le frontend. */
     private String extractField(String message) {
         if (message == null) return null;
         if (message.contains("itemCode") || message.contains("Article")) return "itemCode";
         if (message.contains("montantEstime")) return "montantEstime";
         if (message.contains("grnHeader")) return "grnHeader";
         if (message.contains("PO")) return "purchaseOrder";
+        // Champs transfert inter-sites
+        if (message.contains("warehouseSource") || message.contains("warehouse source") || message.contains("entrepôt")) return "warehouseSource";
+        if (message.contains("quantityRequested") || message.contains("Stock insuffisant")) return "quantityRequested";
+        if (message.contains("Magasinier non assign")) return "userId";
+        if (message.contains("warehouse dest") || message.contains("warehouse_dest")) return "warehouseDest";
         return null;
     }
 }

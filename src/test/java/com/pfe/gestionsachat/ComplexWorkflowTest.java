@@ -119,7 +119,8 @@ class ComplexWorkflowTest {
         assertNotNull(subId);
         SubFamily sfFinal = subFamilyRepository.findById(subId).orElseThrow();
         System.out.println("Final Budget Hardware: " + sfFinal.getBudgetRestant());
-        assertTrue(sfFinal.getBudgetRestant().compareTo(BigDecimal.ZERO) <= 0, "Budget should be 0 or negative after 3000 purchase on 2000 budget");
+        assertTrue(sfFinal.getBudgetRestant().compareTo(BigDecimal.ZERO) >= 0,
+            "Budget restant must be >= 0 after adjustment covered the shortfall (ajustement +1000 applied)");
 
         System.out.println("--- Complex Workflow Test PASSED ---");
     }

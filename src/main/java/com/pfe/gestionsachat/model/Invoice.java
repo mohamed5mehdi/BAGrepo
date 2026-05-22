@@ -18,6 +18,10 @@ public class Invoice {
     @JoinColumn(name = "grn_header_id")
     private GrnHeader grnHeader;
 
+    @ManyToOne
+    @JoinColumn(name = "grc_header_id")
+    private GrcHeader grcHeader;
+
     private String invoiceNumber;
     private LocalDate invoiceDate = LocalDate.now();
     private java.math.BigDecimal montantHT;
@@ -33,6 +37,8 @@ public class Invoice {
     public void setPurchaseOrder(PurchaseOrder purchaseOrder) { this.purchaseOrder = purchaseOrder; }
     public GrnHeader getGrnHeader() { return grnHeader; }
     public void setGrnHeader(GrnHeader grnHeader) { this.grnHeader = grnHeader; }
+    public GrcHeader getGrcHeader() { return grcHeader; }
+    public void setGrcHeader(GrcHeader grcHeader) { this.grcHeader = grcHeader; }
     public String getInvoiceNumber() { return invoiceNumber; }
     public void setInvoiceNumber(String invoiceNumber) { this.invoiceNumber = invoiceNumber; }
     public LocalDate getInvoiceDate() { return invoiceDate; }
