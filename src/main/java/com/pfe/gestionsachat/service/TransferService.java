@@ -61,8 +61,13 @@ public class TransferService {
         if (header.getLines() == null || header.getLines().isEmpty())
             throw new IllegalArgumentException("Au moins une ligne de transfert est requise.");
 
+        // Tri par stockItem.id croissant pour éviter les deadlocks au moment du flush Hibernate (RISQUE-05)
+        List<TransferLine> sortedLines = header.getLines().stream()
+            .sorted(Comparator.comparing(l -> l.getStockItem().getId()))
+            .toList();
+
         // Guard 3 : validation cohérence warehouse + pré-check stock (RISQUE-21, RISQUE-06)
-        for (TransferLine line : header.getLines()) {
+        for (TransferLine line : sortedLines) {
             if (line.getQuantityRequested() == null || line.getQuantityRequested() <= 0)
                 throw new IllegalArgumentException("La quantité demandée doit être supérieure à zéro.");
 
@@ -80,7 +85,7 @@ public class TransferService {
             // CRITIQUE : Réservation mathématique du stock au lieu d'une simple vérification
             item.setQuantityAvailable(item.getQuantityAvailable() - line.getQuantityRequested());
             item.setQuantityReserved((item.getQuantityReserved() != null ? item.getQuantityReserved() : 0) + line.getQuantityRequested());
-            stockItemRepo.save(item);
+            stockItemRepo.saveAndFlush(item); // CRITIQUE-01 : force le versioning immédiat pour cohérence L1 cache
 
             // Snapshot warehouse source immuable (RISQUE-27)
             line.setWarehouseSourceSnapshotId(header.getWarehouseSource().getId());
@@ -135,6 +140,11 @@ public class TransferService {
             .sorted(Comparator.comparing(l -> l.getStockItem().getId()))
             .toList();
 
+        // Génération du numéro LTO avant la boucle pour l'audit trail (RISQUE-01)
+        String lto = "LTO-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+            + "-" + String.format("%05d", header.getId());
+        header.setLtoNumber(lto);
+
         for (TransferLine line : sortedLines) {
             // SELECT FOR UPDATE — lock pessimiste (RISQUE-05, RISQUE-06)
             StockItem src = stockItemRepo.findByItemCodeAndWarehouseIdWithLock(
@@ -155,15 +165,11 @@ public class TransferService {
             // causée par un proxy L1-cache stale chargé en début de transaction.
             stockItemRepo.saveAndFlush(src);
 
-            // Mouvement TRANSFER_OUT avec snapshot warehouse (RISQUE-01)
+            // Mouvement TRANSFER_OUT avec snapshot warehouse et référence document correcte (RISQUE-01)
             persistMovement(src, header.getWarehouseSource(),
-                MovementType.TRANSFER_OUT, line.getQuantityRequested(), null);
+                MovementType.TRANSFER_OUT, line.getQuantityRequested(), lto);
         }
 
-        // Génération du numéro LTO
-        String lto = "LTO-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
-            + "-" + String.format("%05d", header.getId());
-        header.setLtoNumber(lto);
         header.setStatus(TransferStatus.IN_TRANSIT);
         header.setShippedAt(LocalDateTime.now());
 
@@ -210,6 +216,11 @@ public class TransferService {
             .sorted(Comparator.comparing(l -> l.getStockItem().getId()))
             .toList();
 
+        // Génération du numéro LTI avant la boucle pour l'audit trail (RISQUE-01)
+        String lti = "LTI-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
+            + "-" + String.format("%05d", header.getId());
+        header.setLtiNumber(lti);
+
         for (TransferLine line : sortedLines) {
             String itemCode = line.getStockItem().getItemCode();
             Long destWarehouseId = header.getWarehouseDest().getId();
@@ -228,16 +239,12 @@ public class TransferService {
             // CRITIQUE-01 : saveAndFlush() — réconciliation @Version avant ligne suivante
             stockItemRepo.saveAndFlush(dest);
 
-            // Mouvement TRANSFER_IN avec snapshot warehouse (RISQUE-01)
+            // Mouvement TRANSFER_IN avec snapshot warehouse et référence document correcte (LTI) (RISQUE-01)
             persistMovement(dest, header.getWarehouseDest(),
                 MovementType.TRANSFER_IN, line.getQuantityRequested(),
-                header.getLtoNumber());
+                lti);
         }
 
-        // Génération du numéro LTI
-        String lti = "LTI-" + LocalDate.now().format(DateTimeFormatter.ofPattern("yyyyMMdd"))
-            + "-" + String.format("%05d", header.getId());
-        header.setLtiNumber(lti);
         header.setStatus(TransferStatus.RECEIVED);
         header.setReceivedAt(LocalDateTime.now());
 
@@ -270,15 +277,20 @@ public class TransferService {
             && user.getRole() != Role.ADMINISTRATEUR)
             throw new SecurityException("Vous n'êtes pas autorisé à annuler ce transfert.");
 
+        // Tri par stockItem.id croissant pour éviter les deadlocks au moment du flush Hibernate (RISQUE-05)
+        List<TransferLine> sortedLines = header.getLines().stream()
+            .sorted(Comparator.comparing(l -> l.getStockItem().getId()))
+            .toList();
+
         // Restitution du stock réservé vers le stock disponible
-        for (TransferLine line : header.getLines()) {
+        for (TransferLine line : sortedLines) {
             StockItem item = stockItemRepo.findById(line.getStockItem().getId())
                 .orElseThrow(() -> new RuntimeException("Article introuvable : " + line.getStockItem().getId()));
             
             int reserved = item.getQuantityReserved() != null ? item.getQuantityReserved() : 0;
             item.setQuantityReserved(Math.max(0, reserved - line.getQuantityRequested()));
             item.setQuantityAvailable((item.getQuantityAvailable() != null ? item.getQuantityAvailable() : 0) + line.getQuantityRequested());
-            stockItemRepo.save(item);
+            stockItemRepo.saveAndFlush(item); // CRITIQUE-01 : force le versioning immédiat pour cohérence L1 cache
         }
 
         header.setStatus(TransferStatus.CANCELLED);
