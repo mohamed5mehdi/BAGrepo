@@ -35,9 +35,15 @@ public class PurchaseOrderService {
     @Autowired private SubFamilyRepository subFamilyRepository;
     @Autowired private FamilyRepository familyRepository;
     @Autowired @org.springframework.context.annotation.Lazy private DemandeAchatInterneService demandeAchatInterneService;
+    @Autowired @org.springframework.context.annotation.Lazy private GrnService grnService;
+    @Autowired @org.springframework.context.annotation.Lazy private GrcService grcService;
 
     public List<PurchaseOrder> getAllPurchaseOrders() {
         return purchaseOrderRepository.findAll();
+    }
+
+    public List<PurchaseOrder> getPendingInternalPOsForAutomation() {
+        return purchaseOrderRepository.findPendingInternalPOsForAutomation(POStatus.APPROVED);
     }
 
     /**
@@ -195,6 +201,45 @@ public class PurchaseOrderService {
         po.setStatut(POStatus.SHORT_CLOSED);
         logTransition(po, POStatus.APPROVED, POStatus.SHORT_CLOSED, responsable, motif);
         return purchaseOrderRepository.save(po);
+    }
+
+    @Transactional
+    public void autoGenerateGrnGrc(Integer poId, User acheteur) {
+        PurchaseOrder po = purchaseOrderRepository.findByIdWithLock(poId).orElseThrow();
+        if (po.getStatut() != POStatus.APPROVED) {
+            throw new IllegalStateException("Le PO doit être approuvé avant de générer le GRN/GRC.");
+        }
+        if (po.getDemandeInterne() == null) {
+            throw new IllegalStateException("Seul un PO de demande interne peut générer le GRN/GRC automatiquement via ce processus.");
+        }
+        
+        // 1. Génération du GRN
+        GrnHeader grn = new GrnHeader();
+        grn.setPurchaseOrder(po);
+        grn.setSupplier(po.getFournisseur());
+        grn.setDeliveryNoteNumber("AUTO-BL-" + po.getPoNumber());
+        grn.setReceiptDate(LocalDate.now());
+        grn.setReceivedBy(acheteur);
+        
+        List<GrnDetails> grnDetailsList = new java.util.ArrayList<>();
+        int qtyOrdered = po.getDemandeInterne().getQuantite() != null ? po.getDemandeInterne().getQuantite() : 1;
+        String itemCode = po.getDemandeInterne().getItemCode();
+        if (itemCode == null && po.getDemandeInterne().getDetails() != null && !po.getDemandeInterne().getDetails().isEmpty()) {
+            itemCode = po.getDemandeInterne().getDetails().get(0).getItemCode();
+        }
+        
+        GrnDetails gd = new GrnDetails();
+        gd.setItemCode(itemCode != null ? itemCode : "INTERNE-ITEM");
+        gd.setItemName(po.getDemandeInterne().getDesignation());
+        gd.setOrderedQuantity(qtyOrdered);
+        gd.setReceivedQuantity(qtyOrdered);
+        gd.setAcceptedQuantity(qtyOrdered);
+        gd.setQualityStatus(QualityStatus.APPROVED);
+        grnDetailsList.add(gd);
+        grn.setDetails(grnDetailsList);
+        
+        GrnHeader savedGrn = grnService.createGrn(grn);
+        grnService.completeGrnEntry(savedGrn.getId(), acheteur); // Passe le GRN à ENTRY_COMPLETED + màj Stock
     }
 
     private void deduireBudgetInterne(DemandeAchatInterne da) {

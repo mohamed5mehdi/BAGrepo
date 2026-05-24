@@ -51,6 +51,14 @@ public class DaHeaderController {
         return ResponseEntity.ok(daHeaderService.updatePurchaseRequest(id, requestDetails));
     }
 
+    @PutMapping("/{id}/valoriser-achat")
+    public ResponseEntity<DaHeader> valoriserAchat(
+            @PathVariable @org.springframework.lang.NonNull Integer id,
+            @RequestParam @org.springframework.lang.NonNull java.math.BigDecimal prixUnitaire,
+            @RequestParam @org.springframework.lang.NonNull Integer supplierId) {
+        return ResponseEntity.ok(daHeaderService.valoriserAchat(id, prixUnitaire, supplierId));
+    }
+
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletePurchaseRequest(@PathVariable @org.springframework.lang.NonNull Integer id) {
         daHeaderService.deletePurchaseRequest(id);

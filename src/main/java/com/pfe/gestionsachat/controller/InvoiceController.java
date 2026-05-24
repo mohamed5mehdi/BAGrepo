@@ -21,7 +21,7 @@ public class InvoiceController {
 
     @GetMapping
     public ResponseEntity<List<Invoice>> getAll() {
-        return ResponseEntity.ok(invoiceRepository.findAll());
+        return ResponseEntity.ok(matchingService.getAllInvoices());
     }
 
     @GetMapping("/{id}")
@@ -49,6 +49,7 @@ public class InvoiceController {
     private com.pfe.gestionsachat.service.PdfExportService pdfExportService;
 
     @GetMapping("/{id}/download")
+    @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public ResponseEntity<byte[]> downloadInvoice(@PathVariable Long id) {
         // Recherche par ID natif de l'invoice, ou par PO ID si non trouvé
         Invoice invoice = invoiceRepository.findById(id)

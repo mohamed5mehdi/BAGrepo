@@ -32,6 +32,12 @@ export default function DaModal({ da, onClose, title, children, wide = false, sh
   if (!da) return null;
   const total = da.montantEstime || 0;
 
+  // Le prix n'est logiquement défini (et donc affichable) qu'après le traitement par l'acheteur.
+  // Si rejetée avant l'acheteur, le prix unitaire est nul ou 0.
+  const isPricedState = !['BROUILLON', 'SOUMISE', 'VALIDE_N1', 'VALIDE_TECH', 'AFFECTEE'].includes(da.statut)
+    && !(da.statut === 'REJETEE' && (!da.prixUnitaire || da.prixUnitaire <= 0));
+  const displayPrice = showPrice && isPricedState;
+
   return (
     <div
       ref={ref}
@@ -59,8 +65,8 @@ export default function DaModal({ da, onClose, title, children, wide = false, sh
               { label: 'Date',       value: da.dateCreation ?? '—' },
               { label: 'Objet',      value: da.designation },
               { label: 'Demandeur',  value: da.demandeur?.nom ?? '—' },
-              ...(showPrice ? [{ label: 'Montant HT', value: total > 0 ? formatCurrency(total) : '—' }] : []),
-              ...(showPrice ? [{ label: 'Montant TTC (20%)', value: total > 0 ? formatCurrency(total * 1.20) : '—' }] : []),
+              ...(displayPrice ? [{ label: 'Montant HT', value: total > 0 ? formatCurrency(total) : '—' }] : []),
+              ...(displayPrice ? [{ label: 'Montant TTC (20%)', value: total > 0 ? formatCurrency(total * 1.20) : '—' }] : []),
               { label: 'Fournisseur', value: da.fournisseur?.nom ?? (da as any).fournisseur_nom ?? '—' },
               { label: 'Statut',     value: <StatusBadge statut={da.statut} /> },
             ].map(({ label, value }) => (
@@ -92,9 +98,11 @@ export default function DaModal({ da, onClose, title, children, wide = false, sh
                       <th className="px-3 py-2 text-left">Article</th>
                       <th className="px-3 py-2 text-left">Catégorie</th>
                       <th className="px-3 py-2 text-center">Qté</th>
-                      {showPrice && (
+                      {displayPrice && (
                         <>
-                          <th className="px-3 py-2 text-right">P.U. HT</th>
+                          <th className="px-3 py-2 text-right">
+                              {['SOUMISE', 'VALIDE_N1', 'VALIDE_TECH'].includes(da.statut) ? 'P.U. EST. (HT)' : 'P.U. Négocié (HT)'}
+                          </th>
                           <th className="px-3 py-2 text-right">Total HT</th>
                         </>
                       )}
@@ -105,7 +113,7 @@ export default function DaModal({ da, onClose, title, children, wide = false, sh
                         <td className="px-3 py-2 font-medium">{da.designation ?? '—'}</td>
                         <td className="px-3 py-2 text-slate-500">{da.categorie ?? '—'}</td>
                         <td className="px-3 py-2 text-center">{da.quantite}</td>
-                        {showPrice && (
+                        {displayPrice && (
                           <>
                             <td className="px-3 py-2 text-right font-mono">{formatCurrency(da.prixUnitaire ?? 0)}</td>
                             <td className="px-3 py-2 text-right font-black text-indigo-600">

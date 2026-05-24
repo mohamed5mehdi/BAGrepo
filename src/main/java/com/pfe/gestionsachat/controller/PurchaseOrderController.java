@@ -8,6 +8,7 @@ import com.pfe.gestionsachat.service.PurchaseOrderService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @RestController
@@ -80,12 +81,14 @@ public class PurchaseOrderController {
     }
 
     @GetMapping("/{id}/download")
+    @Transactional(readOnly = true)
     public ResponseEntity<byte[]> downloadPo(@PathVariable Integer id) {
         PurchaseOrder po = purchaseOrderService.getPurchaseOrderById(id);
         return generatePdfResponse(po);
     }
 
     @GetMapping("/da/{oidDa}/download")
+    @Transactional(readOnly = true)
     public ResponseEntity<byte[]> downloadPoByDa(@PathVariable Integer oidDa) {
         PurchaseOrder po = purchaseOrderService.getPurchaseOrderByDa(oidDa);
         if (po == null) {

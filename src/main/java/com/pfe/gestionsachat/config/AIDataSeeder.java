@@ -2,6 +2,7 @@ package com.pfe.gestionsachat.config;
 
 import com.pfe.gestionsachat.model.*;
 import com.pfe.gestionsachat.repository.*;
+import com.pfe.gestionsachat.service.BudgetSuiviService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -42,6 +43,8 @@ public class AIDataSeeder implements CommandLineRunner {
     private FamilyRepository familyRepo;
     @Autowired
     private SubFamilyRepository subFamilyRepo;
+    @Autowired
+    private BudgetSuiviService budgetSuiviService;
     @Autowired
     private UserRepository userRepo;
     @Autowired
@@ -231,6 +234,7 @@ public class AIDataSeeder implements CommandLineRunner {
         // Fix risque #1 : Map<daIndex, List<StatusHistory>> pour liaisons correctes
         // après save
         Map<Integer, List<StatusHistory>> historyByDaIndex = new HashMap<>();
+        Map<Integer, BigDecimal> remainingBudget = new HashMap<>();
 
         for (int i = 0; i < pool.size(); i++) {
             StatutDemande statut = pool.get(i);
@@ -256,11 +260,33 @@ public class AIDataSeeder implements CommandLineRunner {
             int prixMin = (int) article[1];
             int prixMax = (int) article[2];
 
+            // Suivi du budget temps-réel (Forensic fix) pour ne jamais dépasser
             int quantite = 1 + rnd.nextInt(20);
-            // Fix risque #5 : montantEstime toujours renseigné
             BigDecimal prixUnit = BigDecimal.valueOf(prixMin + rnd.nextInt(prixMax - prixMin));
-            BigDecimal montant = prixUnit.multiply(BigDecimal.valueOf(quantite))
-                    .setScale(2, RoundingMode.HALF_UP);
+            BigDecimal montant = prixUnit.multiply(BigDecimal.valueOf(quantite)).setScale(2, RoundingMode.HALF_UP);
+
+            if (isConsommeBudget(statut) && sousFamille != null) {
+                Integer sfId = sousFamille.getOidSub();
+                BigDecimal currentRemaining = remainingBudget.getOrDefault(sfId, sousFamille.getBudgetRestant());
+                
+                if (currentRemaining != null && montant.compareTo(currentRemaining) > 0) {
+                    // Calcul de la quantité max possible
+                    if (prixUnit.compareTo(BigDecimal.ZERO) > 0) {
+                        int maxQuantite = currentRemaining.divide(prixUnit, 0, RoundingMode.DOWN).intValue();
+                        if (maxQuantite >= 1) {
+                            quantite = maxQuantite;
+                            montant = prixUnit.multiply(BigDecimal.valueOf(quantite)).setScale(2, RoundingMode.HALF_UP);
+                        } else {
+                            // Impossible de payer même 1 unité, on rejette la DA
+                            statut = StatutDemande.REJETEE;
+                        }
+                    }
+                }
+                
+                if (isConsommeBudget(statut)) {
+                    remainingBudget.put(sfId, currentRemaining.subtract(montant));
+                }
+            }
 
             UrgenceDemande urgence = pickUrgence();
             String justification = pickJustification(designation, dept);
@@ -319,32 +345,40 @@ public class AIDataSeeder implements CommandLineRunner {
     // ─── Décrémentation budget (fix risques #2 et #8) ────────────────────────
 
     private void decrementBudgets(List<DemandeAchatInterne> savedDas) {
-        // Agréger les montants par famille pour minimiser les save() et éviter
-        // OptimisticLock
-        Map<Integer, BigDecimal> consumptionByFamily = new HashMap<>();
+        // Agréger les montants par Sous-Famille pour respecter l'architecture métier
+        Map<Integer, BigDecimal> consumptionBySubFamily = new HashMap<>();
+        Set<Integer> affectedFamilies = new HashSet<>();
+        
         for (DemandeAchatInterne da : savedDas) {
-            if (da.getBudgetFamille() == null || da.getMontantEstime() == null)
+            if (da.getBudgetSousFamille() == null || da.getMontantEstime() == null)
                 continue;
             if (!isConsommeBudget(da.getStatut()))
                 continue;
-            Integer fid = da.getBudgetFamille().getIdFamily();
-            consumptionByFamily.merge(fid, da.getMontantEstime(), BigDecimal::add);
+            Integer subId = da.getBudgetSousFamille().getOidSub();
+            consumptionBySubFamily.merge(subId, da.getMontantEstime(), BigDecimal::add);
+            affectedFamilies.add(da.getBudgetFamille().getIdFamily());
         }
 
-        // Une seule lecture + save par famille → pas de conflit @Version
-        for (Map.Entry<Integer, BigDecimal> entry : consumptionByFamily.entrySet()) {
-            // Fix risque #8 : rechargement depuis DB pour avoir la version courante
-            Family f = familyRepo.findById(entry.getKey()).orElse(null);
-            if (f == null)
-                continue;
+        // Déduction sur les sous-familles (règle métier stricte)
+        for (Map.Entry<Integer, BigDecimal> entry : consumptionBySubFamily.entrySet()) {
+            SubFamily sf = subFamilyRepo.findById(entry.getKey()).orElse(null);
+            if (sf == null) continue;
+            
             BigDecimal toDeduct = entry.getValue();
-            // Ne pas dépasser le budget initial (sécu analytique)
-            if (f.getBudgetRestant() != null && toDeduct.compareTo(f.getBudgetRestant()) > 0) {
-                toDeduct = f.getBudgetRestant().multiply(BigDecimal.valueOf(0.85));
+            // L'ajustement (clamping) a été supprimé ici car il causait une rupture comptable.
+            // La vérification est maintenant effectuée dynamiquement à la génération des DAs.
+            sf.deductBudget(toDeduct);
+            subFamilyRepo.save(sf);
+            log.info("   💰 Sous-Famille '{}' : -{} MAD engagés.", sf.getLibelle(), toDeduct.toPlainString());
+        }
+        
+        // Consolidation au niveau Famille via le service métier
+        for (Integer familyId : affectedFamilies) {
+            Family f = familyRepo.findById(familyId).orElse(null);
+            if (f != null) {
+                budgetSuiviService.recalculerFamille(f);
+                log.info("   🔄 Famille '{}' (ID={}) consolidée.", f.getLibelle(), f.getIdFamily());
             }
-            f.deductBudget(toDeduct);
-            familyRepo.save(f);
-            log.info("   💰 Famille '{}' : -{} MAD engagés.", f.getLibelle(), toDeduct.toPlainString());
         }
     }
 

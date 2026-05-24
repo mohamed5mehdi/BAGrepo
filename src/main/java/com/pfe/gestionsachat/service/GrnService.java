@@ -25,6 +25,11 @@ public class GrnService {
      *  - DemandeInterne PO : validation sur total global reçu (pas par itemCode)
      *  - Null guard sur grn.getDetails()
      */
+    @Transactional(readOnly = true)
+    public List<GrnHeader> getAllGrns() {
+        return grnRepository.findAll();
+    }
+
     @Transactional
     public GrnHeader createGrn(GrnHeader grn) {
         if (grn.getPurchaseOrder() == null || grn.getPurchaseOrder().getIdPo() == null) {

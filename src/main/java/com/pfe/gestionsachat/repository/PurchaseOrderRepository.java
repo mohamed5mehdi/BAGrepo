@@ -37,6 +37,10 @@ public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, In
             @Param("statut") POStatus statut,
             @Param("dateLimite") LocalDate dateLimite);
 
+    @Query("SELECT p FROM PurchaseOrder p WHERE p.statut = :statut AND p.demandeInterne IS NOT NULL " +
+           "AND NOT EXISTS (SELECT g FROM GrnHeader g WHERE g.purchaseOrder = p)")
+    List<PurchaseOrder> findPendingInternalPOsForAutomation(@Param("statut") POStatus statut);
+
     /**
      * Verrou pessimiste pour éviter les transitions de statut concurrentes (approbation/rejet simultanés).
      */

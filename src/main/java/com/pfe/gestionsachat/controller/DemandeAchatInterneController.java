@@ -139,9 +139,31 @@ public class DemandeAchatInterneController {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.getDemandesAValider(user));
     }
+    @Autowired
+    private com.pfe.gestionsachat.repository.SupplierRepository supplierRepository;
+
     @GetMapping("/{id}/offres")
     public ResponseEntity<List<OffreFournisseur>> getOffres(@PathVariable Long id) {
         return ResponseEntity.ok(offreRepository.findByDa_Id(id));
+    }
+
+    public static class OffreRequest {
+        public Integer fournisseurId;
+        public java.math.BigDecimal prixPropose;
+        public String conditions;
+        public Integer delai;
+    }
+
+    @PostMapping("/{id}/offres")
+    @org.springframework.transaction.annotation.Transactional
+    public ResponseEntity<OffreFournisseur> addOffre(@PathVariable Long id, @RequestBody OffreRequest request) {
+        if (request.prixPropose == null || request.prixPropose.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Le prix proposé doit être strictement positif pour constituer un devis valide.");
+        }
+        DemandeAchatInterne da = demandeRepository.findById(id).orElseThrow();
+        com.pfe.gestionsachat.model.Supplier supplier = supplierRepository.findById(request.fournisseurId).orElseThrow();
+        OffreFournisseur offre = new OffreFournisseur(da, supplier, request.prixPropose, request.conditions, request.delai);
+        return ResponseEntity.ok(offreRepository.save(offre));
     }
 }
 

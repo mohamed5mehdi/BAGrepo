@@ -22,6 +22,11 @@ public class GrcService {
     @Autowired private GrnHeaderRepository grnHeaderRepository;
     @Autowired private StatusHistoryRepository historyRepository;
 
+    @Transactional(readOnly = true)
+    public List<GrcHeader> getAllGrcs() {
+        return grcRepository.findAll();
+    }
+
     /**
      * Crée un GRC lié à un GRN ENTRY_COMPLETED.
      * FIX : resolveGrnHeader simplifié — plus de fallback erroné GRN.id → PO.id.

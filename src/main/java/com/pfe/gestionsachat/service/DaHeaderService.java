@@ -86,6 +86,21 @@ public class DaHeaderService {
         return daHeaderRepository.save(request);
     }
 
+    @Transactional
+    public DaHeader valoriserAchat(@NonNull Integer id, @NonNull java.math.BigDecimal prixUnitaire, @NonNull Integer supplierId) {
+        DaHeader da = getPurchaseRequestById(id);
+        Supplier fournisseur = new Supplier();
+        fournisseur.setOidSupplier(supplierId);
+
+        if (da.getDetails() != null) {
+            for (DaDetails detail : da.getDetails()) {
+                detail.setPrixUnitaire(prixUnitaire);
+                detail.setFournisseur(fournisseur);
+            }
+        }
+        return daHeaderRepository.save(da);
+    }
+
     public void deletePurchaseRequest(@NonNull Integer id) {
         DaHeader request = getPurchaseRequestById(id);
         daHeaderRepository.delete(request);

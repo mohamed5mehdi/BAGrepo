@@ -26,6 +26,11 @@ public class GrcController {
     @Autowired private GrcHeaderRepository grcRepository;
     @Autowired private GrnHeaderRepository grnRepository;
 
+    @GetMapping
+    public ResponseEntity<java.util.List<GrcHeader>> getAllGrcs() {
+        return ResponseEntity.ok(grcService.getAllGrcs());
+    }
+
     @PostMapping
     public ResponseEntity<GrcHeader> createGrc(@RequestBody GrcHeader grc) {
         return ResponseEntity.ok(grcService.createGrc(grc));

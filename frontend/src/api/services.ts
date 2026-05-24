@@ -31,15 +31,20 @@ export const validerDGDemandeInterne = (id: number, approved: boolean, comment: 
 // ACHATS & PO
 export const valoriserDemandeInterne = (id: number, prixUnitaire: number, supplierId: number) => 
     api.put(`/demandes/${id}/valoriser-achat?prixUnitaire=${prixUnitaire}&supplierId=${supplierId}`);
+export const valoriserDaClassic = (id: number, prixUnitaire: number, supplierId: number) => 
+    api.put(`/da-headers/${id}/valoriser-achat?prixUnitaire=${prixUnitaire}&supplierId=${supplierId}`);
 
 export const traiterAchatDemandeInterne = (id: number, userId: number) => api.put(`/demandes/${id}/traiter-achat?userId=${userId}`);
 export const creerPODemandeInterne = (id: number, userId: number) => api.post(`/demandes/${id}/creer-po?userId=${userId}`);
+export const autoGenerateGrnGrc = (poId: number, userId: number) => api.post(`/purchase-orders/${poId}/auto-grn-grc?userId=${userId}`);
+export const getPendingInternalPOsForAutomation = () => api.get(`/purchase-orders/pending-grn-internal`);
 
 // BUDGETS & FOURNISSEURS
 export const getFamilies = () => api.get('/families');
 export const getSubFamiliesByFamily = (familyId: number) => api.get(`/sub-families/family/${familyId}`);
 export const getSuppliers = () => api.get('/suppliers');
 export const getDemandeOffres = (daId: number) => api.get(`/demandes/${daId}/offres`);
+export const postDemandeOffre = (daId: number, data: { fournisseurId: number; prixPropose: number; delai: number; conditions: string }) => api.post(`/demandes/${daId}/offres`, data);
 
 // ARTICLES & STOCK
 export const getArticles = () => api.get('/warehouse/stock');
@@ -63,14 +68,27 @@ export const checkBudgetClassic = (daId: number, acheteurId: number) =>
 
 // ── GRN / GRC ────────────────────────────────────────
 export const getGrnByStatus = (status: string) => api.get(`/grn/status/${status}`);
+export const getAllGrns = () => api.get('/grn');
 export const createGrc = (payload: any) => api.post('/grc', payload);
 export const validateGrc = (id: number) => api.put(`/grc/${id}/valider`);
+export const approveGrc = (id: number) => api.put(`/grc/${id}/approuver`);
+export const getAllGrcs = () => api.get('/grc');
 
-export const getPurchaseOrdersByStatus = (status: string) => 
-  api.get(`/purchase-orders/status/${status}`);
+// ── INVOICE ──────────────────────────────────────────
+export const getInvoices = () => api.get('/invoice');
+export const createInvoice = (payload: any) => api.post('/invoice', payload);
+export const matchInvoice = (id: number) => api.post(`/invoice/${id}/match`);
+export const approveInvoice = (id: number) => api.post(`/invoice/${id}/approve`);
 
-export const getPoBalance = (poId: number) => 
-  api.get(`/purchase-orders/${poId}/balance`);
+// ── DOCUMENTS (PDFs) ─────────────────────────────────
+export const downloadPoPdf = (id: number) => api.get(`/purchase-orders/${id}/download`, { responseType: 'blob' });
+export const downloadGrnPdf = (id: number) => api.get(`/grn/${id}/download`, { responseType: 'blob' });
+export const downloadGrcPdf = (id: number) => api.get(`/grc/${id}/download`, { responseType: 'blob' });
+export const downloadInvoicePdf = (id: number) => api.get(`/invoice/${id}/download`, { responseType: 'blob' });
+
+export const getPurchaseOrdersByStatus = (status: string) => api.get(`/purchase-orders/status/${status}`);
+export const getAllPurchaseOrders = () => api.get('/purchase-orders');
+export const getPoBalance = (poId: number) => api.get(`/purchase-orders/${poId}/balance`);
 
 export const createGrn = (payload: any) => 
   api.post('/grn', payload);

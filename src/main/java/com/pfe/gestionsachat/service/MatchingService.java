@@ -15,6 +15,11 @@ public class MatchingService {
     @Autowired
     private GrnHeaderRepository grnHeaderRepository;
 
+    @Transactional(readOnly = true)
+    public java.util.List<Invoice> getAllInvoices() {
+        return invoiceRepository.findAll();
+    }
+
     @Transactional
     public Invoice matchInvoice(@org.springframework.lang.NonNull Long invoiceId) {
         Invoice invoice = invoiceRepository.findById(invoiceId).orElseThrow(() -> new RuntimeException("Facture introuvable: " + invoiceId));

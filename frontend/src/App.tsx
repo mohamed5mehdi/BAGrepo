@@ -14,6 +14,7 @@ import RespAchatPage from './pages/RespAchatPage';
 import { RoleProtectedRoute } from './pages/RolePages';
 import AIDashboardPage from './pages/AIDashboardPage';
 import LogistiquePage from './pages/LogistiquePage';
+import DocumentsPage from './pages/DocumentsPage';
 
 const qc = new QueryClient({
   defaultOptions: {
@@ -52,6 +53,7 @@ export default function App() {
             <Route path="/resp-achat"    element={<RoleProtectedRoute roles={['RESP_ACHAT']}><RespAchatPage /></RoleProtectedRoute>} />
             <Route path="/ai-dashboard"  element={<RoleProtectedRoute roles={['DG', 'ADMINISTRATEUR', 'DAF', 'AMG', 'ACHETEUR', 'COMPTABLE', 'RESP_ACHAT']}><AIDashboardPage /></RoleProtectedRoute>} />
             <Route path="/logistics"     element={<RoleProtectedRoute roles={['ACHETEUR', 'ADMINISTRATEUR']}><LogistiquePage /></RoleProtectedRoute>} />
+            <Route path="/documents"     element={<RoleProtectedRoute roles={['ACHETEUR', 'ADMINISTRATEUR', 'COMPTABLE', 'MAGASINIER']}><DocumentsPage /></RoleProtectedRoute>} />
 
             {/* Catch-all */}
             <Route path="*" element={<Navigate to="/login" replace />} />

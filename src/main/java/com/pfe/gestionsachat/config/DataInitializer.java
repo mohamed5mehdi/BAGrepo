@@ -28,6 +28,8 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
     @Autowired private DemandeAchatInterneRepository demandeAchatInterneRepository;
     @Autowired private StockItemRepository stockItemRepository;
+    @Autowired private com.pfe.gestionsachat.service.WarehouseService warehouseService;
+    @Autowired private GrnHeaderRepository grnHeaderRepository;
     @Autowired private OffreFournisseurRepository offreFournisseurRepository;
     @Autowired private BCryptPasswordEncoder encoder;
     @Autowired private org.springframework.jdbc.core.JdbcTemplate jdbcTemplate;
@@ -191,6 +193,41 @@ public class DataInitializer implements CommandLineRunner {
             savedPo.setPoNumber("PO-" + java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM")) + "-" + String.format("%05d", savedPo.getIdPo()));
             purchaseOrderRepository.save(savedPo);
             log.info("📦 PO Seedé pour test logistique : {}", savedPo.getPoNumber());
+            
+            // Seed a GRN linked to this PO
+            com.pfe.gestionsachat.model.GrnHeader grn = new com.pfe.gestionsachat.model.GrnHeader();
+            grn.setPurchaseOrder(savedPo);
+            grn.setDeliveryNoteNumber("BL-2026-TEST");
+            grn.setReceiptDate(java.time.LocalDate.now());
+            grn.setStatus(com.pfe.gestionsachat.model.GrnStatus.ENTRY_COMPLETED);
+            grn.setSupplier(sup2);
+            grn.setReceivedBy(userRepository.findByEmail("magasinier@test.com").orElse(null));
+            
+            com.pfe.gestionsachat.model.GrnDetails grnDetail = new com.pfe.gestionsachat.model.GrnDetails();
+            grnDetail.setGrnHeader(grn);
+            grnDetail.setItemCode("PPR-A4");
+            grnDetail.setItemName("Ramette Papier A4");
+            grnDetail.setOrderedQuantity(100);
+            grnDetail.setShippedQuantity(0);
+            grnDetail.setReceivedQuantity(100);
+            grnDetail.setAcceptedQuantity(100);
+            grnDetail.setRejectedQuantity(0);
+            grnDetail.setQualityStatus(com.pfe.gestionsachat.model.QualityStatus.APPROVED);
+            grn.setDetails(java.util.List.of(grnDetail));
+
+            com.pfe.gestionsachat.model.GrnHeader savedGrn = grnHeaderRepository.save(grn);
+            savedGrn.setGrnNumber("GRN-" + java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM")) + "-" + String.format("%05d", savedGrn.getId()));
+            grnHeaderRepository.save(savedGrn);
+            
+            // FORENSIC FIX: Update stock to avoid silent inconsistency!
+            warehouseService.addStock(
+                "PPR-A4", 
+                "Ramette Papier A4", 
+                100, 
+                savedGrn.getGrnNumber()
+            );
+            
+            log.info("📦 GRN Seedé pour test logistique : {}", savedGrn.getGrnNumber());
         }
         // 7. Demandes d'Achat Internes (flux principal)
         if (demandeAchatInterneRepository.count() == 0) {
@@ -249,12 +286,21 @@ public class DataInitializer implements CommandLineRunner {
 
             log.info("📋 4 Demandes d'achat internes seedées");
 
-            // 8. Offres Fournisseurs (Pour DA-006 / di3)
+            // 8. Offres Fournisseurs (Pour DA-006 / di3 et autres)
             log.info("💰 Création des offres comparatives...");
             offreFournisseurRepository.saveAll(List.of(
+                // Offres pour DI3
                 new OffreFournisseur(di3, sup1, BigDecimal.valueOf(14500.0), "Garantie 3 ans incluse, Livraison Express (48h)", 2),
                 new OffreFournisseur(di3, sup2, BigDecimal.valueOf(13800.0), "Remise 5% sur volume, Livraison sous 1 semaine", 7),
-                new OffreFournisseur(di3, sup3, BigDecimal.valueOf(15200.0), "Service Premium, Installation et configuration sur site", 3)
+                new OffreFournisseur(di3, sup3, BigDecimal.valueOf(15200.0), "Service Premium, Installation et configuration sur site", 3),
+                
+                // Offres pour DI1 (Laptops)
+                new OffreFournisseur(di1, sup1, BigDecimal.valueOf(27500.0), "Garantie 5 ans ProSupport", 5),
+                new OffreFournisseur(di1, sup2, BigDecimal.valueOf(29000.0), "Modèles équivalents HP", 10),
+                
+                // Offres pour DI2 (Papier A4)
+                new OffreFournisseur(di2, sup2, BigDecimal.valueOf(3250.0), "Livraison gratuite", 3),
+                new OffreFournisseur(di2, sup3, BigDecimal.valueOf(3100.0), "Paiement à la livraison", 1)
             ));
         }
 

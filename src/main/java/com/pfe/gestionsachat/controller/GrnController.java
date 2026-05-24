@@ -24,6 +24,11 @@ public class GrnController {
     @Autowired private PdfExportService pdfExportService;
     @Autowired private GrnHeaderRepository grnRepository;
 
+    @GetMapping
+    public ResponseEntity<List<GrnHeader>> getAllGrns() {
+        return ResponseEntity.ok(grnService.getAllGrns());
+    }
+
     @PostMapping
     public ResponseEntity<GrnHeader> createGrn(@RequestBody GrnHeader grn) {
         return ResponseEntity.ok(grnService.createGrn(grn));

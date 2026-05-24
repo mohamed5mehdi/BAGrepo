@@ -15,6 +15,7 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: string; to: string }[]> =
   ACHETEUR:  [
     { label: 'Tableau de bord', icon: '🛒', to: '/acheteur' },
     { label: 'Logistique', icon: '🚚', to: '/logistics' },
+    { label: 'Documents', icon: '📄', to: '/documents' },
   ],
   AMG:       [{ label: 'Dossiers AMG', icon: '📂', to: '/amg' }],
   DAF:       [
@@ -25,13 +26,20 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: string; to: string }[]> =
     { label: 'Direction', icon: '🏢', to: '/dg' },
     { label: 'Dashboard IA', icon: '📊', to: '/ai-dashboard' },
   ],
-  MAGASINIER: [{ label: 'Réception GRN', icon: '📦', to: '/magasinier' }],
-  COMPTABLE:  [{ label: 'Facturation GRC', icon: '🧾', to: '/comptable' }],
+  MAGASINIER: [
+    { label: 'Réception GRN', icon: '📦', to: '/magasinier' },
+    { label: 'Documents', icon: '📄', to: '/documents' }
+  ],
+  COMPTABLE:  [
+    { label: 'Facturation GRC', icon: '🧾', to: '/comptable' },
+    { label: 'Documents', icon: '📄', to: '/documents' }
+  ],
   RESP_ACHAT: [{ label: 'Approbation PO', icon: '🛡️', to: '/resp-achat' }],
   ADMINISTRATEUR:     [
     { label: 'Administration', icon: '⚙️', to: '/admin' },
     { label: 'Logistique', icon: '🚚', to: '/logistics' },
     { label: 'Surveillance IA', icon: '👁️', to: '/ai-dashboard' },
+    { label: 'Documents', icon: '📄', to: '/documents' },
   ],
 };
 
