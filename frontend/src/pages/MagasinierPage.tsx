@@ -16,7 +16,7 @@ export default function MagasinierPage() {
   const [deliveryNote, setDeliveryNote] = useState('');
   const [isEntryCompleted, setIsEntryCompleted] = useState(true);
   const [grnItems, setGrnItems] = useState<any[]>([]);
-  const [activeTab, setActiveTab] = useState<'grn' | 'transfers' | 'history'>('grn');
+  const [activeTab, setActiveTab] = useState<'grn' | 'transfers' | 'history' | 'destTransfers'>('grn');
 
   // ── Modal confirmation expédition ───────────────────────────────────────────
   const [shipConfirmTransfer, setShipConfirmTransfer] = useState<any | null>(null);
