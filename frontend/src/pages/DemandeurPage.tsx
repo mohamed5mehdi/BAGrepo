@@ -748,6 +748,7 @@ export default function DemandeurPage({ defaultTab = 'DA' }: { defaultTab?: 'DA'
                         <th className="px-4 py-2 font-semibold">Article</th>
                         <th className="px-4 py-2 font-semibold">Source</th>
                         <th className="px-4 py-2 font-semibold">Disponible</th>
+                        <th className="px-4 py-2 font-semibold text-orange-500">Réservé</th>
                         <th className="px-4 py-2 font-semibold w-32">Demander</th>
                       </tr>
                     </thead>
@@ -759,6 +760,7 @@ export default function DemandeurPage({ defaultTab = 'DA' }: { defaultTab?: 'DA'
                             <td className="px-4 py-3 font-medium">{stock.itemCode} - {stock.itemName}</td>
                             <td className="px-4 py-3">{stock.warehouse?.name} {stock.warehouse?.location ? `- ${stock.warehouse.location}` : ''}</td>
                             <td className="px-4 py-3 text-emerald-600 font-bold">{stock.quantityAvailable}</td>
+                            <td className="px-4 py-3 text-orange-500 font-bold">{stock.quantityReserved || 0}</td>
                             <td className="px-4 py-3">
                               <input 
                                 type="number" min="0" max={stock.quantityAvailable}

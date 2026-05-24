@@ -159,9 +159,15 @@ export default function MagasinierPage() {
     <>
     <DashboardLayout title="Espace Magasin — Réceptions BAG ERP" pendingCount={approvedPOs.length + pendingTransfers.length}>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <KpiCard label="Commandes en attente" value={approvedPOs.length} icon="🚚" color="from-blue-600 to-indigo-700" />
-        <KpiCard label="Transferts à expédier" value={pendingTransfers.length} icon="📦" color="from-amber-500 to-orange-600" />
-        <KpiCard label="Alertes Stock" value={0} icon="⚠️" color="from-rose-500 to-red-600" />
+        <div onClick={() => setActiveTab('grn')} className="cursor-pointer transition-transform hover:scale-105">
+            <KpiCard label="Commandes en attente" value={approvedPOs.length} icon="🚚" color="from-blue-600 to-indigo-700" />
+        </div>
+        <div onClick={() => setActiveTab('transfers')} className="cursor-pointer transition-transform hover:scale-105">
+            <KpiCard label="Transferts à expédier" value={pendingTransfers.length} icon="📦" color="from-amber-500 to-orange-600" />
+        </div>
+        <div className="cursor-not-allowed opacity-80">
+            <KpiCard label="Alertes Stock" value={0} icon="⚠️" color="from-rose-500 to-red-600" />
+        </div>
       </div>
 
       {/* Tab switcher */}

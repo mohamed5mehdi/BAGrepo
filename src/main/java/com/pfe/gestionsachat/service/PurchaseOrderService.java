@@ -76,7 +76,36 @@ public class PurchaseOrderService {
     }
 
     public List<PurchaseOrder> getPurchaseOrdersByStatus(POStatus statut) {
-        return purchaseOrderRepository.findByStatut(statut);
+        List<PurchaseOrder> pos = purchaseOrderRepository.findByStatut(statut);
+        if (statut == POStatus.APPROVED) {
+            // Filtrer les POs déjà totalement réceptionnés
+            return pos.stream().filter(po -> !isFullyReceived(po)).toList();
+        }
+        return pos;
+    }
+
+    private boolean isFullyReceived(PurchaseOrder po) {
+        Map<String, Integer> balance = getPoBalance(po.getIdPo());
+        if (po.getDemandeInterne() != null) {
+            int ordered = po.getDemandeInterne().getQuantite() != null ? po.getDemandeInterne().getQuantite() : 0;
+            int received = balance.getOrDefault("GLOBAL", 0);
+            return ordered > 0 && received >= ordered;
+        } else if (po.getDaHeader() != null && po.getDaHeader().getDetails() != null) {
+            boolean allReceived = true;
+            for (DaDetails d : po.getDaHeader().getDetails()) {
+                String code = d.getItemCode();
+                if (code != null) {
+                    int ordered = d.getQuantite() != null ? d.getQuantite() : 0;
+                    int received = balance.getOrDefault(code, 0);
+                    if (ordered > 0 && received < ordered) {
+                        allReceived = false;
+                        break;
+                    }
+                }
+            }
+            return allReceived;
+        }
+        return false;
     }
 
     /**
