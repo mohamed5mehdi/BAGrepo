@@ -86,6 +86,7 @@ public class PurchaseOrderService {
 
     private boolean isFullyReceived(PurchaseOrder po) {
         Map<String, Integer> balance = getPoBalance(po.getIdPo());
+        System.out.println("[DEBUG] isFullyReceived pour PO-" + po.getIdPo() + ", balance: " + balance);
         if (po.getDemandeInterne() != null) {
             int ordered = po.getDemandeInterne().getQuantite() != null ? po.getDemandeInterne().getQuantite() : 0;
             int received = balance.getOrDefault("GLOBAL", 0);
@@ -97,12 +98,14 @@ public class PurchaseOrderService {
                 if (code != null) {
                     int ordered = d.getQuantite() != null ? d.getQuantite() : 0;
                     int received = balance.getOrDefault(code, 0);
+                    System.out.println("[DEBUG] Item: " + code + ", ordered: " + ordered + ", received: " + received);
                     if (ordered > 0 && received < ordered) {
                         allReceived = false;
                         break;
                     }
                 }
             }
+            System.out.println("[DEBUG] allReceived: " + allReceived);
             return allReceived;
         }
         return false;
