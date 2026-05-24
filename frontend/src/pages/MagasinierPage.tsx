@@ -41,6 +41,14 @@ export default function MagasinierPage() {
     enabled: !!userId,
   });
 
+  // 2b. File de transferts IN_TRANSIT (onglet réception)
+  const { data: destTransfers = [], isLoading: loadingDestTransfers } = useQuery<any[]>({
+    queryKey: ['transfers', 'dest', userId],
+    queryFn: () => api.get(`/transfers/dest?userId=${userId}`).then(r => r.data),
+    refetchInterval: 20_000,
+    enabled: !!userId,
+  });
+
   // 3. Historique des transferts expédiés
   const { data: historyTransfers = [] } = useQuery<any[]>({
     queryKey: ['transfers', 'history', 'source', userId],
@@ -77,6 +85,18 @@ export default function MagasinierPage() {
     onError: (err: any) => {
       toast.error(err.response?.data?.message || 'Erreur lors de l\'expédition');
       setShipConfirmTransfer(null);
+    },
+  });
+
+  const receiveTransferMut = useMutation({
+    mutationFn: (headerId: number) => api.put(`/transfers/${headerId}/receive?userId=${userId}`).then(r => r.data),
+    onSuccess: (res) => {
+      const header = res;
+      toast.success(`Transfert TRF-${header.id} réceptionné avec succès !`);
+      qc.invalidateQueries({ queryKey: ['transfers'] });
+    },
+    onError: (err: any) => {
+      toast.error(err.response?.data?.message || 'Erreur lors de la réception');
     },
   });
 
@@ -158,12 +178,15 @@ export default function MagasinierPage() {
   return (
     <>
     <DashboardLayout title="Espace Magasin — Réceptions BAG ERP" pendingCount={approvedPOs.length + pendingTransfers.length}>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
         <div onClick={() => setActiveTab('grn')} className="cursor-pointer transition-transform hover:scale-105">
             <KpiCard label="Commandes en attente" value={approvedPOs.length} icon="🚚" color="from-blue-600 to-indigo-700" />
         </div>
         <div onClick={() => setActiveTab('transfers')} className="cursor-pointer transition-transform hover:scale-105">
             <KpiCard label="Transferts à expédier" value={pendingTransfers.length} icon="📦" color="from-amber-500 to-orange-600" />
+        </div>
+        <div onClick={() => setActiveTab('destTransfers')} className="cursor-pointer transition-transform hover:scale-105">
+            <KpiCard label="Transferts en réception" value={destTransfers.length} icon="📥" color="from-emerald-500 to-teal-600" />
         </div>
         <div className="cursor-not-allowed opacity-80">
             <KpiCard label="Alertes Stock" value={0} icon="⚠️" color="from-rose-500 to-red-600" />
@@ -201,6 +224,16 @@ export default function MagasinierPage() {
           }`}
         >
           🕒 Historique & LTO
+        </button>
+        <button
+          onClick={() => setActiveTab('destTransfers')}
+          className={`px-6 py-2 rounded-xl text-sm font-bold transition-all ${
+            activeTab === 'destTransfers'
+              ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-100'
+              : 'bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+          }`}
+        >
+          📥 Transferts en Réception ({destTransfers.length})
         </button>
       </div>
 
@@ -337,6 +370,63 @@ export default function MagasinierPage() {
             ))}
             {historyTransfers.length === 0 && (
               <tr><td colSpan={5} className="px-6 py-20 text-center text-slate-400 italic">Aucun historique d'expédition.</td></tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      )}
+
+      {/* ── Onglet destTransfers (Réception IN_TRANSIT) ── */}
+      {activeTab === 'destTransfers' && (
+      <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-100 dark:border-slate-800 shadow-xl overflow-hidden animate-fade-in">
+        <div className="p-6 border-b border-slate-50 dark:border-slate-800 flex justify-between items-center bg-gradient-to-r from-emerald-50 to-transparent dark:from-emerald-900/10">
+            <div>
+                <h2 className="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-xl bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 flex items-center justify-center">📥</span>
+                    Transferts en Réception
+                </h2>
+                <p className="text-xs text-slate-500 mt-1">Acceptez les transferts en provenance d'autres entrepôts (LTO)</p>
+            </div>
+            <button onClick={() => qc.invalidateQueries({ queryKey: ['transfers', 'dest'] })} className="text-xs font-bold text-emerald-600 hover:underline">🔄 Actualiser</button>
+        </div>
+        
+        <table className="w-full text-sm text-left">
+          <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold uppercase text-[10px] tracking-widest">
+            <tr>
+              <th className="px-6 py-4">N° TRF / LTO</th>
+              <th className="px-6 py-4">Source</th>
+              <th className="px-6 py-4">Articles</th>
+              <th className="px-6 py-4">Date Expédition</th>
+              <th className="px-6 py-4 text-right">Actions</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
+            {destTransfers.map((t: any) => (
+              <tr key={t.id} className="hover:bg-emerald-50/30 dark:hover:bg-emerald-900/10 transition-colors">
+                <td className="px-6 py-4">
+                  <div className="font-mono font-bold text-emerald-600">TRF-{t.id}</div>
+                  {t.ltoNumber && <div className="text-xs font-mono text-slate-400 mt-1">{t.ltoNumber}</div>}
+                </td>
+                <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-200">{t.warehouseSource?.name}</td>
+                <td className="px-6 py-4 font-medium text-slate-600">{t.lines?.length || 0} article(s)</td>
+                <td className="px-6 py-4 text-slate-500">{t.shippedAt ? new Date(t.shippedAt).toLocaleString() : '—'}</td>
+                <td className="px-6 py-4 text-right">
+                  <button
+                    onClick={() => {
+                        if (window.confirm(`Confirmer la réception de l'ensemble des articles du TRF-${t.id} ? Le stock sera mis à jour.`)) {
+                            receiveTransferMut.mutate(t.id);
+                        }
+                    }}
+                    disabled={receiveTransferMut.isPending}
+                    className="px-5 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100 disabled:opacity-50"
+                  >
+                    {receiveTransferMut.isPending ? 'Chargement...' : '✅ Réceptionner tout'}
+                  </button>
+                </td>
+              </tr>
+            ))}
+            {destTransfers.length === 0 && !loadingDestTransfers && (
+              <tr><td colSpan={5} className="px-6 py-20 text-center text-slate-400 italic">Aucun transfert en attente de réception pour votre entrepôt.</td></tr>
             )}
           </tbody>
         </table>
