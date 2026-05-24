@@ -77,6 +77,11 @@ public class TransferService {
                 throw new InsufficientStockTransferException(
                     item.getItemCode(), item.getQuantityAvailable(), line.getQuantityRequested());
 
+            // CRITIQUE : Réservation mathématique du stock au lieu d'une simple vérification
+            item.setQuantityAvailable(item.getQuantityAvailable() - line.getQuantityRequested());
+            item.setQuantityReserved((item.getQuantityReserved() != null ? item.getQuantityReserved() : 0) + line.getQuantityRequested());
+            stockItemRepo.save(item);
+
             // Snapshot warehouse source immuable (RISQUE-27)
             line.setWarehouseSourceSnapshotId(header.getWarehouseSource().getId());
             line.setStockItem(item);
@@ -138,11 +143,13 @@ public class TransferService {
             ).orElseThrow(() -> new RuntimeException("Article introuvable en stock source."));
 
             // Vérification définitive avec lock (RISQUE-06)
-            if (src.getQuantityAvailable() < line.getQuantityRequested())
+            // L'article ayant déjà été réservé lors du submit, on consomme la réservation
+            int reserved = src.getQuantityReserved() != null ? src.getQuantityReserved() : 0;
+            if (reserved < line.getQuantityRequested())
                 throw new InsufficientStockTransferException(
-                    src.getItemCode(), src.getQuantityAvailable(), line.getQuantityRequested());
+                    src.getItemCode(), reserved, line.getQuantityRequested());
 
-            src.setQuantityAvailable(src.getQuantityAvailable() - line.getQuantityRequested());
+            src.setQuantityReserved(reserved - line.getQuantityRequested());
             // CRITIQUE-01 : saveAndFlush() — force la réconciliation @Version avant
             // la ligne suivante, évite ObjectOptimisticLockingFailureException
             // causée par un proxy L1-cache stale chargé en début de transaction.
@@ -262,6 +269,17 @@ public class TransferService {
         if (!user.getOidUser().equals(header.getRequestedBy().getOidUser())
             && user.getRole() != Role.ADMINISTRATEUR)
             throw new SecurityException("Vous n'êtes pas autorisé à annuler ce transfert.");
+
+        // Restitution du stock réservé vers le stock disponible
+        for (TransferLine line : header.getLines()) {
+            StockItem item = stockItemRepo.findById(line.getStockItem().getId())
+                .orElseThrow(() -> new RuntimeException("Article introuvable : " + line.getStockItem().getId()));
+            
+            int reserved = item.getQuantityReserved() != null ? item.getQuantityReserved() : 0;
+            item.setQuantityReserved(Math.max(0, reserved - line.getQuantityRequested()));
+            item.setQuantityAvailable((item.getQuantityAvailable() != null ? item.getQuantityAvailable() : 0) + line.getQuantityRequested());
+            stockItemRepo.save(item);
+        }
 
         header.setStatus(TransferStatus.CANCELLED);
         TransferHeader saved = transferRepo.save(header);
