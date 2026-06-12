@@ -1,16 +1,27 @@
 import { WORKFLOW_STEPS, getStepIndex } from '../utils/constants';
 import type { StatutDA } from '../types';
 
-interface Props { statut: StatutDA; }
+interface Props { statut: StatutDA; isPieceRechange?: boolean; }
 
-export default function WorkflowStepper({ statut }: Props) {
-  const currentIdx = getStepIndex(statut);
+export default function WorkflowStepper({ statut, isPieceRechange }: Props) {
+  const steps = isPieceRechange ? [
+    { statut: 'EN_TRAITEMENT', label: 'Acheteur',  icon: '🛒' },
+    { statut: 'VALIDE_DG',     label: 'Prêt (Bypass)', icon: '⚡' },
+    { statut: 'PO_CREE',       label: 'PO Créé',   icon: '📜' },
+  ] : WORKFLOW_STEPS;
+
+  const getCustomStepIndex = (st: string) => {
+      if (st === 'REJETEE') return -1;
+      return steps.findIndex(s => s.statut === st);
+  };
+
+  const currentIdx = getCustomStepIndex(statut);
   const rejected = statut === 'REJETEE';
 
   return (
     <div className="w-full overflow-x-auto py-2">
       <div className="flex items-center min-w-max gap-0">
-        {WORKFLOW_STEPS.map((step, i) => {
+        {steps.map((step, i) => {
           const done    = !rejected && i < currentIdx;
           const active  = !rejected && i === currentIdx;
           const pending = rejected || i > currentIdx;
@@ -33,7 +44,7 @@ export default function WorkflowStepper({ statut }: Props) {
                 </span>
               </div>
               {/* Connector line */}
-              {i < WORKFLOW_STEPS.length - 1 && (
+              {i < steps.length - 1 && (
                 <div className={`h-0.5 w-8 mx-1 mt-[-10px] rounded-full transition-colors ${done ? 'bg-green-400' : 'bg-gray-200'}`} />
               )}
             </div>

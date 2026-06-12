@@ -41,17 +41,7 @@ public class SubFamily {
     @com.fasterxml.jackson.annotation.JsonProperty("budget_engage")
     private BigDecimal budgetEngage = BigDecimal.ZERO;
 
-    @OneToMany(mappedBy = "subFamily")
-    @JsonIgnore
-    private List<DaDetails> details = new ArrayList<>();
 
-    @OneToMany(mappedBy = "subSource")
-    @JsonIgnore
-    private List<BudgetTransfer> transfersSource = new ArrayList<>();
-
-    @OneToMany(mappedBy = "subCible")
-    @JsonIgnore
-    private List<BudgetTransfer> transfersCible = new ArrayList<>();
 
     public SubFamily() {}
 
@@ -62,31 +52,81 @@ public class SubFamily {
         this.family = family;
     }
 
-    public boolean hasEnoughBudget(BigDecimal amount) {
-        return budgetRestant != null && budgetRestant.compareTo(amount) >= 0;
-    }
-
+    /**
+     * BUG-03 FIX : déduction stricte — élimine le silence quand budgetRestant est null.
+     * Avant : si budgetRestant == null, la déduction était ignorée MAIS budgetEngage était incrémenté.
+     * Invariant gardé : budget_initial = budget_engage + budget_restant.
+     * Garde pré-écriture : exception métier avant soustraction si budget insuffisant.
+     */
     public void deductBudget(BigDecimal amount) {
-        if (this.budgetRestant != null) {
-            this.budgetRestant = this.budgetRestant.subtract(amount);
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                "Montant à déduire invalide pour la sous-famille '" + libelle + "' : " + amount);
         }
-        this.budgetEngage = (this.budgetEngage != null ? this.budgetEngage : BigDecimal.ZERO).add(amount);
+        if (this.budgetRestant == null) {
+            throw new IllegalStateException(
+                "Impossible de déduire sur la sous-famille '" + libelle +
+                "' : budgetRestant non initialisé. Vérifier la configuration du budget.");
+        }
+        if (this.budgetRestant.compareTo(amount) < 0) {
+            throw new IllegalStateException(
+                "Budget insuffisant sur la sous-famille '" + libelle +
+                "' : montant demandé (" + amount +
+                ") > budget_restant (" + this.budgetRestant + ").");
+        }
+        this.budgetRestant = this.budgetRestant.subtract(amount);
+        this.budgetEngage  = (this.budgetEngage != null ? this.budgetEngage : BigDecimal.ZERO).add(amount);
     }
 
+    /**
+     * BUG-03 FIX : restitution stricte — même logique que BUG-02 sur BudgetPieces.
+     * Garde sur-restitution : budget_restant + amount <= budget_initial.
+     */
     public void addBudget(BigDecimal amount) {
-        if (this.budgetRestant != null) {
-            this.budgetRestant = this.budgetRestant.add(amount);
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                "Montant à restituer invalide pour la sous-famille '" + libelle + "' : " + amount);
         }
+        if (this.budgetRestant == null) {
+            throw new IllegalStateException(
+                "Impossible de restituer sur la sous-famille '" + libelle +
+                "' : budgetRestant non initialisé.");
+        }
+        BigDecimal restantApres = this.budgetRestant.add(amount);
+        if (this.budgetInitial != null && restantApres.compareTo(this.budgetInitial) > 0) {
+            throw new IllegalStateException(
+                "Sur-restitution détectée sur la sous-famille '" + libelle +
+                "' : budget_restant après restitution (" + restantApres +
+                ") dépasserait budget_initial (" + budgetInitial + ").");
+        }
+        this.budgetRestant = restantApres;
         if (this.budgetEngage != null && this.budgetEngage.compareTo(amount) >= 0) {
             this.budgetEngage = this.budgetEngage.subtract(amount);
+        } else {
+            this.budgetEngage = BigDecimal.ZERO;
         }
     }
 
+    public boolean hasEnoughBudget(BigDecimal amount) {
+        return amount != null && this.budgetRestant != null && this.budgetRestant.compareTo(amount) >= 0;
+    }
+
+    /**
+     * BUG-03 FIX : borne inférieure ET supérieure vérifiées.
+     */
     @PrePersist
     @PreUpdate
     private void checkBudgetIntegrity() {
         if (budgetRestant != null && budgetRestant.compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalStateException("Intégrité compromise: le budget_restant de la sous-famille " + libelle + " ne peut pas être négatif.");
+            throw new IllegalStateException(
+                "Intégrité compromise: le budget_restant de la sous-famille '" + libelle + "' ne peut pas être négatif.");
+        }
+        if (budgetInitial != null && budgetRestant != null
+                && budgetRestant.compareTo(budgetInitial) > 0) {
+            throw new IllegalStateException(
+                "Intégrité compromise: budget_restant (" + budgetRestant +
+                ") > budget_initial (" + budgetInitial +
+                ") pour la sous-famille '" + libelle + "'. Sur-restitution non bloquée.");
         }
     }
 
@@ -103,9 +143,7 @@ public class SubFamily {
     public BigDecimal getBudgetDisponible() {
         return budgetRestant != null ? budgetRestant : BigDecimal.ZERO;
     }
-    public List<DaDetails> getDetails() { return details; }
-    public List<BudgetTransfer> getTransfersSource() { return transfersSource; }
-    public List<BudgetTransfer> getTransfersCible() { return transfersCible; }
+
 
     // Setters
     public void setOidSub(Integer oidSub) { this.oidSub = oidSub; }
@@ -114,7 +152,5 @@ public class SubFamily {
     public void setBudgetInitial(BigDecimal budgetInitial) { this.budgetInitial = budgetInitial; }
     public void setBudgetRestant(BigDecimal budgetRestant) { this.budgetRestant = budgetRestant; }
     public void setBudgetEngage(BigDecimal budgetEngage) { this.budgetEngage = budgetEngage; }
-    public void setDetails(List<DaDetails> details) { this.details = details; }
-    public void setTransfersSource(List<BudgetTransfer> transfersSource) { this.transfersSource = transfersSource; }
-    public void setTransfersCible(List<BudgetTransfer> transfersCible) { this.transfersCible = transfersCible; }
+
 }

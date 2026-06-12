@@ -58,8 +58,7 @@ public class BudgetPiecesService {
         maxAttempts = 3,
         backoff   = @Backoff(delay = 100, multiplier = 2.0)
     )
-    public BudgetPiecesDto consommerBudgetPieces(BigDecimal montant, Long daId) {
-        String exercice = String.valueOf(Year.now().getValue());
+    public BudgetPiecesDto consommerBudgetPieces(BigDecimal montant, Long daId, String exercice) {
 
         BudgetPieces pool = budgetPiecesRepository.findByExerciceWithLock(exercice)
                 .orElseThrow(() -> new IllegalStateException(
@@ -101,8 +100,7 @@ public class BudgetPiecesService {
         maxAttempts = 3,
         backoff   = @Backoff(delay = 100, multiplier = 2.0)
     )
-    public BudgetPiecesDto restituterBudgetPieces(BigDecimal montant, Long daId) {
-        String exercice = String.valueOf(Year.now().getValue());
+    public BudgetPiecesDto restituterBudgetPieces(BigDecimal montant, Long daId, String exercice) {
 
         BudgetPieces pool = budgetPiecesRepository.findByExerciceWithLock(exercice)
                 .orElseThrow(() -> new IllegalStateException(
@@ -189,14 +187,5 @@ public class BudgetPiecesService {
 
     private static BigDecimal orZero(BigDecimal v) {
         return v != null ? v : BigDecimal.ZERO;
-    }
-
-    /**
-     * Calcule le taux de consommation en pourcentage.
-     */
-    public static BigDecimal calculerTaux(BigDecimal consomme, BigDecimal initial) {
-        if (initial == null || initial.compareTo(BigDecimal.ZERO) == 0) return BigDecimal.ZERO;
-        return consomme.multiply(BigDecimal.valueOf(100))
-                       .divide(initial, 2, RoundingMode.HALF_UP);
     }
 }

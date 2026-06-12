@@ -13,6 +13,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.pfe.gestionsachat.dto.transfer.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 
@@ -41,8 +43,30 @@ public class TransferController {
      * Retourne tous les articles avec quantityAvailable > 0, avec JOIN FETCH warehouse (RISQUE-13).
      */
     @GetMapping("/stock/available")
-    public ResponseEntity<List<StockItem>> getAvailableStock() {
-        return ResponseEntity.ok(stockItemRepository.findAvailableStock());
+    public ResponseEntity<List<com.pfe.gestionsachat.dto.transfer.AvailableStockDto>> getAvailableStock() {
+        List<StockItem> items = stockItemRepository.findAvailableStock();
+        List<com.pfe.gestionsachat.dto.transfer.AvailableStockDto> dtos = items.stream().map(item -> {
+            com.pfe.gestionsachat.dto.transfer.AvailableStockDto dto = new com.pfe.gestionsachat.dto.transfer.AvailableStockDto();
+            dto.setId(item.getId());
+            dto.setItemCode(item.getItemCode());
+            dto.setItemName(item.getItemName());
+            dto.setLocationCode(item.getLocationCode());
+            dto.setQuantityAvailable(item.getQuantityAvailable());
+            
+            // Map for MagasinierStock.tsx
+            dto.setQuantity(item.getQuantityAvailable());
+            dto.setLocationName(item.getWarehouse() != null ? item.getWarehouse().getName() : null);
+            
+            // Map for TransferDashboard.tsx
+            if (item.getWarehouse() != null) {
+                dto.setWarehouse(new com.pfe.gestionsachat.dto.transfer.AvailableStockDto.WarehouseDto(
+                    item.getWarehouse().getId(), 
+                    item.getWarehouse().getName()
+                ));
+            }
+            return dto;
+        }).toList();
+        return ResponseEntity.ok(dtos);
     }
 
     // ── Soumission ────────────────────────────────────────────────────────────
@@ -52,6 +76,7 @@ public class TransferController {
      * Soumet une nouvelle demande de transfert (EMPLOYE).
      */
     @PostMapping
+    @PreAuthorize("hasAnyRole('EMPLOYE', 'MAGASINIER', 'MAGASINIER_DEST', 'ADMINISTRATEUR')")
     public ResponseEntity<TransferHeader> submit(
             @RequestBody TransferHeader header,
             @RequestParam Integer userId) {
@@ -61,6 +86,20 @@ public class TransferController {
         return ResponseEntity.ok(transferService.submitTransfer(header, user));
     }
 
+    /**
+     * POST /api/transfers/bulk?userId={id}
+     * Soumet une demande de transfert multi-sources (MAGASINIER).
+     */
+    @PostMapping("/bulk")
+    @PreAuthorize("hasAnyRole('MAGASINIER', 'MAGASINIER_DEST', 'ADMINISTRATEUR')")
+    public ResponseEntity<List<TransferHeader>> submitBulk(
+            @RequestBody BulkTransferRequest request,
+            @RequestParam Integer userId) {
+        User user = userRepository.findById(userId)
+            .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
+        return ResponseEntity.ok(transferService.submitBulkTransfers(request, user));
+    }
+
     // ── Expédition ────────────────────────────────────────────────────────────
 
     /**
@@ -68,12 +107,14 @@ public class TransferController {
      * Expédie le transfert PENDING → IN_TRANSIT (MAGASINIER source uniquement).
      */
     @PutMapping("/{id}/ship")
+    @PreAuthorize("hasAnyRole('MAGASINIER', 'ADMINISTRATEUR')")
     public ResponseEntity<TransferHeader> ship(
             @PathVariable Long id,
+            @RequestBody TransferShipRequest request,
             @RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
-        return ResponseEntity.ok(transferService.shipTransfer(id, user));
+        return ResponseEntity.ok(transferService.shipTransfer(id, user, request));
     }
 
     // ── Réception ─────────────────────────────────────────────────────────────
@@ -83,12 +124,14 @@ public class TransferController {
      * Valide la réception IN_TRANSIT → RECEIVED (MAGASINIER_DEST uniquement).
      */
     @PutMapping("/{id}/receive")
+    @PreAuthorize("hasAnyRole('MAGASINIER_DEST', 'ADMINISTRATEUR')")
     public ResponseEntity<TransferHeader> receive(
             @PathVariable Long id,
+            @RequestBody TransferReceiveRequest request,
             @RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
-        return ResponseEntity.ok(transferService.receiveTransfer(id, user));
+        return ResponseEntity.ok(transferService.receiveTransfer(id, user, request));
     }
 
     // ── Annulation ────────────────────────────────────────────────────────────
@@ -98,6 +141,7 @@ public class TransferController {
      * Annule le transfert PENDING → CANCELLED (auteur ou ADMINISTRATEUR).
      */
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('EMPLOYE', 'ADMINISTRATEUR')")
     public ResponseEntity<TransferHeader> cancel(
             @PathVariable Long id,
             @RequestParam Integer userId) {
@@ -113,6 +157,7 @@ public class TransferController {
      * Historique des transferts soumis par l'employé (vue DemandeurPage).
      */
     @GetMapping("/my")
+    @PreAuthorize("hasAnyRole('EMPLOYE', 'MAGASINIER', 'MAGASINIER_DEST', 'ADMINISTRATEUR')")
     public ResponseEntity<List<TransferHeader>> getMyTransfers(@RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
@@ -124,6 +169,7 @@ public class TransferController {
      * File PENDING pour le MAGASINIER source (onglet "Transferts à expédier").
      */
     @GetMapping("/source")
+    @PreAuthorize("hasAnyRole('MAGASINIER', 'ADMINISTRATEUR')")
     public ResponseEntity<List<TransferHeader>> getSourceQueue(@RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
@@ -135,6 +181,7 @@ public class TransferController {
      * File IN_TRANSIT pour le MAGASINIER_DEST (vue réception).
      */
     @GetMapping("/dest")
+    @PreAuthorize("hasAnyRole('MAGASINIER_DEST', 'ADMINISTRATEUR')")
     public ResponseEntity<List<TransferHeader>> getDestQueue(@RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
@@ -142,9 +189,20 @@ public class TransferController {
     }
 
     /**
+     * GET /api/transfers/all
+     * Retourne TOUS les transferts pour l'Administrateur globalement (Centre de Documents).
+     */
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMINISTRATEUR')")
+    public ResponseEntity<List<TransferHeader>> getAllTransfers() {
+        return ResponseEntity.ok(transferService.getAllTransfers());
+    }
+
+    /**
      * GET /api/transfers/history/source?userId={id}
      */
     @GetMapping("/history/source")
+    @PreAuthorize("hasAnyRole('MAGASINIER', 'ADMINISTRATEUR')")
     public ResponseEntity<List<TransferHeader>> getSourceHistory(@RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
@@ -155,6 +213,7 @@ public class TransferController {
      * GET /api/transfers/history/dest?userId={id}
      */
     @GetMapping("/history/dest")
+    @PreAuthorize("hasAnyRole('MAGASINIER_DEST', 'ADMINISTRATEUR')")
     public ResponseEntity<List<TransferHeader>> getDestHistory(@RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));

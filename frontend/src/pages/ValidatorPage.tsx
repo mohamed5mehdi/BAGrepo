@@ -69,9 +69,17 @@ export default function ValidatorPage({ role, myStatut, title, icon, color }: Pr
     },
   });
 
+  const displayedMine = user?.role === 'ADMINISTRATEUR' ? mine.filter((d: any) => {
+    if (role === 'AMG') return d.statut === 'VALIDE_ACHETEUR' && !d.isPieceRechange;
+    if (role === 'DAF') return d.statut === 'VALIDE_AMG' || d.statut === 'EN_ATTENTE_AJUSTEMENT_DAF';
+    if (role === 'DG') return d.statut === 'VALIDE_DAF' || d.statut === 'EN_ATTENTE_AJUSTEMENT_DG';
+    if (role === 'MANAGER_N1') return d.statut === 'SOUMISE' && !d.isPieceRechange;
+    return d.statut === myStatut;
+  }) : mine;
+
   const kpis = {
-    mine:    mine.length,
-    total:   mine.length, // Simplified for this view
+    mine:    displayedMine.length,
+    total:   displayedMine.length, // Simplified for this view
   };
 
   return (
@@ -93,7 +101,7 @@ export default function ValidatorPage({ role, myStatut, title, icon, color }: Pr
         </button>
       </div>
 
-      <DaTable rows={mine} onRowClick={setSelectedDa} loading={isLoading} searchQuery={search} showRequester={true} showPrice={role !== 'MANAGER_N1' && role !== 'TECHNICIEN'} />
+      <DaTable rows={displayedMine} onRowClick={setSelectedDa} loading={isLoading} searchQuery={search} showRequester={true} showPrice={role !== 'MANAGER_N1' && role !== 'TECHNICIEN'} />
 
       {selectedDa && (
         <DaModal da={selectedDa} onClose={() => { setSelectedDa(null); setComment(''); setDecision(null); }} title="Décision de Validation" wide showPrice={role !== 'MANAGER_N1' && role !== 'TECHNICIEN'}>

@@ -36,6 +36,7 @@ public interface StockItemRepository extends JpaRepository<StockItem, Long> {
     Optional<StockItem> findByItemCodeAndWarehouseIdWithLock(
             @Param("itemCode") String itemCode,
             @Param("warehouseId") Long warehouseId);
+
     /**
      * RISQUE-13 : JOIN FETCH obligatoire sur warehouse pour éviter LazyInitializationException
      * quand le controller accède à stockItem.warehouse.name hors contexte de transaction.
@@ -43,4 +44,13 @@ public interface StockItemRepository extends JpaRepository<StockItem, Long> {
      */
     @Query("SELECT s FROM StockItem s JOIN FETCH s.warehouse WHERE s.quantityAvailable > 0 ORDER BY s.warehouse.name, s.itemName")
     List<StockItem> findAvailableStock();
+
+    /**
+     * Retourne tous les articles d'un entrepôt donné.
+     * Utilisé dans WarehouseController pour filtrer le stock par entrepôt
+     * et éviter l'exposition de la totalité du stock multi-sites.
+     */
+    @Query("SELECT s FROM StockItem s JOIN FETCH s.warehouse w WHERE w.id = :warehouseId")
+    List<StockItem> findByWarehouseId(@Param("warehouseId") Long warehouseId);
 }
+

@@ -4,7 +4,7 @@ import com.pfe.gestionsachat.dto.CreditNoteRequest;
 import com.pfe.gestionsachat.dto.ItemQuantityRejection;
 import com.pfe.gestionsachat.model.CreditNote;
 import com.pfe.gestionsachat.model.CreditNoteStatus;
-import com.pfe.gestionsachat.model.DaDetails;
+
 import com.pfe.gestionsachat.model.GrnHeader;
 import com.pfe.gestionsachat.model.Family;
 import com.pfe.gestionsachat.model.MovementType;
@@ -39,6 +39,12 @@ public class CreditNoteService {
         GrnHeader grn = grnHeaderRepository.findById(request.getGrnHeaderId())
                 .orElseThrow(() -> new RuntimeException("GRN introuvable : " + request.getGrnHeaderId()));
 
+        // CORRECTIF IDEMPOTENCE : vérification en tête, avant toute opération
+        if (creditNoteRepository.existsByCreditNoteNumber(request.getCreditNoteNumber())) {
+            throw new IllegalStateException(
+                "Note de crédit [" + request.getCreditNoteNumber() + "] existe déjà. Opération refusée (idempotence).");
+        }
+
         CreditNote creditNote = new CreditNote();
         creditNote.setGrnHeader(grn);
         creditNote.setCreditNoteNumber(request.getCreditNoteNumber());
@@ -52,7 +58,24 @@ public class CreditNoteService {
             StockItem stockItem = stockItemRepository.findById(rejection.getStockItemId())
                     .orElseThrow(() -> new RuntimeException("Article en stock introuvable : " + rejection.getStockItemId()));
 
-            stockItem.setQuantityAvailable(stockItem.getQuantityAvailable() - rejection.getQuantity());
+            com.pfe.gestionsachat.model.GrnDetails matchingGrnDetail = grn.getDetails().stream()
+                    .filter(d -> d.getItemCode() != null && d.getItemCode().equals(stockItem.getItemCode()))
+                    .findFirst()
+                    .orElseThrow(() -> new RuntimeException("Article non reçu dans ce GRN."));
+
+            if (rejection.getQuantity() > matchingGrnDetail.getAcceptedQuantity()) {
+                throw new IllegalStateException("Quantité retournée (" + rejection.getQuantity() + 
+                    ") excède la quantité acceptée (" + matchingGrnDetail.getAcceptedQuantity() + ").");
+            }
+
+            // CORRECTIF STOCK NEGATIF : guard avant soustraction
+            int currentQty = stockItem.getQuantityAvailable();
+            if (currentQty < rejection.getQuantity()) {
+                throw new IllegalStateException(
+                    "Stock insuffisant pour l'article [" + stockItem.getItemCode()
+                    + "]. Disponible: " + currentQty + ", Demandé: " + rejection.getQuantity());
+            }
+            stockItem.setQuantityAvailable(currentQty - rejection.getQuantity());
             stockItemRepository.save(stockItem);
 
             // 2. Générer un StockMovement de type SORTIE (OUT_RETURN)
@@ -100,12 +123,8 @@ public class CreditNoteService {
     }
 
     private SubFamily findSubFamilyForItem(GrnHeader grn, String itemCode) {
-        if (grn.getPurchaseOrder() != null && grn.getPurchaseOrder().getDaHeader() != null) {
-            return grn.getPurchaseOrder().getDaHeader().getDetails().stream()
-                    .filter(d -> itemCode != null && itemCode.equals(d.getItemCode()))
-                    .map(DaDetails::getSubFamily)
-                    .findFirst()
-                    .orElse(null);
+        if (grn.getPurchaseOrder() != null && grn.getPurchaseOrder().getDemandeInterne() != null) {
+            return grn.getPurchaseOrder().getDemandeInterne().getBudgetSousFamille();
         }
         return null;
     }

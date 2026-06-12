@@ -3,8 +3,19 @@ package com.pfe.gestionsachat.model;
 import jakarta.persistence.*;
 import java.time.LocalDateTime;
 
+/**
+ * BUG-17 FIX : Entité dépréciée pour cause de duplication fonctionnelle complète avec AuditLog.
+ * 
+ * L'entité canonique pour la traçabilité des modifications et changements d'état
+ * est AuditLog, qui inclut en plus l'adresse IP (ipAddress).
+ * 
+ * @deprecated Utiliser AuditLog exclusivement.
+ *             Migration DDL : transférer les données de status_history vers audit_log
+ *             puis DROP TABLE status_history.
+ */
 @Entity
 @Table(name = "status_history")
+@Deprecated(since = "BUG-17-FIX", forRemoval = true)
 public class StatusHistory {
 
     @Id

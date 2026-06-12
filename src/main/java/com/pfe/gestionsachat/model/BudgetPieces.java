@@ -58,10 +58,19 @@ public class BudgetPieces {
      * Impute un montant sur le pool pièces.
      * budget_engage  += montant
      * budget_restant -= montant
+     *
+     * Garde pré-écriture : lève une exception métier si le budget est insuffisant,
+     * avant toute modification des champs — évite le rollback silencieux via @PreUpdate.
      */
     public void deductBudget(BigDecimal montant) {
         if (montant == null || montant.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Montant à déduire invalide : " + montant);
+        }
+        if (!hasEnoughBudget(montant)) {
+            throw new IllegalStateException(
+                "Budget insuffisant sur le pool Pièces (exercice=" + exercice +
+                ") : montant demandé (" + montant +
+                ") > budget_restant (" + orZero(this.budgetRestant) + ").");
         }
         this.budgetRestant = orZero(this.budgetRestant).subtract(montant);
         this.budgetEngage  = orZero(this.budgetEngage).add(montant);
@@ -71,12 +80,25 @@ public class BudgetPieces {
      * Restitue un montant au pool pièces (annulation / rejet).
      * budget_engage  -= montant
      * budget_restant += montant
+     *
+     * BUG-02 FIX : garde sur-restitution — interdit budget_restant > budget_initial.
+     * Invariant protégé : budget_initial = budget_engage + budget_restant.
+     * Si addBudget() est appelé deux fois pour la même DA (double restitution),
+     * la deuxième levée une IllegalStateException avant toute écriture.
      */
     public void addBudget(BigDecimal montant) {
         if (montant == null || montant.compareTo(BigDecimal.ZERO) <= 0) {
             throw new IllegalArgumentException("Montant à restituer invalide : " + montant);
         }
-        this.budgetRestant = orZero(this.budgetRestant).add(montant);
+        BigDecimal restantApres = orZero(this.budgetRestant).add(montant);
+        if (this.budgetInitial != null && restantApres.compareTo(this.budgetInitial) > 0) {
+            throw new IllegalStateException(
+                "Sur-restitution détectée sur le pool Pièces (exercice=" + exercice +
+                ") : budget_restant après restitution (" + restantApres +
+                ") dépasserait budget_initial (" + budgetInitial + "). " +
+                "Double restitution probable — vérifier le flag budgetRestitue.");
+        }
+        this.budgetRestant = restantApres;
         BigDecimal engage  = orZero(this.budgetEngage);
         this.budgetEngage  = engage.compareTo(montant) >= 0
             ? engage.subtract(montant)
@@ -91,12 +113,25 @@ public class BudgetPieces {
             && orZero(this.budgetRestant).compareTo(montant) >= 0;
     }
 
+    /**
+     * BUG-02 FIX : vérification renfroce des deux bornes de l'invariant.
+     * Borne inférieure : budget_restant >= 0 (déjà présent).
+     * Borne supérieure : budget_restant <= budget_initial (ajoutée).
+     * Les deux violations sont des corruptions comptables.
+     */
     @PrePersist
     @PreUpdate
     private void checkIntegrite() {
         if (budgetRestant != null && budgetRestant.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalStateException(
                 "Intégrité rompue : le budget_restant du pool Pièces (exercice=" + exercice + ") est négatif.");
+        }
+        if (budgetInitial != null && budgetRestant != null
+                && budgetRestant.compareTo(budgetInitial) > 0) {
+            throw new IllegalStateException(
+                "Intégrité rompue : budget_restant (" + budgetRestant +
+                ") > budget_initial (" + budgetInitial +
+                ") sur le pool Pièces (exercice=" + exercice + "). Sur-restitution non bloquée.");
         }
     }
 

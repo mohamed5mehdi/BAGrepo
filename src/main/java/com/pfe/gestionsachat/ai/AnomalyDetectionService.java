@@ -69,7 +69,7 @@ public class AnomalyDetectionService {
         }
 
         @SuppressWarnings("unchecked")
-        List<Object[]> rows = em.createQuery(
+        List<Object[]> rowsDAI = em.createQuery(
             "SELECT " +
             "       CASE WHEN d.budgetFamille IS NOT NULL THEN d.budgetFamille.idFamily ELSE 0 END, " +
             "       CASE WHEN d.budgetSousFamille IS NOT NULL THEN d.budgetSousFamille.oidSub ELSE 0 END, " +
@@ -78,8 +78,22 @@ public class AnomalyDetectionService {
             "WHERE d.montantEstime IS NOT NULL AND d.budgetFamille IS NOT NULL"
         ).getResultList();
 
+        @SuppressWarnings("unchecked")
+        List<Object[]> rowsDAH = em.createQuery(
+            "SELECT " +
+            "       CASE WHEN det.subFamily.family IS NOT NULL THEN det.subFamily.family.idFamily ELSE 0 END, " +
+            "       CASE WHEN det.subFamily IS NOT NULL THEN det.subFamily.oidSub ELSE 0 END, " +
+            "       (det.prixUnitaire * det.quantite) " +
+            "FROM DaHeader d JOIN d.details det " +
+            "WHERE det.prixUnitaire IS NOT NULL AND det.quantite IS NOT NULL AND det.subFamily.family IS NOT NULL"
+        ).getResultList();
+
         Map<String, List<BigDecimal>> groupes = new HashMap<>();
-        for (Object[] row : rows) {
+        for (Object[] row : rowsDAI) {
+            String key = row[0] + "_" + row[1];
+            groupes.computeIfAbsent(key, k -> new ArrayList<>()).add((BigDecimal) row[2]);
+        }
+        for (Object[] row : rowsDAH) {
             String key = row[0] + "_" + row[1];
             groupes.computeIfAbsent(key, k -> new ArrayList<>()).add((BigDecimal) row[2]);
         }
@@ -118,21 +132,30 @@ public class AnomalyDetectionService {
 
         List<AnomalyResult> anomalies = new ArrayList<>();
         
-        String queryStr = targetDaId != null 
-            ? "SELECT d.id, d.designation, d.departement, f.idFamily, f.libelle, sf.oidSub, sf.libelle, d.montantEstime " +
+        String queryStrDAI = targetDaId != null 
+            ? "SELECT d.id, d.designation, d.departement, f.idFamily, f.libelle, sf.oidSub, sf.libelle, d.montantEstime, 'INTERNE' " +
               "FROM DemandeAchatInterne d LEFT JOIN d.budgetFamille f LEFT JOIN d.budgetSousFamille sf " +
               "WHERE d.id = :daId AND d.montantEstime IS NOT NULL"
-            : "SELECT d.id, d.designation, d.departement, f.idFamily, f.libelle, sf.oidSub, sf.libelle, d.montantEstime " +
+            : "SELECT d.id, d.designation, d.departement, f.idFamily, f.libelle, sf.oidSub, sf.libelle, d.montantEstime, 'INTERNE' " +
               "FROM DemandeAchatInterne d LEFT JOIN d.budgetFamille f LEFT JOIN d.budgetSousFamille sf " +
               "WHERE d.montantEstime IS NOT NULL";
-            
-        var query = em.createQuery(queryStr, Object[].class);
-        if (targetDaId != null) query.setParameter("daId", targetDaId);
+              
+        var queryDAI = em.createQuery(queryStrDAI, Object[].class);
+        if (targetDaId != null) queryDAI.setParameter("daId", targetDaId);
         
-        List<Object[]> dasAAnalyser = query.getResultList();
+        List<Object[]> dasAAnalyser = new ArrayList<>(queryDAI.getResultList());
+
+        if (targetDaId == null) {
+            String queryStrDAH = "SELECT d.oidDa, d.objet, d.demandeur.service, f.idFamily, f.libelle, sf.oidSub, sf.libelle, SUM(det.prixUnitaire * det.quantite), 'CLASSIQUE' " +
+                "FROM DaHeader d JOIN d.details det LEFT JOIN det.subFamily sf LEFT JOIN sf.family f " +
+                "WHERE det.prixUnitaire IS NOT NULL AND det.quantite IS NOT NULL " +
+                "GROUP BY d.oidDa, d.objet, d.demandeur.service, f.idFamily, f.libelle, sf.oidSub, sf.libelle";
+            var queryDAH = em.createQuery(queryStrDAH, Object[].class);
+            dasAAnalyser.addAll(queryDAH.getResultList());
+        }
 
         for (Object[] row : dasAAnalyser) {
-            Long daId = (Long) row[0];
+            Long daId = row[0] instanceof Integer ? ((Integer) row[0]).longValue() : (Long) row[0];
             String designation = (String) row[1];
             String departement = (String) row[2];
             Integer fid = row[3] != null ? (Integer) row[3] : 0;
@@ -140,6 +163,7 @@ public class AnomalyDetectionService {
             Integer sfid = row[5] != null ? (Integer) row[5] : 0;
             String sfLibelle = row[6] != null ? (String) row[6] : "N/A";
             BigDecimal montantEstime = (BigDecimal) row[7];
+            String typeDA = (String) row[8];
 
             String key = fid + "_" + sfid;
             double[] stat = this.statsCache.get(key);
@@ -167,8 +191,8 @@ public class AnomalyDetectionService {
             double ratio = median > 0 ? montant / median : 1;
             String dir   = z > 0 ? "supérieur" : "inférieur";
             String raison = String.format(
-                "Montant %.0f MAD %s de %.1fx à la normale (%.0f MAD) pour '%s'",
-                montant, dir, ratio, median, fLibelle
+                "[%s] Montant %.0f MAD %s de %.1fx à la normale (%.0f MAD) pour '%s'",
+                typeDA, montant, dir, ratio, median, fLibelle
             );
 
             anomalies.add(new AnomalyResult(

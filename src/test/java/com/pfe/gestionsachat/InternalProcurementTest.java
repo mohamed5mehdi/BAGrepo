@@ -53,8 +53,8 @@ public class InternalProcurementTest {
         demandeService.valoriserDemande(soumise.getId(), BigDecimal.valueOf(500), supplier.getOidSupplier());
         DemandeAchatInterne traitee = demandeService.traiterAchat(soumise.getId(), acheteur);
         
-        // VERIFICATION CRITIQUE : Statut VALIDE_DG directement (Bypass N1/DG)
-        assertEquals(StatutDemande.VALIDE_DG, traitee.getStatut());
+        // VERIFICATION CRITIQUE : Statut APPROUVEE directement (Bypass N1/DG)
+        assertEquals(StatutDemande.APPROUVEE, traitee.getStatut());
     }
 
     @Test

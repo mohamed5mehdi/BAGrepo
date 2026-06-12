@@ -5,7 +5,6 @@ import com.lowagie.text.pdf.PdfPCell;
 import com.lowagie.text.pdf.PdfPTable;
 import com.lowagie.text.pdf.PdfWriter;
 import com.pfe.gestionsachat.model.PurchaseOrder;
-import com.pfe.gestionsachat.model.DaDetails;
 import org.springframework.stereotype.Service;
 
 import java.awt.Color;
@@ -37,14 +36,11 @@ public class PdfExportService {
             document.add(new Paragraph("Date: " + po.getDateCreation().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")), fontValue));
             document.add(new Paragraph("Statut: " + po.getStatut(), fontValue));
             
-            if (po.getDaHeader() != null) {
-                document.add(new Paragraph("N° Demande: " + po.getDaHeader().getOidDa(), fontValue));
-                // On cherche le fournisseur dans le premier détail
-                if (!po.getDaHeader().getDetails().isEmpty()) {
-                    com.pfe.gestionsachat.model.Supplier supplier = po.getDaHeader().getDetails().get(0).getFournisseur();
-                    if (supplier != null) {
-                        document.add(new Paragraph("Fournisseur: " + supplier.getNom(), fontLabel));
-                    }
+            if (po.getDemandeInterne() != null) {
+                document.add(new Paragraph("N° Demande Interne: " + po.getDemandeInterne().getId(), fontValue));
+                com.pfe.gestionsachat.model.Supplier supplier = po.getFournisseur();
+                if (supplier != null) {
+                    document.add(new Paragraph("Fournisseur: " + supplier.getNom(), fontLabel));
                 }
             }
             document.add(new Paragraph(" ")); // Spacer
@@ -94,16 +90,20 @@ public class PdfExportService {
     }
 
     private void writeTableData(PdfPTable table, PurchaseOrder po) {
-        if (po.getDaHeader() == null || po.getDaHeader().getDetails() == null) return;
+        if (po.getDemandeInterne() == null) return;
 
         Font font = FontFactory.getFont(FontFactory.HELVETICA, 11);
 
-        for (DaDetails detail : po.getDaHeader().getDetails()) {
-            table.addCell(new Phrase(detail.getItemName() != null ? detail.getItemName() : detail.getDescription(), font));
-            table.addCell(new Phrase(String.valueOf(detail.getQuantite()), font));
-            table.addCell(new Phrase(detail.getPrixUnitaire() != null ? detail.getPrixUnitaire().toString() : "0", font));
-            table.addCell(new Phrase(detail.getTotalPrice() != null ? detail.getTotalPrice().toString() : "0", font));
-        }
+        com.pfe.gestionsachat.model.DemandeAchatInterne detail = po.getDemandeInterne();
+        
+        table.addCell(new Phrase(detail.getDesignation() != null ? detail.getDesignation() : detail.getItemCode(), font));
+        table.addCell(new Phrase(String.valueOf(detail.getQuantite()), font));
+        table.addCell(new Phrase(detail.getPrixUnitaire() != null ? detail.getPrixUnitaire().toString() : "0", font));
+        
+        java.math.BigDecimal totalPrice = (detail.getPrixUnitaire() != null && detail.getQuantite() != null) ? 
+            detail.getPrixUnitaire().multiply(java.math.BigDecimal.valueOf(detail.getQuantite())) : java.math.BigDecimal.ZERO;
+        
+        table.addCell(new Phrase(totalPrice.toString(), font));
     }
 
     public byte[] generateGrnPdf(com.pfe.gestionsachat.model.GrnHeader grn) {

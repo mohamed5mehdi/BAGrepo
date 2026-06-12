@@ -23,7 +23,7 @@ public class DemandeAjustementController {
     @PostMapping("/famille/soumettre")
     public ResponseEntity<?> soumettreFamille(@RequestBody Map<String, Object> payload) {
         try {
-            Integer daId = java.util.Objects.requireNonNull((Integer) payload.get("daId"), "daId est requis");
+            Long daId = Long.valueOf(payload.get("daId").toString());
             Integer familleCibleId = java.util.Objects.requireNonNull((Integer) payload.get("familleCibleId"), "familleCibleId est requis");
             BigDecimal montantDemande = new BigDecimal(java.util.Objects.requireNonNull(payload.get("montantDemande"), "montantDemande est requis").toString());
             String justification = (String) payload.get("justification");
@@ -53,7 +53,7 @@ public class DemandeAjustementController {
     @PostMapping("/sous-famille/soumettre")
     public ResponseEntity<?> soumettreSousFamille(@RequestBody Map<String, Object> payload) {
         try {
-            Integer daId = java.util.Objects.requireNonNull((Integer) payload.get("daId"), "daId est requis");
+            Long daId = Long.valueOf(payload.get("daId").toString());
             Integer sourceSousFamilleId = java.util.Objects.requireNonNull((Integer) payload.get("sourceSousFamilleId"), "sourceSousFamilleId est requis");
             Integer cibleSousFamilleId = java.util.Objects.requireNonNull((Integer) payload.get("cibleSousFamilleId"), "cibleSousFamilleId est requis");
             BigDecimal montantDemande = new BigDecimal(java.util.Objects.requireNonNull(payload.get("montantDemande"), "montantDemande est requis").toString());

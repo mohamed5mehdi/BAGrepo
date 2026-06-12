@@ -30,6 +30,7 @@ export default function MagasinierDestPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
   const [selectedTransfer, setSelectedTransfer] = useState<TransferHeader | null>(null);
+  const [receiveQuantities, setReceiveQuantities] = useState<Record<number, number>>({});
   const [activeTab, setActiveTab] = useState<'transfers' | 'history'>('transfers');
 
   const userId = user?.userId;
@@ -79,11 +80,13 @@ export default function MagasinierDestPage() {
   };
 
   const receiveMutation = useMutation({
-    mutationFn: (headerId: number) => receiveTransfer(headerId, userId),
+    mutationFn: (payload: { headerId: number; reqBody: any }) =>
+      receiveTransfer(payload.headerId, userId, payload.reqBody),
     onSuccess: () => {
       toast.success('✅ Réception validée — LTI généré !');
       qc.invalidateQueries({ queryKey: ['transfers', 'dest'] });
       setSelectedTransfer(null);
+      setReceiveQuantities({});
     },
     onError: (err: any) => {
       const msg = err.response?.data?.message || 'Erreur lors de la validation';
@@ -172,7 +175,14 @@ export default function MagasinierDestPage() {
                 </td>
                 <td className="px-6 py-4 text-right">
                   <button
-                    onClick={() => setSelectedTransfer(t)}
+                    onClick={() => {
+                      const initialQties: Record<number, number> = {};
+                      t.lines?.forEach((l: TransferLine) => {
+                        initialQties[l.id] = (l as any).quantityShipped || l.quantityRequested;
+                      });
+                      setReceiveQuantities(initialQties);
+                      setSelectedTransfer(t);
+                    }}
                     className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-100"
                   >
                     ✅ Réceptionner (LTI)
@@ -272,35 +282,67 @@ export default function MagasinierDestPage() {
                 </div>
               </div>
 
-              {/* Lignes */}
+              {/* Lignes avec saisie quantités reçues */}
               <div className="border border-slate-100 dark:border-slate-800 rounded-2xl overflow-hidden">
                 <table className="w-full text-sm">
                   <thead className="bg-slate-50 dark:bg-slate-800 text-slate-500 font-bold text-[10px] uppercase">
                     <tr>
                       <th className="px-6 py-4 text-left">Code Article</th>
                       <th className="px-6 py-4 text-left">Désignation</th>
-                      <th className="px-6 py-4 text-center">Qté Transférée</th>
+                      <th className="px-6 py-4 text-center">Expédié</th>
+                      <th className="px-6 py-4 text-center">Reçu réel</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50 dark:divide-slate-800">
-                    {selectedTransfer.lines.map(line => (
-                      <tr key={line.id}>
-                        <td className="px-6 py-3 font-mono font-bold text-indigo-600">
-                          {line.stockItem?.itemCode}
-                        </td>
-                        <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-200">
-                          {line.stockItem?.itemName}
-                        </td>
-                        <td className="px-6 py-3 text-center">
-                          <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-xs font-black">
-                            +{line.quantityRequested}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
+                    {selectedTransfer.lines.map(line => {
+                      const expected = (line as any).quantityShipped || line.quantityRequested;
+                      const current = receiveQuantities[line.id] ?? expected;
+                      const isLoss = current < expected;
+                      return (
+                        <tr key={line.id}>
+                          <td className="px-6 py-3 font-mono font-bold text-indigo-600">
+                            {line.stockItem?.itemCode}
+                          </td>
+                          <td className="px-6 py-3 font-medium text-slate-700 dark:text-slate-200">
+                            {line.stockItem?.itemName}
+                          </td>
+                          <td className="px-6 py-3 text-center">
+                            <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-lg text-xs font-black">
+                              {expected}
+                            </span>
+                          </td>
+                          <td className="px-6 py-3">
+                            <input
+                              type="number" min="0" max={expected}
+                              value={current}
+                              onChange={e => {
+                                const val = parseInt(e.target.value) || 0;
+                                setReceiveQuantities(prev => ({...prev, [line.id]: Math.max(0, Math.min(val, expected))}));
+                              }}
+                              className={`w-full text-center py-1 rounded border focus:ring-2 outline-none font-black ${
+                                isLoss
+                                  ? 'border-rose-400 text-rose-600 focus:ring-rose-500'
+                                  : 'border-emerald-300 text-emerald-700 focus:ring-emerald-500'
+                              } dark:bg-slate-800`}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>
+
+              {Object.entries(receiveQuantities).some(([id, qty]) => {
+                const line = selectedTransfer.lines?.find((l: any) => l.id.toString() === id);
+                const expected = (line as any)?.quantityShipped || line?.quantityRequested;
+                return line && qty < expected;
+              }) && (
+                <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 flex gap-2">
+                  <span>⚠️</span>
+                  <p>Une quantité inférieure a été saisie. Cela sera enregistré comme <strong>perte en transit</strong>.</p>
+                </div>
+              )}
 
               <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl border border-emerald-100 dark:border-emerald-800/50">
                 <p className="text-sm text-emerald-800 dark:text-emerald-200 font-semibold">
@@ -319,7 +361,15 @@ export default function MagasinierDestPage() {
                 Fermer
               </button>
               <button
-                onClick={() => receiveMutation.mutate(selectedTransfer.id)}
+                onClick={() => receiveMutation.mutate({
+                  headerId: selectedTransfer.id,
+                  reqBody: {
+                    lines: selectedTransfer.lines.map((l: any) => ({
+                      lineId: l.id,
+                      quantity: receiveQuantities[l.id] ?? ((l.quantityShipped || l.quantityRequested))
+                    }))
+                  }
+                })}
                 disabled={receiveMutation.isPending}
                 className="px-12 py-3 rounded-2xl bg-emerald-600 text-white font-black text-sm shadow-xl shadow-emerald-100 hover:bg-emerald-700 transition-all disabled:opacity-50"
               >

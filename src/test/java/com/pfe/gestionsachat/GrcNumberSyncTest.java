@@ -23,6 +23,7 @@ public class GrcNumberSyncTest {
     @Autowired private PurchaseOrderRepository poRepository;
     @Autowired private DemandeAchatInterneRepository demandeInterneRepository;
     @Autowired private GrnHeaderRepository grnRepository;
+    @Autowired private com.pfe.gestionsachat.repository.SupplierRepository supplierRepository;
 
     private GrnHeader grn;
 
@@ -32,13 +33,19 @@ public class GrcNumberSyncTest {
         demandeInterne.setQuantite(10);
         demandeInterne = demandeInterneRepository.save(demandeInterne);
 
+        Supplier supplier = new Supplier();
+        supplier.setNom("Test Supplier Sync");
+        supplier = supplierRepository.save(supplier);
+
         PurchaseOrder po = new PurchaseOrder();
         po.setDemandeInterne(demandeInterne);
         po.setStatut(POStatus.APPROVED);
+        po.setFournisseur(supplier);
         po = poRepository.save(po);
 
         GrnHeader newGrn = new GrnHeader();
         newGrn.setPurchaseOrder(po);
+        newGrn.setSupplier(supplier);
         
         GrnDetails grnDetail = new GrnDetails();
         grnDetail.setItemCode("TEST-SYNC");

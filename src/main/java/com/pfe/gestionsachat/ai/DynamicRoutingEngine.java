@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 public class DynamicRoutingEngine {
 
     @Autowired private DemandeAchatInterneRepository daRepo;
+
     @Autowired private FamilyRepository familyRepo;
     @Autowired private AnomalyDetectionService anomalyService;
 
@@ -66,6 +67,7 @@ public class DynamicRoutingEngine {
             
         return scorerDA(da, singleAnomaly);
     }
+
 
     /**
      * Calcule le routage pour toutes les DAs en attente.
@@ -208,5 +210,5 @@ public class DynamicRoutingEngine {
             badgeLabel,
             badgeColor
         );
-    }
+}
 }

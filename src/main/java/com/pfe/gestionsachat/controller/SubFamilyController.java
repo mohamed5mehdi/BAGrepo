@@ -6,6 +6,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.List;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping({"/api/sub-families", "/api/sub-family", "/api/subcategories", "/api/subcategory", "/api/sous-familles"})
@@ -15,13 +16,8 @@ public class SubFamilyController {
     @Autowired
     private SubFamilyService subFamilyService;
 
-    @GetMapping("/test-debug/**")
-    public ResponseEntity<String> debugRequest(jakarta.servlet.http.HttpServletRequest request) {
-        System.out.println("DEBUG: Catch-all hit! URL = " + request.getRequestURL());
-        return ResponseEntity.ok("Catch-all hit!");
-    }
-
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
     public ResponseEntity<SubFamily> createSubFamily(@RequestBody @org.springframework.lang.NonNull SubFamily subFamily) {
         return ResponseEntity.ok(subFamilyService.createSubFamily(subFamily));
     }
@@ -73,11 +69,13 @@ public class SubFamilyController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
     public ResponseEntity<SubFamily> updateSubFamily(@PathVariable @org.springframework.lang.NonNull Integer id, @RequestBody @org.springframework.lang.NonNull SubFamily subFamilyDetails) {
         return ResponseEntity.ok(subFamilyService.updateSubFamily(id, subFamilyDetails));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
     public ResponseEntity<Void> deleteSubFamily(@PathVariable @org.springframework.lang.NonNull Integer id) {
         subFamilyService.deleteSubFamily(id);
         return ResponseEntity.ok().build();

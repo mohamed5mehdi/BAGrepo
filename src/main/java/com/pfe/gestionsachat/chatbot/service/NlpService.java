@@ -244,7 +244,7 @@ public class NlpService {
         if (message == null || message.isBlank())
             return null;
         String lower = message.toLowerCase();
-        String[] words = lower.split("[\\s,;.!?]+");
+        String[] words = lower.split("[\\s,;.!?()]+");
 
         // Un seul appel DB pour les deux niveaux
         List<Family> allFamilies = familyRepository.findAll();

@@ -45,10 +45,10 @@ public class BudgetController {
 
     /**
      * Tableau de bord budgétaire global (familles + sous-familles).
-     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
     @GetMapping("/suivi")
-    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
     public ResponseEntity<List<BudgetFamilleDto>> getSuiviBudgetaire() {
         log.info("GET /api/budget/suivi");
         return ResponseEntity.ok(budgetSuiviService.getSuiviBudgetaire());
@@ -60,13 +60,13 @@ public class BudgetController {
 
     /**
      * Imputation d'une DA validée sur une sous-famille (achats généraux uniquement).
-     * Rôles autorisés : FINANCIER, ADMIN
+     * Rôles autorisés : COMPTABLE, ADMINISTRATEUR
      */
     @PostMapping("/consommer")
-    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN')")
+    @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR')")
     public ResponseEntity<?> consommerBudget(@Valid @RequestBody ConsommerBudgetRequest request) {
         log.info("POST /api/budget/consommer – DA={} SF={} montant={}",
-                request.getDaId(), request.getSousFamilleId(), request.getMontant());
+                request.getDemandeInterneId(), request.getSousFamilleId(), request.getMontant());
         try {
             ConsommerBudgetResponse response = budgetSuiviService.consommerBudget(request);
             return ResponseEntity.ok(response);
@@ -109,10 +109,10 @@ public class BudgetController {
 
     /**
      * Détail d'une famille budgétaire avec toutes ses sous-familles.
-     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG, ACHETEUR
+     * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG, ACHETEUR
      */
     @GetMapping("/famille/{id}")
-    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG','ACHETEUR')")
+    @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG','ACHETEUR')")
     public ResponseEntity<?> getFamilleDetail(@PathVariable Integer id) {
         log.info("GET /api/budget/famille/{}", id);
         try {
@@ -129,10 +129,10 @@ public class BudgetController {
 
     /**
      * Liste toutes les familles et sous-familles dont le taux de consommation dépasse 80%.
-     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
     @GetMapping("/alertes")
-    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
     public ResponseEntity<List<AlerteBudgetaireDto>> getAlertes() {
         log.info("GET /api/budget/alertes");
         return ResponseEntity.ok(budgetSuiviService.getAlertes());
@@ -146,10 +146,10 @@ public class BudgetController {
      * État du pool budgétaire global dédié aux pièces de rechange (exercice courant).
      * Pool totalement étanche du circuit Famille/Sous-Famille.
      *
-     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
     @GetMapping("/pieces")
-    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
     public ResponseEntity<?> getBudgetPieces() {
         log.info("GET /api/budget/pieces");
         try {
@@ -162,10 +162,10 @@ public class BudgetController {
 
     /**
      * État du pool budgétaire pièces pour un exercice donné.
-     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
     @GetMapping("/pieces/{exercice}")
-    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
     public ResponseEntity<?> getBudgetPiecesParExercice(@PathVariable String exercice) {
         log.info("GET /api/budget/pieces/{}", exercice);
         try {
@@ -189,10 +189,10 @@ public class BudgetController {
      * niveau = "SOUS_ALLOUE" → Σ SF < Family (budget non entièrement distribué)
      * niveau = "SUR_ALLOUE"  → Σ SF > Family (les SF dépassent l'enveloppe — CRITIQUE)
      *
-     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
     @GetMapping("/allocation/verification")
-    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
     public ResponseEntity<List<AlerteAllocationDto>> verifierAllocationGlobale() {
         log.info("GET /api/budget/allocation/verification");
         return ResponseEntity.ok(budgetSuiviService.verifierAllocationGlobale());
@@ -200,10 +200,10 @@ public class BudgetController {
 
     /**
      * Vérifie l'invariant Σ SF.budgetInitial = Family.budgetInitial pour une famille donnée.
-     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
     @GetMapping("/allocation/verification/{familleId}")
-    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
     public ResponseEntity<?> verifierAllocationFamille(@PathVariable Integer familleId) {
         log.info("GET /api/budget/allocation/verification/{}", familleId);
         try {
@@ -221,10 +221,10 @@ public class BudgetController {
     /**
      * Audit complet et non bloquant de l'équation budgétaire sur toutes les entités.
      * Vérifie que initial = engage + restant pour toutes les familles et sous-familles.
-     * Rôles autorisés : FINANCIER, ADMIN, DAF, DG
+     * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
     @GetMapping("/audit")
-    @PreAuthorize("hasAnyRole('FINANCIER','ADMIN','DAF','DG')")
+    @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
     public ResponseEntity<List<com.pfe.gestionsachat.model.AuditLog>> auditGlobalEquations() {
         log.info("GET /api/budget/audit");
         return ResponseEntity.ok(budgetSuiviService.auditGlobalEquations());

@@ -42,7 +42,7 @@ export default function ComptablePage() {
       mainAccount: '',
       subAccount: '',
       // Détection catégorie via itemCode ou meta-data PO (Simplification : on regarde si c'est ADMIN dans le code)
-      category: (grn.purchaseOrder?.daHeader?.categorie || grn.purchaseOrder?.demandeInterne?.categorie || 'AUTRE')
+      category: (grn.purchaseOrder?.demandeInterne?.categorie || 'AUTRE'),
     })) || []);
   };
 

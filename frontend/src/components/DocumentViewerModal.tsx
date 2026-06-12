@@ -2,7 +2,7 @@ import React from 'react';
 import { formatCurrency } from '../utils/formatters';
 
 interface DocumentViewerModalProps {
-  documentType: 'PO' | 'GRN' | 'GRC' | 'INVOICE';
+  documentType: 'PO' | 'GRN' | 'GRC' | 'INVOICE' | 'LTO' | 'LTI' | 'DEVIS';
   data: any;
   onClose: () => void;
   onDownload: () => void;
@@ -38,10 +38,10 @@ export default function DocumentViewerModal({ documentType, data, onClose, onDow
         </div>
       </div>
       
-      {data.daHeader && (
+      {data.demandeInterne && (
          <div className="p-4 border border-indigo-100 bg-indigo-50/50 rounded-xl">
              <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Lié à la Demande d'Achat</p>
-             <p className="font-bold text-indigo-900">{data.daHeader.objet || data.daHeader.designation || 'Demande Interne'}</p>
+             <p className="font-bold text-indigo-900">{data.demandeInterne.objet || data.demandeInterne.designation || 'Demande Interne'}</p>
          </div>
       )}
     </div>
@@ -162,36 +162,212 @@ export default function DocumentViewerModal({ documentType, data, onClose, onDow
           <p className="text-xl font-black text-rose-600">{formatCurrency(data.totalAmount || 0)}</p>
         </div>
       </div>
+      {data.status && (
+         <div className="mt-4 p-4 border border-rose-100 bg-rose-50/50 rounded-xl">
+             <p className="text-[10px] font-black text-rose-400 uppercase tracking-widest mb-1">État d'approbation</p>
+             <p className="font-bold text-rose-900">{data.status}</p>
+         </div>
+      )}
+    </div>
+  );
+
+  const renderLTO = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+        <div>
+          <h3 className="text-xl font-black text-slate-800">Bon de Sortie (LTO)</h3>
+          <p className="text-sm font-bold text-slate-500">{data.ltoNumber || `LTO-${data.id}`}</p>
+        </div>
+        <div className="text-right">
+          <span className="px-3 py-1 bg-amber-100 text-amber-700 font-bold text-xs rounded-lg uppercase">
+            {data.status}
+          </span>
+          <p className="text-xs text-slate-400 mt-2">Expédié le : {data.shippedAt?.substring(0, 10) || '-'}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl">
+        <div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Source</p>
+          <p className="font-bold text-slate-800">{data.warehouseSource?.name || 'N/A'}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Destination</p>
+          <p className="font-bold text-slate-800">{data.warehouseDest?.name || 'N/A'}</p>
+        </div>
+      </div>
+      
+      {data.lines && data.lines.length > 0 && (
+         <div className="mt-4">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Lignes de Transfert</h4>
+            <div className="overflow-x-auto rounded-xl border border-slate-100">
+               <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500 text-xs">
+                     <tr>
+                        <th className="p-3">Article</th>
+                        <th className="p-3 text-right">Qté Demandée</th>
+                        <th className="p-3 text-right">Qté Expédiée</th>
+                     </tr>
+                  </thead>
+                  <tbody>
+                     {data.lines.map((d: any, i: number) => (
+                        <tr key={i} className="border-t border-slate-50">
+                           <td className="p-3 font-medium text-slate-700">{d.stockItem?.itemName || d.stockItem?.itemCode}</td>
+                           <td className="p-3 text-right text-slate-500">{d.quantityRequested || '-'}</td>
+                           <td className="p-3 text-right font-bold text-amber-600">{d.quantityShipped || '-'}</td>
+                        </tr>
+                     ))}
+                  </tbody>
+               </table>
+            </div>
+         </div>
+      )}
+    </div>
+  );
+
+  const renderLTI = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+        <div>
+          <h3 className="text-xl font-black text-slate-800">Bon d'Entrée (LTI)</h3>
+          <p className="text-sm font-bold text-slate-500">{data.ltiNumber || `LTI-${data.id}`}</p>
+        </div>
+        <div className="text-right">
+          <span className="px-3 py-1 bg-teal-100 text-teal-700 font-bold text-xs rounded-lg uppercase">
+            {data.status}
+          </span>
+          <p className="text-xs text-slate-400 mt-2">Reçu le : {data.receivedAt?.substring(0, 10) || '-'}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl">
+        <div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Source (Expéditeur)</p>
+          <p className="font-bold text-slate-800">{data.warehouseSource?.name || 'N/A'}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Destination (Récepteur)</p>
+          <p className="font-bold text-slate-800">{data.warehouseDest?.name || 'N/A'}</p>
+        </div>
+      </div>
+      
+      {data.lines && data.lines.length > 0 && (
+         <div className="mt-4">
+            <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-3">Lignes de Transfert</h4>
+            <div className="overflow-x-auto rounded-xl border border-slate-100">
+               <table className="w-full text-left text-sm">
+                  <thead className="bg-slate-50 text-slate-500 text-xs">
+                     <tr>
+                        <th className="p-3">Article</th>
+                        <th className="p-3 text-right">Qté Expédiée</th>
+                        <th className="p-3 text-right">Qté Reçue</th>
+                     </tr>
+                  </thead>
+                  <tbody>
+                     {data.lines.map((d: any, i: number) => (
+                        <tr key={i} className="border-t border-slate-50">
+                           <td className="p-3 font-medium text-slate-700">{d.stockItem?.itemName || d.stockItem?.itemCode}</td>
+                           <td className="p-3 text-right text-slate-500">{d.quantityShipped || '-'}</td>
+                           <td className="p-3 text-right font-bold text-teal-600">{d.quantityReceived || '-'}</td>
+                        </tr>
+                     ))}
+                  </tbody>
+               </table>
+            </div>
+         </div>
+      )}
+    </div>
+  );
+
+  const renderDEVIS = () => (
+    <div className="space-y-6">
+      <div className="flex justify-between items-start border-b border-slate-100 pb-4">
+        <div>
+          <h3 className="text-xl font-black text-slate-800">Devis / Offre</h3>
+          <p className="text-sm font-bold text-slate-500">Offre #{data.id}</p>
+        </div>
+        <div className="text-right">
+          <span className="px-3 py-1 bg-blue-100 text-blue-700 font-bold text-xs rounded-lg uppercase">
+            REÇU
+          </span>
+          <p className="text-xs text-slate-400 mt-2">Le : {data.dateOffre?.substring(0, 10) || '-'}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6 bg-slate-50 p-4 rounded-xl">
+        <div>
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Fournisseur</p>
+          <p className="font-bold text-slate-800">{data.fournisseur?.name || 'N/A'}</p>
+          <p className="text-xs text-slate-500 mt-1">Délai: <span className="font-bold text-slate-700">{data.delai || '-'} jours</span></p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Montant Proposé</p>
+          <p className="text-xl font-black text-blue-600">{formatCurrency(data.prixPropose || 0)}</p>
+        </div>
+      </div>
+      
+      {data.conditions && (
+         <div className="mt-4 p-4 border border-blue-100 bg-blue-50/50 rounded-xl">
+             <p className="text-[10px] font-black text-blue-400 uppercase tracking-widest mb-1">Conditions</p>
+             <p className="font-medium text-slate-700 whitespace-pre-wrap">{data.conditions}</p>
+         </div>
+      )}
+
+      {data.demandeInterne && (
+         <div className="p-4 border border-indigo-100 bg-indigo-50/50 rounded-xl mt-4">
+             <p className="text-[10px] font-black text-indigo-400 uppercase tracking-widest mb-1">Lié à la Demande d'Achat</p>
+             <p className="font-bold text-indigo-900">{data.demandeInterne.objet || data.demandeInterne.designation || 'Demande Interne'}</p>
+         </div>
+      )}
     </div>
   );
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-800 rounded-3xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-slate-900/60 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-slide-up">
         
-        <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+        {/* Header */}
+        <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
+          <h2 className="text-lg font-black text-slate-800 uppercase tracking-widest flex items-center gap-3">
+            <span className="p-2 bg-indigo-100 text-indigo-600 rounded-lg">📄</span>
+            Visionneuse de Document
+          </h2>
+          <button 
+            onClick={onClose}
+            className="w-10 h-10 rounded-full flex items-center justify-center text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition-colors"
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 sm:p-8">
           {documentType === 'PO' && renderPO()}
           {documentType === 'GRN' && renderGRN()}
           {documentType === 'GRC' && renderGRC()}
           {documentType === 'INVOICE' && renderInvoice()}
+          {documentType === 'LTO' && renderLTO()}
+          {documentType === 'LTI' && renderLTI()}
+          {documentType === 'DEVIS' && renderDEVIS()}
         </div>
 
-        <div className="p-4 bg-slate-50 dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 rounded-b-3xl">
+        {/* Footer */}
+        <div className="p-6 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
           <button 
             onClick={onClose}
-            className="px-6 py-2.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 font-bold text-sm hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors shadow-sm"
+            className="px-6 py-2.5 rounded-xl font-bold text-slate-600 hover:bg-slate-200 transition-colors"
           >
             Fermer
           </button>
-          <button 
-            onClick={onDownload}
-            className="px-6 py-2.5 rounded-xl bg-indigo-600 text-white font-black text-sm hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2"
-          >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
-            Télécharger PDF
-          </button>
+          {documentType !== 'DEVIS' && (
+            <button 
+              onClick={onDownload}
+              className="px-6 py-2.5 rounded-xl font-bold text-white bg-indigo-600 hover:bg-indigo-700 shadow-lg shadow-indigo-200 transition-all flex items-center gap-2"
+            >
+              ⬇️ Télécharger PDF
+            </button>
+          )}
         </div>
-
       </div>
     </div>
   );

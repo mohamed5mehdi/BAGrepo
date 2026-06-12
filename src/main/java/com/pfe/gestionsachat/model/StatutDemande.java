@@ -15,6 +15,7 @@ public enum StatutDemande {
     PO_CREE,
     EN_LIVRAISON, // Restauré pour compatibilité historique
     AFFECTEE,     // Restauré pour compatibilité historique
+    VALIDE_ACHETEUR, // Ajouté pour le workflow: Acheteur -> Technicien
     EN_ATTENTE_AJUSTEMENT_DAF,
     EN_ATTENTE_AJUSTEMENT_DG
 }

@@ -320,8 +320,13 @@ public class DialogService {
                 .orElseThrow(() -> new RuntimeException("Sous-famille introuvable : " + slots.getSubFamilyId()));
         da.setBudgetSousFamille(subFamily);
 
-        // categorie déduite de budgetFamille via @PrePersist / setter
-        // (setBudgetFamille() synchronise déjà la catégorie)
+        // Propagation explicite de la catégorie depuis la famille résolue.
+        // IMPORTANT : setBudgetFamille() ne synchronise PAS la catégorie (BUG-01 FIX).
+        // La sync est faite par @PrePersist mais nécessite la Family complète.
+        // On l'affecte ici explicitement pour être robuste quelle que soit la source.
+        if (family.getCategorie() != null) {
+            da.setCategorie(family.getCategorie());
+        }
 
         // 7. Créer la DA
         DemandeAchatInterne savedDa = demandeService.createDemande(da, user);

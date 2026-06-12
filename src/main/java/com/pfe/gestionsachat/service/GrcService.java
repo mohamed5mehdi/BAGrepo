@@ -130,6 +130,8 @@ public class GrcService {
      */
     @Transactional
     public GrcHeader validateGrc(Long grcId, User comptable) {
+        // Le rôle est déjà vérifié par @PreAuthorize dans GrcController.
+
         GrcHeader grc = grcRepository.findByIdWithLock(grcId)
                 .orElseThrow(() -> new RuntimeException("GRC introuvable : " + grcId));
 
@@ -178,10 +180,9 @@ public class GrcService {
             detail.setTotalCost(lineHT);
 
             // TVA réelle par ligne (défaut 20% si non renseigné)
-            BigDecimal taxRate = detail.getTaxRate() != null ? detail.getTaxRate() : new BigDecimal("20.00");
+            BigDecimal taxRate = detail.getTaxRate() != null ? detail.getTaxRate() : new BigDecimal("0.20");
             if (detail.getTaxRate() == null) detail.setTaxRate(taxRate);
-            BigDecimal taxFactor = BigDecimal.ONE.add(
-                taxRate.divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP));
+            BigDecimal taxFactor = BigDecimal.ONE.add(taxRate);
             BigDecimal lineTTC = lineHT.multiply(taxFactor);
             detail.setMontantTTC(lineTTC.setScale(2, RoundingMode.HALF_UP));
 
@@ -282,6 +283,13 @@ public class GrcService {
         Invoice invoice = new Invoice();
         invoice.setGrnHeader(posted.getGrnHeader());
         invoice.setPurchaseOrder(posted.getGrnHeader().getPurchaseOrder());
+        
+        if (posted.getGrnHeader().getSupplier() != null) {
+            invoice.setSupplier(posted.getGrnHeader().getSupplier());
+        } else if (posted.getGrnHeader().getPurchaseOrder() != null) {
+            invoice.setSupplier(posted.getGrnHeader().getPurchaseOrder().getFournisseur());
+        }
+        
         invoice.setInvoiceNumber(invoiceNum);
         invoice.setInvoiceDate(LocalDate.now());
         invoice.setMontantHT(montantHT);

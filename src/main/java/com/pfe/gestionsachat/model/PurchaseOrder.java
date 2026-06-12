@@ -16,10 +16,6 @@ public class PurchaseOrder {
     @com.fasterxml.jackson.annotation.JsonProperty("id_po")
     private Integer idPo;
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "id_da")
-    @com.fasterxml.jackson.annotation.JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
-    private DaHeader daHeader;
 
     @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "id_demande_interne")
@@ -66,21 +62,29 @@ public class PurchaseOrder {
         this.statut = POStatus.DRAFT;
     }
 
-    public PurchaseOrder(DaHeader daHeader, BigDecimal montantTotal) {
-        this();
-        this.daHeader = daHeader;
-        this.montantTotal = montantTotal;
-    }
 
     // ── Getters ────────────────────────────────────────────────
     public Integer getIdPo() { return idPo; }
-    public DaHeader getDaHeader() { return daHeader; }
+
     public LocalDate getDateCreation() { return dateCreation; }
+    /** Retourne le statut typé POStatus — usage interne / logique métier. */
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public POStatus getStatut() { return statut; }
-    /** Alias for AI/reporting layers that use getStatut() as String */
+    /**
+     * Sérialisation JSON du statut en String — seule clé exposée : "statut".
+     * BUG-04 FIX (symétrique) : un seul getter JSON par champ — évite toute ambiguïté.
+     */
     @com.fasterxml.jackson.annotation.JsonGetter("statut")
     public String getStatutAsString() { return statut != null ? statut.name() : null; }
+    /**
+     * BUG-04 FIX : getTotalAmount() supprimé — il doublonnait getMontantTotal() et produisait
+     * deux clés JSON ("montant_total" et "totalAmount") pour la même valeur.
+     * Risque éliminé : confusion HT/TTC dans les couches AI ou reporting.
+     * Utiliser getMontantTotal() exclusivement.
+     */
     public BigDecimal getMontantTotal() { return montantTotal; }
+    
+    @com.fasterxml.jackson.annotation.JsonIgnore
     public BigDecimal getTotalAmount() { return montantTotal; }
     public DemandeAchatInterne getDemandeInterne() { return demandeInterne; }
     public Supplier getFournisseur() { return fournisseur; }
@@ -89,7 +93,7 @@ public class PurchaseOrder {
 
     // ── Setters ────────────────────────────────────────────────
     public void setIdPo(Integer idPo) { this.idPo = idPo; }
-    public void setDaHeader(DaHeader daHeader) { this.daHeader = daHeader; }
+
     public void setDemandeInterne(DemandeAchatInterne demandeInterne) { this.demandeInterne = demandeInterne; }
     public void setDateCreation(LocalDate dateCreation) { this.dateCreation = dateCreation; }
     public void setStatut(POStatus statut) { this.statut = statut; }

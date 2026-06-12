@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import toast from 'react-hot-toast';
 import { getAllDA, getUsers, getFamilies, deleteDA, getSuppliers } from '../api/services';
-import type { DaHeader, User, Family } from '../types';
+import type { DemandeAchatInterne, User, Family } from '../types';
 import DashboardLayout from '../components/DashboardLayout';
 import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
@@ -15,7 +15,7 @@ export default function AdminPage() {
   const qc = useQueryClient();
   const [activeTab, setActiveTab] = useState<AdminTab>('demandes');
   const [statusFilter, setStatusFilter] = useState<string | 'PENDING' | null>(null);
-  const [selectedDa, setSelectedDa] = useState<DaHeader | null>(null);
+  const [selectedDa, setSelectedDa] = useState<DemandeAchatInterne | null>(null);
 
   // Queries
   const { data: das = [], isLoading: loadingDas } = useQuery({
@@ -135,7 +135,7 @@ export default function AdminPage() {
               <DaTable 
                 rows={filteredDas as any} 
                 loading={loadingDas} 
-                onRowClick={(da) => setSelectedDa(da as DaHeader)} 
+                onRowClick={(da) => setSelectedDa(da as DemandeAchatInterne)} 
                 actionLabel={() => 'Gérer'}
               />
             </div>

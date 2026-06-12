@@ -52,74 +52,44 @@ public class GrnService {
 
         List<GrnDetails> details = grn.getDetails() != null ? grn.getDetails() : Collections.emptyList();
 
-        boolean isInternalDA = (po.getDemandeInterne() != null);
-
         // ── Validation quantités ──────────────────────────────────────────────
-        if (isInternalDA) {
-            /*
-             * BUG FIX #1 — DemandeInterne (mono-article) :
-             * Le Magasinier assigne lui-même le code catalogue → l'itemCode GRN
-             * ne correspond JAMAIS à DA.designation (human-readable).
-             * La validation se fait sur le TOTAL GLOBAL reçu pour ce PO,
-             * toutes lignes GRN confondues, vs demandeInterne.quantite.
-             */
-            int qtyOrdered = po.getDemandeInterne().getQuantite() != null
-                    ? po.getDemandeInterne().getQuantite() : 0;
-
-            if (qtyOrdered == 0) {
-                throw new IllegalArgumentException("Quantité commandée introuvable sur la DA interne.");
-            }
-
-            // Total reçu sur TOUS les GRNs de ce PO, tous itemCodes confondus
-            Integer alreadyReceivedAll = grnRepository.sumAllReceivedByPoId(poId);
-            int newQty = details.stream()
-                    .mapToInt(d -> d.getReceivedQuantity() != null ? d.getReceivedQuantity() : 0)
-                    .sum();
-
-            if ((alreadyReceivedAll + newQty) > qtyOrdered) {
-                    throw new com.pfe.gestionsachat.exception.OverReceptionException(
-                    "Sur-réception bloquée (DA interne) : total demandé après GRN = "
-                    + (alreadyReceivedAll + newQty) + " / Commandé = " + qtyOrdered
-                );
-            }
-
-            // Calcul shippedQty (solde restant)
-            int shippedQty = qtyOrdered - alreadyReceivedAll - newQty;
-            for (GrnDetails d : details) {
-                d.setOrderedQuantity(qtyOrdered);
-                d.setShippedQuantity(Math.max(0, shippedQty));
-            }
-
-        } else {
-            /*
-             * Circuit DA classique (multi-items) : validation par itemCode.
-             */
-            for (GrnDetails newDetail : details) {
-                String itemCode = newDetail.getItemCode();
-                int qtyOrdered = resolveOrderedQuantityFromDaHeader(po, itemCode);
-
-                if (qtyOrdered == 0) {
-                    throw new IllegalArgumentException(
-                        "Article [" + itemCode + "] introuvable dans le PO [" + poId + "]."
-                    );
-                }
-
-                Integer qtyAlreadyReceived = grnRepository.sumReceivedQuantityByPoIdAndItemCode(poId, itemCode);
-                int thisReceived = newDetail.getReceivedQuantity() != null ? newDetail.getReceivedQuantity() : 0;
-                int totalAfter = qtyAlreadyReceived + thisReceived;
-
-                if (totalAfter > qtyOrdered) {
-                        throw new com.pfe.gestionsachat.exception.OverReceptionException(
-                        "Sur-réception bloquée pour [" + itemCode + "] : reçu=" + totalAfter
-                        + " > commandé=" + qtyOrdered
-                    );
-                }
-
-                newDetail.setShippedQuantity(qtyOrdered - totalAfter);
-                newDetail.setOrderedQuantity(qtyOrdered);
-            }
+        if (po.getDemandeInterne() == null) {
+            throw new IllegalArgumentException("PO invalide: Demande Interne manquante.");
         }
 
+        /*
+         * BUG FIX #1 - DemandeInterne (mono-article) :
+         * Le Magasinier assigne lui-même le code catalogue → l'itemCode GRN
+         * ne correspond JAMAIS à DA.designation (human-readable).
+         * La validation se fait sur le TOTAL GLOBAL reçu pour ce PO,
+         * toutes lignes GRN confondues, vs demandeInterne.quantite.
+         */
+        int qtyOrdered = po.getDemandeInterne().getQuantite() != null
+                ? po.getDemandeInterne().getQuantite() : 0;
+
+        if (qtyOrdered == 0) {
+            throw new IllegalArgumentException("Quantité commandée introuvable sur la DA interne.");
+        }
+
+        // Total reçu sur TOUS les GRNs de ce PO, tous itemCodes confondus
+        Integer alreadyReceivedAll = grnRepository.sumAllReceivedByPoId(poId);
+        int newQty = details.stream()
+                .mapToInt(d -> d.getReceivedQuantity() != null ? d.getReceivedQuantity() : 0)
+                .sum();
+
+        if ((alreadyReceivedAll + newQty) > qtyOrdered) {
+                throw new com.pfe.gestionsachat.exception.OverReceptionException(
+                "Sur-réception bloquée (DA interne) : total demandé après GRN = "
+                + (alreadyReceivedAll + newQty) + " / Commandé = " + qtyOrdered
+            );
+        }
+
+        // Calcul shippedQty (solde restant)
+        int shippedQty = qtyOrdered - alreadyReceivedAll - newQty;
+        for (GrnDetails d : details) {
+            d.setOrderedQuantity(qtyOrdered);
+            d.setShippedQuantity(Math.max(0, shippedQty));
+        }
         grn.setStatus(GrnStatus.PENDING);
         grn.setPurchaseOrder(po);
         details.forEach(d -> d.setGrnHeader(grn));
@@ -133,7 +103,7 @@ public class GrnService {
      */
     @Transactional
     public GrnHeader completeGrnEntry(Long grnId, User magasinier) {
-        GrnHeader grn = grnRepository.findById(grnId)
+        GrnHeader grn = grnRepository.findByIdWithLock(grnId)
                 .orElseThrow(() -> new RuntimeException("GRN introuvable : " + grnId));
 
         if (grn.getStatus() != GrnStatus.PENDING) {
@@ -185,16 +155,4 @@ public class GrnService {
     }
 
     // ── Private ───────────────────────────────────────────────────────────────
-
-    /**
-     * Résout la quantité commandée pour un article dans une DA classique (multi-items).
-     * N'est PAS appelé pour les POs DemandeInterne (circuit séparé dans createGrn).
-     */
-    private int resolveOrderedQuantityFromDaHeader(PurchaseOrder po, String itemCode) {
-        if (po.getDaHeader() == null || po.getDaHeader().getDetails() == null) return 0;
-        return po.getDaHeader().getDetails().stream()
-                .filter(d -> itemCode != null && itemCode.equals(d.getItemCode()))
-                .mapToInt(d -> d.getQuantite() != null ? d.getQuantite() : 0)
-                .sum();
-    }
 }

@@ -22,6 +22,10 @@ public interface DemandeAchatInterneRepository extends JpaRepository<DemandeAcha
     @EntityGraph(attributePaths = {"budgetFamille", "budgetSousFamille"})
     List<DemandeAchatInterne> findByStatutIn(List<StatutDemande> statuts);
 
+    @EntityGraph(attributePaths = {"budgetFamille", "budgetSousFamille"})
+    @Query("SELECT d FROM DemandeAchatInterne d WHERE d.statut IN :statuts AND (d.categorie = :categorie OR (d.categorie IS NULL AND d.budgetFamille.categorie = :categorie))")
+    List<DemandeAchatInterne> findByStatutInAndCategorie(@Param("statuts") List<StatutDemande> statuts, @Param("categorie") com.pfe.gestionsachat.model.CategorieDemande categorie);
+
     @EntityGraph(attributePaths = {"budgetFamille", "budgetSousFamille", "demandeur"})
     List<DemandeAchatInterne> findByStatutAndDemandeur_N1(StatutDemande statut, User n1);
 

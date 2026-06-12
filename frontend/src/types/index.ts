@@ -4,9 +4,19 @@ export type Role =
   | 'MANAGER_N1'
   | 'TECHNICIEN'
   | 'ACHETEUR'
-  | 'RESP_ACHAT'       // Responsable Service Achat — BAG ERP
-  | 'MAGASINIER'       // Magasinier — BAG ERP
-  | 'COMPTABLE'        // Comptable Service Comptabilité — BAG ERP
+  | 'ACHETEUR_INFORMATIQUE'
+  | 'ACHETEUR_BUREAUTIQUE'
+  | 'ACHETEUR_MOBILIER'
+  | 'ACHETEUR_CONSOMMABLE'
+  | 'ACHETEUR_AUTRE'
+  | 'RESP_ACHAT'             // Responsable Service Achat — BAG ERP
+  | 'MAGASINIER'             // Magasinier Principal — BAG ERP
+  | 'MAGASINIER_DEST'        // Magasinier Destination (réception)
+  | 'MAGASINIER_CASA'        // Magasinier Casablanca
+  | 'MAGASINIER_RABAT'       // Magasinier Rabat
+  | 'MAGASINIER_TANGER'      // Magasinier Tanger
+  | 'MAGASINIER_MARRAKECH'   // Magasinier Marrakech
+  | 'COMPTABLE'              // Comptable Service Comptabilité — BAG ERP
   | 'AMG'
   | 'DAF'
   | 'DG'
@@ -18,7 +28,7 @@ export type StatutDA =
   | 'EN_TRAITEMENT' | 'DISPONIBLE_STOCK' | 'APPROUVEE'
   // Flux Classique (StatutDA)
   | 'EN_ATTENTE_N1' | 'EN_ATTENTE_TECH' | 'EN_ATTENTE_ACHAT' | 'EN_ATTENTE_AMG' | 'EN_ATTENTE_DAF' | 'EN_ATTENTE_DG'
-  | 'VALIDEE' | 'PO_CREE' | 'REJETEE' | 'EN_LIVRAISON' | 'AFFECTEE';
+  | 'VALIDEE' | 'PO_CREE' | 'REJETEE' | 'EN_LIVRAISON' | 'AFFECTEE' | 'VALIDE_ACHETEUR';
 
 export type ValidationDecision = 'ACCEPTE' | 'REJETE';
 
@@ -105,28 +115,9 @@ export interface Supplier {
   isCertified?: boolean;
 }
 
-export interface DaDetails {
-  oid_detail?: number;
-  subFamily?: SubFamily;
-  quantite: number;
-  itemCode?: string;
-  itemName?: string;
-  description?: string;
-  justification?: string;
-  prix_unitaire: number;
-  fournisseur?: Supplier | null;
-  totalPrice?: number;
-}
-
-export interface DaHeader extends DemandeAchatInterne {
-  oid_da: number;
-  objet: string;
-  details?: DaDetails[];
-}
 
 export interface PurchaseOrder {
   id_po: number;
-  daHeader?: DaHeader;
   demandeInterne?: DemandeAchatInterne;
   fournisseur?: Supplier;
   date_creation: string;
@@ -139,7 +130,7 @@ export interface PurchaseOrder {
 
 export interface BudgetTransfer {
   idTransfert: number;
-  daHeader?: DaHeader;
+  demandeInterne?: DemandeAchatInterne;
   subSource?: SubFamily | null;
   subCible?: SubFamily;
   montant: number;
@@ -158,7 +149,7 @@ export type InvoiceStatus = 'RECEIVED' | 'MATCHED' | 'APPROVED' | 'PAID' | 'REJE
 export type CreditNoteStatus = 'PENDING' | 'ISSUED' | 'RECONCILED';
 export type WarehouseType = 'CENTRAL' | 'REGIONAL' | 'LOCAL';
 export type MovementType = 'IN_RECEIPT' | 'OUT_RETURN' | 'TRANSFER_IN' | 'TRANSFER_OUT' | 'CONSUMPTION' | 'AFFECTATION';
-export type TransferStatus = 'REQUESTED' | 'IN_TRANSIT' | 'DELIVERED';
+export type TransferStatus = 'PENDING' | 'IN_TRANSIT' | 'RECEIVED' | 'CANCELLED';
 
 export interface SupplierOffer {
   id: number;
@@ -277,6 +268,10 @@ export interface TransferLine {
   id: number;
   stockItem: StockItem;
   quantityRequested: number;
+  /** Défini après expédition (ship) */
+  quantityShipped?: number;
+  /** Défini après réception (receive) */
+  quantityReceived?: number;
 }
 
 export interface TransferHeader {
@@ -286,6 +281,12 @@ export interface TransferHeader {
   requestedBy?: User;
   status: TransferStatus;
   createdAt: string;
+  /** Généré à l’expédition */
+  ltoNumber?: string;
+  /** Généré à la réception */
+  ltiNumber?: string;
+  shippedAt?: string;
+  receivedAt?: string;
   lines: TransferLine[];
 }
 

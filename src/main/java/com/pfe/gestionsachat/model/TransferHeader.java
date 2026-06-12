@@ -62,6 +62,22 @@ public class TransferHeader {
     @JsonManagedReference
     private List<TransferLine> lines = new ArrayList<>();
 
+    /**
+     * BUG-20 FIX : Validation de la cohérence entre le statut et les timestamps.
+     * Un transfert expédié DOIT avoir une date d'expédition.
+     * Un transfert reçu DOIT avoir une date de réception.
+     */
+    @PrePersist
+    @PreUpdate
+    private void validateTimestamps() {
+        if (status == TransferStatus.IN_TRANSIT && shippedAt == null) {
+            throw new IllegalStateException("TransferHeader [" + id + "] : statut IN_TRANSIT mais shippedAt est null.");
+        }
+        if (status == TransferStatus.RECEIVED && receivedAt == null) {
+            throw new IllegalStateException("TransferHeader [" + id + "] : statut RECEIVED mais receivedAt est null.");
+        }
+    }
+
     // ── Getters ──────────────────────────────────────────────────────────────
 
     public Long getId() { return id; }

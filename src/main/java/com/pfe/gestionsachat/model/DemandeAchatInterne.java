@@ -73,8 +73,7 @@ public class DemandeAchatInterne {
     private String itemCode;
     private Boolean isAvailableInStock = false;
 
-    @OneToMany(mappedBy = "demandeAchatInterne", cascade = CascadeType.ALL, orphanRemoval = true)
-    private java.util.List<DaDetails> details = new java.util.ArrayList<>();
+
 
     /**
      * Lien inverse vers le PO généré depuis cette DA.
@@ -132,11 +131,31 @@ public class DemandeAchatInterne {
         this.categorie = categorie;
     }
 
+    /**
+     * Synchronisation de la catégorie depuis la famille budgétaire.
+     * RÈGLE : ce @PrePersist/@PreUpdate est l'UNIQUE point de sync — source de vérité exclusive.
+     * Le setter setBudgetFamille() ne touche PAS à categorie pour éviter un double override silencieux.
+     * Si budgetFamille est null (DA interne sans famille), categorie reste à sa valeur courante.
+     */
     @PrePersist
     @PreUpdate
-    private void syncCategorie() {
-        if (this.budgetFamille != null && this.budgetFamille.getCategorie() != null) {
+    private void prePersistUpdate() {
+        if (this.categorie == null && this.budgetFamille != null && this.budgetFamille.getCategorie() != null) {
             this.categorie = this.budgetFamille.getCategorie();
+        }
+        
+        /**
+         * BUG-FORENSIQUE-03 : Validation de positivité.
+         * Une DA avec quantité ou montants négatifs corrompt tout le circuit aval (PO, GRC).
+         */
+        if (quantite != null && quantite <= 0) {
+            throw new IllegalStateException("DemandeAchatInterne : quantite (" + quantite + ") doit être strictement positive.");
+        }
+        if (prixUnitaire != null && prixUnitaire.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalStateException("DemandeAchatInterne : prixUnitaire (" + prixUnitaire + ") ne peut pas être négatif.");
+        }
+        if (montantEstime != null && montantEstime.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalStateException("DemandeAchatInterne : montantEstime (" + montantEstime + ") ne peut pas être négatif.");
         }
     }
 
@@ -177,10 +196,10 @@ public class DemandeAchatInterne {
     }
 
     public void setBudgetFamille(Family budgetFamille) {
+        // BUG-01 FIX : ne pas toucher à this.categorie ici.
+        // La sync famille→categorie est gérée exclusivement par syncCategorie() (@PrePersist/@PreUpdate).
+        // Supprimer la sync dans ce setter évite l'override silencieux d'un setCategorie() explicite.
         this.budgetFamille = budgetFamille;
-        if (budgetFamille != null && budgetFamille.getCategorie() != null) {
-            this.categorie = budgetFamille.getCategorie();
-        }
     }
 
     public SubFamily getBudgetSousFamille() {
@@ -255,13 +274,7 @@ public class DemandeAchatInterne {
         this.commentaireRejet = commentaireRejet;
     }
 
-    public java.util.List<DaDetails> getDetails() {
-        return details;
-    }
 
-    public void setDetails(java.util.List<DaDetails> details) {
-        this.details = details;
-    }
 
     public String getSubmissionToken() {
         return submissionToken;

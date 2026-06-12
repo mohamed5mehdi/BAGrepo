@@ -9,6 +9,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 import com.pfe.gestionsachat.dto.FamilyDtoPublic;
 import com.pfe.gestionsachat.dto.FamilyDtoFinancier;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 @RestController
 @RequestMapping({"/api/families", "/api/family", "/api/categories", "/api/category", "/api/familles"})
@@ -19,6 +20,7 @@ public class FamilyController {
     private FamilyService familyService;
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
     public ResponseEntity<Family> createFamily(@RequestBody @org.springframework.lang.NonNull Family family) {
         return ResponseEntity.ok(familyService.createFamily(family));
     }
@@ -45,11 +47,13 @@ public class FamilyController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
     public ResponseEntity<Family> updateFamily(@PathVariable @org.springframework.lang.NonNull Integer id, @RequestBody @org.springframework.lang.NonNull Family familyDetails) {
         return ResponseEntity.ok(familyService.updateFamily(id, familyDetails));
     }
 
     @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
     public ResponseEntity<Void> deleteFamily(@PathVariable @org.springframework.lang.NonNull Integer id) {
         familyService.deleteFamily(id);
         return ResponseEntity.ok().build();

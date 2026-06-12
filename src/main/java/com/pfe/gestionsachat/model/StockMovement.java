@@ -29,6 +29,17 @@ public class StockMovement {
     private LocalDateTime movementDate;
     private String referenceDocument; // e.g. "GRN-123" / "LTO-20260521-00001"
 
+    /**
+     * BUG-23 FIX : Initialisation garantie de movementDate.
+     * Évite les mouvements de stock sans horodatage en base.
+     */
+    @PrePersist
+    protected void onPersist() {
+        if (this.movementDate == null) {
+            this.movementDate = LocalDateTime.now();
+        }
+    }
+
     // Getters and Setters
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }

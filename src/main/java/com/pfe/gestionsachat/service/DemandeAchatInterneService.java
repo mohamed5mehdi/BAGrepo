@@ -40,6 +40,29 @@ public class DemandeAchatInterneService {
     private SubFamilyRepository subFamilyRepository;
     @Autowired
     private BudgetPiecesService budgetPiecesService;
+    @Autowired
+    private OffreFournisseurRepository offreRepository;
+    @Autowired
+    private SupplierRepository supplierRepository;
+
+    public List<OffreFournisseur> getOffresByDemande(Long demandeId) {
+        return offreRepository.findByDa_Id(demandeId);
+    }
+
+    public List<OffreFournisseur> getAllOffres() {
+        return offreRepository.findAll();
+    }
+
+    @Transactional
+    public OffreFournisseur addOffre(Long demandeId, Integer fournisseurId, java.math.BigDecimal prixPropose, String conditions, Integer delai) {
+        if (prixPropose == null || prixPropose.compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Le prix proposé doit être strictement positif pour constituer un devis valide.");
+        }
+        DemandeAchatInterne da = repository.findById(demandeId).orElseThrow();
+        Supplier supplier = supplierRepository.findById(fournisseurId).orElseThrow();
+        OffreFournisseur offre = new OffreFournisseur(da, supplier, prixPropose, conditions, delai);
+        return offreRepository.save(offre);
+    }
 
     // ── Création ─────────────────────────────────────────────────────────────
 
@@ -68,13 +91,17 @@ public class DemandeAchatInterneService {
         da.setId(null);
 
         // Rechargement des entités budgétaires (Header)
+        // IMPORTANT : forcer le rechargement complet depuis la DB pour garantir
+        // que Family.getCategorie() est disponible (pas un proxy Hibernate vide).
         if (da.getBudgetSousFamille() != null) {
             Integer oidSub = da.getBudgetSousFamille().getOidSub();
             if (oidSub != null) {
                 SubFamily sf = subFamilyRepository.findById(oidSub).orElse(null);
                 da.setBudgetSousFamille(sf);
                 if (sf != null && sf.getFamily() != null) {
-                    da.setBudgetFamille(sf.getFamily());
+                    // Rechargement complet pour éviter le proxy Hibernate partiel
+                    Family fam = familyRepository.findById(sf.getFamily().getIdFamily()).orElse(sf.getFamily());
+                    da.setBudgetFamille(fam);
                 } else if (da.getBudgetFamille() != null) {
                     Integer idFamily = da.getBudgetFamille().getIdFamily();
                     if (idFamily != null) {
@@ -89,38 +116,14 @@ public class DemandeAchatInterneService {
             }
         }
 
-        // Préparation du détail SAV si nécessaire
-        if (Boolean.TRUE.equals(da.getIsPieceRechange()) && da.getItemCode() != null) {
-            DaDetails detail = new DaDetails();
-            detail.setItemCode(da.getItemCode());
-            detail.setItemName(da.getDesignation());
-            detail.setQuantite(da.getQuantite() != null ? da.getQuantite() : 1);
-            detail.setJustification(da.getJustification());
-            detail.setSubFamily(da.getBudgetSousFamille()); 
-            if (da.getDetails() == null) da.setDetails(new java.util.ArrayList<>());
-            da.getDetails().add(detail);
+        if (da.getCategorie() == null && da.getBudgetFamille() != null) {
+            Family fam = da.getBudgetFamille();
+            if (fam.getCategorie() == null && fam.getIdFamily() != null) {
+                 fam = familyRepository.findById(fam.getIdFamily()).orElse(fam);
+            }
+            da.setCategorie(fam.getCategorie());
         }
 
-        // Nettoyage et Liaison de TOUS les détails
-        if (da.getDetails() != null) {
-            da.getDetails().forEach(detail -> {
-                detail.setOidDetail(null); // IMPORTANT : Force Hibernate à traiter comme "New"
-                detail.setDemandeAchatInterne(da);
-                
-                // Sécurisation de la sous-famille par item
-                if (detail.getSubFamily() != null) {
-                    Integer oidSub = detail.getSubFamily().getOidSub();
-                    if (oidSub != null) {
-                        detail.setSubFamily(subFamilyRepository.findById(oidSub).orElse(da.getBudgetSousFamille()));
-                    } else {
-                        detail.setSubFamily(da.getBudgetSousFamille());
-                    }
-                } else {
-                    detail.setSubFamily(da.getBudgetSousFamille());
-                }
-            });
-        }
-        
         DemandeAchatInterne saved = repository.save(da);
         log(saved, null, StatutDemande.BROUILLON, user, "Demande créée avec succès");
         return saved;
@@ -137,12 +140,6 @@ public class DemandeAchatInterneService {
         // Analyse Forensique : Le budget N'EST PAS engagé lors de la création d'une DemandeAchatInterne.
         // L'engagement se fait exclusivement dans PurchaseOrderService.generateFromInternal.
         // Restituer le budget ici provoquerait une "création monétaire" fictive.
-        if (da.getDetails() != null && payload.getDetails() != null) {
-            // Remplacement de la collection pour laisser JPA gérer l'orphanRemoval
-            da.getDetails().clear();
-            da.getDetails().addAll(payload.getDetails());
-            da.getDetails().forEach(d -> d.setDemandeAchatInterne(da));
-        }
 
         da.setDesignation(payload.getDesignation());
         da.setQuantite(payload.getQuantite());
@@ -170,11 +167,7 @@ public class DemandeAchatInterneService {
         if (Boolean.TRUE.equals(da.getIsPieceRechange())) {
             // ── Flux B : pièce de rechange (Vérification Stock) ───────────
             String effectiveItemCode = da.getItemCode();
-            
-            // Fallback : si le code n'est pas à la racine, on regarde dans le premier détail
-            if ((effectiveItemCode == null || effectiveItemCode.isBlank()) && da.getDetails() != null && !da.getDetails().isEmpty()) {
-                effectiveItemCode = da.getDetails().get(0).getItemCode();
-            }
+
 
             if (effectiveItemCode == null || effectiveItemCode.isBlank()) {
                 throw new IllegalArgumentException("Code article obligatoire pour une demande de pièce de rechange.");
@@ -183,9 +176,6 @@ public class DemandeAchatInterneService {
             Optional<StockItem> stockOpt = stockItemRepository.findByItemCode(effectiveItemCode).stream().findFirst();
 
             Integer effectiveQuantity = da.getQuantite();
-            if (effectiveQuantity == null && da.getDetails() != null && !da.getDetails().isEmpty()) {
-                effectiveQuantity = da.getDetails().get(0).getQuantite();
-            }
             if (effectiveQuantity == null) effectiveQuantity = 1;
 
             boolean disponible = stockOpt.isPresent() && stockOpt.get().getQuantityAvailable() >= effectiveQuantity;
@@ -195,6 +185,10 @@ public class DemandeAchatInterneService {
                 StockItem stock = stockItemRepository.findByItemCodeWithLock(effectiveItemCode).stream().findFirst().orElseThrow();
                 stock.setQuantityAvailable(stock.getQuantityAvailable() - effectiveQuantity);
                 stockItemRepository.save(stock);
+
+                // IMPUTATION BUDGET PIECES (Fix SAV Fuite)
+                java.math.BigDecimal totalCost = stock.getUnitCost() != null ? stock.getUnitCost().multiply(java.math.BigDecimal.valueOf(effectiveQuantity)) : java.math.BigDecimal.ZERO;
+                budgetPiecesService.consommerBudgetPieces(totalCost, da.getId(), String.valueOf(da.getDateCreation().getYear()));
 
                 da.setIsAvailableInStock(true);
                 da.setStatut(StatutDemande.DISPONIBLE_STOCK);
@@ -227,7 +221,7 @@ public class DemandeAchatInterneService {
         if (user.getRole() != Role.MANAGER_N1) {
             throw new SecurityException("Seul un Manager N1 peut effectuer cette validation.");
         }
-        StatutDemande to = valider ? StatutDemande.VALIDE_N1 : StatutDemande.REJETEE;
+        StatutDemande to = valider ? StatutDemande.VALIDE_N1 : StatutDemande.BROUILLON;
         if (!valider) restituerBudgetInterne(da);
         da.setStatut(to);
         log(da, from, to, user, commentaire);
@@ -244,7 +238,7 @@ public class DemandeAchatInterneService {
             throw new SecurityException("Habilitation TECHNICIEN requise.");
         // Règle BAG : Après validation technique, la DA doit être valorisée par l'acheteur
         // avant d'entrer dans le circuit budgétaire (AMG/DAF/DG)
-        StatutDemande to = valider ? StatutDemande.EN_TRAITEMENT : StatutDemande.REJETEE;
+        StatutDemande to = valider ? StatutDemande.VALIDE_TECH : StatutDemande.BROUILLON;
         if (!valider) restituerBudgetInterne(da);
         da.setStatut(to);
         log(da, from, to, user, commentaire);
@@ -255,11 +249,11 @@ public class DemandeAchatInterneService {
     public DemandeAchatInterne validerAMG(Long id, boolean valider, String commentaire, User user) {
         DemandeAchatInterne da = repository.findById(id).orElseThrow();
         StatutDemande from = da.getStatut();
-        if (from != StatutDemande.VALIDE_TECH)
-            throw new IllegalStateException("Attendu: VALIDE_TECH");
+        if (from != StatutDemande.VALIDE_ACHETEUR)
+            throw new IllegalStateException("Attendu: VALIDE_ACHETEUR");
         if (user.getRole() != Role.AMG)
             throw new SecurityException("Habilitation AMG requise.");
-        StatutDemande to = valider ? StatutDemande.VALIDE_AMG : StatutDemande.REJETEE;
+        StatutDemande to = valider ? StatutDemande.VALIDE_AMG : StatutDemande.BROUILLON;
         if (!valider) restituerBudgetInterne(da);
         da.setStatut(to);
         log(da, from, to, user, commentaire);
@@ -274,7 +268,7 @@ public class DemandeAchatInterneService {
             throw new IllegalStateException("Attendu: VALIDE_AMG");
         if (user.getRole() != Role.DAF)
             throw new SecurityException("Habilitation DAF requise.");
-        StatutDemande to = valider ? StatutDemande.VALIDE_DAF : StatutDemande.REJETEE;
+        StatutDemande to = valider ? StatutDemande.VALIDE_DAF : StatutDemande.BROUILLON;
         if (!valider) restituerBudgetInterne(da);
         da.setStatut(to);
         log(da, from, to, user, commentaire);
@@ -289,7 +283,7 @@ public class DemandeAchatInterneService {
             throw new IllegalStateException("Attendu: VALIDE_DAF");
         if (user.getRole() != Role.DG)
             throw new SecurityException("Habilitation DG requise.");
-        StatutDemande to = valider ? StatutDemande.VALIDE_DG : StatutDemande.REJETEE;
+        StatutDemande to = valider ? StatutDemande.VALIDE_DG : StatutDemande.BROUILLON;
         if (!valider) restituerBudgetInterne(da);
         da.setStatut(to);
         log(da, from, to, user, commentaire);
@@ -301,19 +295,20 @@ public class DemandeAchatInterneService {
     @Transactional
     public DemandeAchatInterne valoriserDemande(Long id, java.math.BigDecimal prix, Integer supplierId) {
         DemandeAchatInterne da = repository.findById(id).orElseThrow();
-        if (da.getStatut() != StatutDemande.EN_TRAITEMENT)
-            throw new IllegalStateException("Attendu: EN_TRAITEMENT");
+        if (da.getStatut() != StatutDemande.VALIDE_TECH && da.getStatut() != StatutDemande.EN_TRAITEMENT)
+            throw new IllegalStateException("Attendu: VALIDE_TECH ou EN_TRAITEMENT");
 
         da.setPrixUnitaire(prix);
         java.math.BigDecimal newTotal = prix.multiply(java.math.BigDecimal.valueOf(da.getQuantite() != null ? da.getQuantite() : 1));
 
         if (Boolean.TRUE.equals(da.getIsPieceRechange())) {
             // ── Flux B Pièces : consommation sur le pool dédié, JAMAIS sur une SF ──
+            String exercice = String.valueOf(da.getDateCreation().getYear());
             // Restitution de l'ancienne estimation si re-valorisation
             if (da.getMontantEstime() != null) {
-                budgetPiecesService.restituterBudgetPieces(da.getMontantEstime(), da.getId());
+                budgetPiecesService.restituterBudgetPieces(da.getMontantEstime(), da.getId(), exercice);
             }
-            budgetPiecesService.consommerBudgetPieces(newTotal, da.getId());
+            budgetPiecesService.consommerBudgetPieces(newTotal, da.getId(), exercice);
         } else {
             // ── Flux A Général : consommation sur la sous-famille budgétaire ──
             if (da.getBudgetSousFamille() == null) {
@@ -339,10 +334,6 @@ public class DemandeAchatInterneService {
         da.setMontantEstime(newTotal);
         da.setFournisseur(new Supplier(supplierId));
 
-        // Synchroniser le prix dans les détails pour le PO
-        if (da.getDetails() != null && !da.getDetails().isEmpty()) {
-            da.getDetails().forEach(d -> d.setPrixUnitaire(prix));
-        }
 
         return repository.save(da);
     }
@@ -355,17 +346,31 @@ public class DemandeAchatInterneService {
     @Transactional
     public DemandeAchatInterne traiterAchat(Long id, User user) {
         DemandeAchatInterne da = repository.findById(id).orElseThrow();
-        if (da.getStatut() != StatutDemande.EN_TRAITEMENT)
-            throw new IllegalStateException("Attendu: EN_TRAITEMENT");
+        if (da.getStatut() != StatutDemande.VALIDE_TECH && da.getStatut() != StatutDemande.EN_TRAITEMENT)
+            throw new IllegalStateException("Attendu: VALIDE_TECH ou EN_TRAITEMENT");
         if (da.getPrixUnitaire() == null || da.getFournisseur() == null)
             throw new IllegalStateException("La demande doit être valorisée d'abord.");
-        if (user.getRole() != Role.ACHETEUR)
-            throw new SecurityException("Seul l'ACHETEUR peut traiter cette demande.");
+        
+        if (!user.getRole().isAcheteur()) {
+            throw new SecurityException("Seul un ACHETEUR peut traiter cette demande.");
+        }
+        
+        CategorieDemande daCategorie = da.getCategorie();
+        if (daCategorie == null && da.getBudgetFamille() != null && da.getBudgetFamille().getIdFamily() != null) {
+            Family fam = familyRepository.findById(da.getBudgetFamille().getIdFamily()).orElse(null);
+            if (fam != null) {
+                daCategorie = fam.getCategorie();
+            }
+        }
+        
+        if (user.getRole() != Role.ACHETEUR && user.getRole().getCategorieAssignee() != daCategorie) {
+            throw new SecurityException("Habilitation insuffisante : Vous ne pouvez traiter que les demandes de la catégorie " + user.getRole().getCategorieAssignee());
+        }
 
         if (Boolean.TRUE.equals(da.getIsPieceRechange())) {
-            da.setStatut(StatutDemande.VALIDE_DG);
+            da.setStatut(StatutDemande.APPROUVEE);
         } else {
-            da.setStatut(StatutDemande.VALIDE_TECH);
+            da.setStatut(StatutDemande.VALIDE_ACHETEUR);
         }
         return repository.save(da);
     }
@@ -400,17 +405,32 @@ public class DemandeAchatInterneService {
     }
 
     public List<DemandeAchatInterne> getDemandesAValider(User user) {
+        if (user.getRole().isAcheteur()) {
+            List<StatutDemande> statutsAcheteur = List.of(StatutDemande.VALIDE_TECH, StatutDemande.EN_TRAITEMENT, StatutDemande.VALIDE_DG, StatutDemande.APPROUVEE);
+            if (user.getRole() == Role.ACHETEUR) {
+                return repository.findByStatutIn(statutsAcheteur);
+            } else {
+                return repository.findByStatutInAndCategorie(statutsAcheteur, user.getRole().getCategorieAssignee());
+            }
+        }
+        if (user.getRole() == Role.ADMINISTRATEUR) {
+            return repository.findAll();
+        }
         return switch (user.getRole()) {
             case MANAGER_N1 -> repository.findByStatutAndFluxAAndManagerId(
                 StatutDemande.SOUMISE, user.getOidUser()
             );
             case TECHNICIEN -> repository.findByStatut(StatutDemande.VALIDE_N1);
-            case AMG -> repository.findByStatutAndIsPieceRechange(StatutDemande.VALIDE_TECH, false);
-            case DAF -> repository.findByStatutAndIsPieceRechange(StatutDemande.VALIDE_AMG, false);
-            case DG -> repository.findByStatutAndIsPieceRechange(StatutDemande.VALIDE_DAF, false);
-            case ACHETEUR -> repository.findByStatutIn(List.of(
-                StatutDemande.EN_TRAITEMENT,
-                StatutDemande.VALIDE_DG
+            case AMG -> repository.findByStatutAndIsPieceRechange(StatutDemande.VALIDE_ACHETEUR, false);
+            // DAF voit : les DA en attente de validation normale + les DA en attente d'ajustement sous-famille
+            case DAF -> repository.findByStatutIn(List.of(
+                StatutDemande.VALIDE_AMG,
+                StatutDemande.EN_ATTENTE_AJUSTEMENT_DAF
+            ));
+            // DG voit : les DA en attente de validation finale + les DA en attente d'ajustement famille
+            case DG -> repository.findByStatutIn(List.of(
+                StatutDemande.VALIDE_DAF,
+                StatutDemande.EN_ATTENTE_AJUSTEMENT_DG
             ));
             case RESP_ACHAT -> List.of(); // Le Resp. Achat valide uniquement les POs (Schema 2)
             default -> List.of();
@@ -421,14 +441,28 @@ public class DemandeAchatInterneService {
     private com.pfe.gestionsachat.repository.DemandeAjustementRepository demandeAjustementRepository;
 
     @Transactional
-    public DemandeAchatInterne ajustementBudget(Long id, TypeAjustement type, 
-            java.math.BigDecimal montantDemande, Integer sourceSousFamilleId, 
-            Integer cibleSousFamilleId, Integer familleCibleId, 
+    public DemandeAchatInterne ajustementBudget(Long id, TypeAjustement type,
+            java.math.BigDecimal montantDemande, Integer sourceSousFamilleId,
+            Integer cibleSousFamilleId, Integer familleCibleId,
             String justification, User user) {
         DemandeAchatInterne da = repository.findById(id).orElseThrow();
         StatutDemande from = da.getStatut();
+
+        // Guard anti-doublon : requête JPQL ciblée — O(1) vs O(N) table scan
+        boolean ajustementActif = demandeAjustementRepository.existsByDemandeInterneIdAndStatutIn(
+                id,
+                java.util.List.of(
+                    com.pfe.gestionsachat.model.StatutAjustement.EN_ATTENTE_DG,
+                    com.pfe.gestionsachat.model.StatutAjustement.EN_ATTENTE_DAF,
+                    com.pfe.gestionsachat.model.StatutAjustement.EN_ATTENTE_ACHETEUR
+                ));
+        if (ajustementActif) {
+            throw new IllegalStateException(
+                "Un ajustement budgétaire est déjà en cours pour cette demande (id=" + id + ").");
+        }
+
         da.setTypeAjustement(type);
-        
+
         com.pfe.gestionsachat.model.DemandeAjustement daAjust = new com.pfe.gestionsachat.model.DemandeAjustement();
         daAjust.setDemandeInterne(da);
         daAjust.setType(type);
@@ -446,29 +480,11 @@ public class DemandeAchatInterneService {
             daAjust.setStatut(com.pfe.gestionsachat.model.StatutAjustement.EN_ATTENTE_DAF);
             daAjust.setSourceSousFamilleId(sourceSousFamilleId);
             daAjust.setCibleSousFamilleId(cibleSousFamilleId);
-            
-            if (sourceSousFamilleId != null && montantDemande != null && montantDemande.compareTo(java.math.BigDecimal.ZERO) > 0) {
-                com.pfe.gestionsachat.model.SubFamily source = subFamilyRepository.findByIdWithLock(sourceSousFamilleId).orElseThrow();
-                if (!source.hasEnoughBudget(montantDemande)) {
-                    throw new RuntimeException("Budget insuffisant dans la sous-famille source pour l'ajustement demandé.");
-                }
-                // FIX P4 — deductBudget() décrémente budgetRestant ET incrémente budgetEngage atomiquement.
-                // L'ancienne implémentation n'incrémentait que budgetEngage sans toucher budgetRestant,
-                // laissant le budget disponible faussement élevé (fuite silencieuse).
-                java.math.BigDecimal budgetAvant = source.getBudgetRestant();
-                source.deductBudget(montantDemande);
-                subFamilyRepository.save(source);
-                // Mise à jour de la famille parente pour maintenir la cohérence hiérarchique
-                if (source.getFamily() != null) {
-                    com.pfe.gestionsachat.model.Family fam = familyRepository.findByIdWithLock(source.getFamily().getIdFamily()).orElseThrow();
-                    fam.deductBudget(montantDemande);
-                    familyRepository.save(fam);
-                }
-                daAjust.setBudgetAvantDemande("Source [" + source.getLibelle() + "]: " + budgetAvant);
-                daAjust.setBudgetApresDemande("Source [" + source.getLibelle() + "]: " + source.getBudgetRestant());
-            }
+            // La pré-réservation budgétaire (deductBudget source) est exclusivement
+            // portée par DemandeAjustementService.soumettreAjustementSousFamille().
+            // Toute déduction ici constituerait un double-dip silencieux.
         }
-        
+
         demandeAjustementRepository.save(daAjust);
         log(da, from, da.getStatut(), user, "Ajustement : " + type);
         return repository.save(da);
@@ -501,7 +517,7 @@ public class DemandeAchatInterneService {
     public void rejeterDaSuiteAuPO(Long id, User responsable, String motif) {
         DemandeAchatInterne da = repository.findById(id).orElseThrow();
         StatutDemande from = da.getStatut();
-        da.setStatut(StatutDemande.REJETEE);
+        da.setStatut(StatutDemande.BROUILLON);
         restituerBudgetInterne(da);
         
         String msg = "Demande rejetée automatiquement suite au rejet du Bon de Commande.";
@@ -509,7 +525,7 @@ public class DemandeAchatInterneService {
             msg += " Motif : " + motif;
         }
         
-        log(da, from, StatutDemande.REJETEE, responsable, msg);
+        log(da, from, StatutDemande.BROUILLON, responsable, msg);
         repository.save(da);
     }
 
@@ -523,7 +539,8 @@ public class DemandeAchatInterneService {
 
         if (Boolean.TRUE.equals(da.getIsPieceRechange())) {
             // ── Flux B Pièces : restitution sur le pool dédié ──────────────
-            budgetPiecesService.restituterBudgetPieces(da.getMontantEstime(), da.getId());
+            String exercice = String.valueOf(da.getDateCreation().getYear());
+            budgetPiecesService.restituterBudgetPieces(da.getMontantEstime(), da.getId(), exercice);
         } else if (da.getBudgetSousFamille() != null) {
             // ── Flux A Général : restitution sur la sous-famille ───────────
             SubFamily sf = subFamilyRepository.findByIdWithLock(da.getBudgetSousFamille().getOidSub()).orElseThrow();

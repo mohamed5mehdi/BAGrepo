@@ -103,6 +103,9 @@ public class WarehouseService {
         StockItem item = stockItemRepository.findByItemNameIgnoreCase(designation).stream()
                 .findFirst()
                 .orElseThrow(() -> new RuntimeException("Article non trouvé en stock : " + designation));
+                
+        item = stockItemRepository.findByItemCodeAndWarehouseIdWithLock(item.getItemCode(), item.getWarehouse().getId())
+                .orElseThrow(() -> new RuntimeException("Article verrouillé introuvable."));
 
         if (item.getQuantityAvailable() < quantite) {
             throw new IllegalStateException(

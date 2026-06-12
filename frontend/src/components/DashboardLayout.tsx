@@ -18,7 +18,7 @@ export default function DashboardLayout({ title, pendingCount, children }: Props
       <Sidebar />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Topbar title={title} pendingCount={pendingCount} />
-        <main className="flex-1 overflow-y-auto p-6 relative">
+        <main className="flex-1 overflow-y-auto p-6 pb-24 relative">
           {children}
           <ChatbotWidget />
           

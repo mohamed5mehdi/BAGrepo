@@ -7,13 +7,14 @@ import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
 import { useAuth } from '../context/AuthContext';
 import api from '../api/axios';
-import type { DaHeader, ValidationDecision, SubFamily } from '../types';
+import { adjustFamily } from '../api/services';
+import type { DemandeAchatInterne, ValidationDecision, SubFamily } from '../types';
 import { formatCurrency } from '../utils/constants';
 
 export default function DgPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [selectedDa, setSelectedDa] = useState<DaHeader | null>(null);
+  const [selectedDa, setSelectedDa] = useState<DemandeAchatInterne | null>(null);
   const [comment, setComment] = useState('');
   const [cibleId, setCibleId] = useState('');
   const [montant, setMontant] = useState('');
@@ -25,19 +26,19 @@ export default function DgPage() {
     refetchInterval: 30_000,
   });
 
-  const { data: subFamilies = [] } = useQuery({
-    queryKey: ['sub-families'],
+  const { data: families = [] } = useQuery({
+    queryKey: ['families'],
     queryFn: () => api.get('/families').then(r => r.data),
   });
 
   const aiDecision: any = null;
   const loadingDecision = false;
 
-  const mine = all.filter(d => ['VALIDE_DG'].includes(d.statut));
+  const mine = all.filter(d => ['VALIDE_DAF', 'EN_ATTENTE_AJUSTEMENT_DG'].includes(d.statut));
 
   const validateMutation = useMutation({
     mutationFn: ({ decision }: { decision: ValidationDecision }) =>
-      api.put(`/demandes/${selectedDa!.id}/valider-dg?approved=${decision === 'ACCEPTE'}&comment=${encodeURIComponent(comment)}&userId=${user!.userId}`),
+      api.put(`/demandes/${(selectedDa as any)!.id || selectedDa!.oid_da}/valider-dg?approved=${decision === 'ACCEPTE'}&comment=${encodeURIComponent(comment)}&userId=${user!.userId}`),
     onSuccess: (_, { decision }) => {
       toast.success(decision === 'ACCEPTE' ? '✅ Validation finale effectuée !' : '❌ Dossier rejeté');
       qc.invalidateQueries({ queryKey: ['da'] });
@@ -47,7 +48,7 @@ export default function DgPage() {
   });
 
   const adjustMutation = useMutation({
-    mutationFn: () => api.post(`/families/${cibleId}/adjust?montant=${montant}&userId=${user!.userId}`),
+    mutationFn: () => adjustFamily((selectedDa as any)!.id || selectedDa!.oid_da, user!.userId, Number(cibleId), parseFloat(montant)),
     onSuccess: () => {
       toast.success('✅ Budget famille augmenté — dossier validé !');
       qc.invalidateQueries({ queryKey: ['da'] });
@@ -78,7 +79,7 @@ export default function DgPage() {
           className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 transition-colors">🔄 Actualiser</button>
       </div>
 
-      <DaTable rows={mine as any} onRowClick={da => { setSelectedDa(da as DaHeader); setComment(''); setCibleId(''); setMontant(''); }} loading={isLoading} searchQuery={search} />
+      <DaTable rows={mine as any} onRowClick={da => { setSelectedDa(da as DemandeAchatInterne); setComment(''); setCibleId(''); setMontant(''); }} loading={isLoading} searchQuery={search} />
 
       {selectedDa && (
         <DaModal da={selectedDa} onClose={() => setSelectedDa(null)} title="🏢 Arbitrage DG">
@@ -88,12 +89,12 @@ export default function DgPage() {
               <h4 className="font-semibold text-rose-800 dark:text-rose-300 mb-3">💰 Injection Budgétaire Famille (optionnelle)</h4>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Sous-famille Cible</label>
+                  <label className="text-xs font-semibold text-slate-500 mb-1 block">Famille Cible</label>
                   <select value={cibleId} onChange={e => setCibleId(e.target.value)}
                     className="w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-rose-300">
                     <option value="">Choisir...</option>
-                    {(subFamilies as SubFamily[]).map(sf => (
-                      <option key={sf.id} value={sf.id}>{sf.name}</option>
+                    {(families as any[]).map(f => (
+                      <option key={f.idFamily || f.id} value={f.idFamily || f.id}>{f.libelle || f.name}</option>
                     ))}
                   </select>
                 </div>

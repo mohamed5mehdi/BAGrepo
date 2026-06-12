@@ -8,12 +8,29 @@ import type { Role } from '../types';
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
-  const [email, setEmail]     = useState('');
-  const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [email, setEmail]       = useState('');
+  const [password, setPassword]  = useState('');
+  const [loading, setLoading]    = useState(false);
+  const [emailError, setEmailError] = useState('');
+
+  const EMAIL_REGEX = /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/;
+
+  const validateEmail = (value: string) => {
+    if (!value.trim()) {
+      setEmailError('L\'adresse e-mail est requise');
+      return false;
+    }
+    if (!EMAIL_REGEX.test(value.trim())) {
+      setEmailError('Adresse e-mail invalide');
+      return false;
+    }
+    setEmailError('');
+    return true;
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateEmail(email)) return;
     setLoading(true);
     try {
       const { data } = await loginApi(email.trim().toLowerCase(), password);
@@ -45,6 +62,7 @@ export default function LoginPage() {
 
   const quickFill = (e: string) => {
     setEmail(e);
+    setEmailError('');
     setPassword('password');
   };
 
@@ -53,9 +71,18 @@ export default function LoginPage() {
     { label: 'N+1',        email: 'n1@test.com',         icon: '✅', color: 'bg-violet-50 border-violet-200 text-violet-700' },
     { label: 'Technicien', email: 'tech@test.com',       icon: '🔧', color: 'bg-cyan-50 border-cyan-200 text-cyan-700' },
     { label: 'Acheteur',   email: 'acheteur@test.com',   icon: '🛒', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
+    { label: 'Ach. Info',  email: 'acheteur.info@test.com', icon: '💻', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
+    { label: 'Ach. Bureau',email: 'acheteur.bureau@test.com', icon: '🖨️', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
+    { label: 'Ach. Mob',   email: 'acheteur.mob@test.com', icon: '🪑', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
+    { label: 'Ach. Cons',  email: 'acheteur.cons@test.com', icon: '📎', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
+    { label: 'Ach. Autre', email: 'acheteur.autre@test.com', icon: '📦', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
     { label: 'AMG',        email: 'amg@test.com',        icon: '📂', color: 'bg-orange-50 border-orange-200 text-orange-700' },
     { label: 'DAF',        email: 'daf@test.com',        icon: '💰', color: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700' },
     { label: 'DG',         email: 'dg@test.com',         icon: '🏢', color: 'bg-rose-50 border-rose-200 text-rose-700' },
+    { label: 'Mag. Casa',  email: 'magasinier.casa@test.com', icon: '📍', color: 'bg-blue-50 border-blue-200 text-blue-700' },
+    { label: 'Mag. Rabat', email: 'magasinier.rabat@test.com', icon: '📍', color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
+    { label: 'Mag. Tanger',email: 'magasinier.tanger@test.com', icon: '📍', color: 'bg-teal-50 border-teal-200 text-teal-700' },
+    { label: 'Mag. Marrakech', email: 'magasinier.marrakech@test.com', icon: '📍', color: 'bg-orange-50 border-orange-200 text-orange-700' },
   ];
 
   return (
@@ -84,14 +111,21 @@ export default function LoginPage() {
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">Adresse e-mail</label>
               <input
                 id="email"
-                type="email"
+                type="text"
                 value={email}
-                onChange={e => setEmail(e.target.value)}
-                required
+                onChange={e => { setEmail(e.target.value); if (emailError) validateEmail(e.target.value); }}
+                onBlur={e => validateEmail(e.target.value)}
                 autoComplete="email"
                 placeholder="prenom@test.com"
-                className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-400 focus:border-transparent transition text-sm"
+                className={`w-full px-4 py-2.5 rounded-xl bg-white/10 border text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:border-transparent transition text-sm ${
+                  emailError ? 'border-red-400 focus:ring-red-400' : 'border-white/20 focus:ring-indigo-400'
+                }`}
               />
+              {emailError && (
+                <p className="mt-1 text-xs text-red-400 flex items-center gap-1">
+                  <span>⚠</span> {emailError}
+                </p>
+              )}
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">Mot de passe</label>

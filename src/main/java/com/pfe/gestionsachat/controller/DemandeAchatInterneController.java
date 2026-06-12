@@ -11,6 +11,7 @@ import org.springframework.lang.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 import java.util.Map;
@@ -55,6 +56,7 @@ public class DemandeAchatInterneController {
     }
 
     @PutMapping("/{id}/valider-n1")
+    @PreAuthorize("hasAnyRole('MANAGER_N1', 'ADMINISTRATEUR')")
     public ResponseEntity<DemandeAchatInterne> validerN1(@PathVariable @NonNull Long id, @RequestBody @NonNull Map<String, Object> payload, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         boolean valider = (boolean) payload.get("valider");
@@ -63,6 +65,7 @@ public class DemandeAchatInterneController {
     }
 
     @PutMapping("/{id}/valider-technicien")
+    @PreAuthorize("hasAnyRole('TECHNICIEN', 'ADMINISTRATEUR')")
     public ResponseEntity<DemandeAchatInterne> validerTechnicien(@PathVariable @NonNull Long id, @RequestBody @NonNull Map<String, Object> payload, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         boolean valider = (boolean) payload.get("valider");
@@ -71,6 +74,7 @@ public class DemandeAchatInterneController {
     }
 
     @PutMapping("/{id}/valoriser-achat")
+    @PreAuthorize("hasAnyRole('ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'ADMINISTRATEUR')")
     public ResponseEntity<DemandeAchatInterne> valoriserDemande(
             @PathVariable Long id, 
             @RequestParam java.math.BigDecimal prixUnitaire, 
@@ -79,12 +83,14 @@ public class DemandeAchatInterneController {
     }
 
     @PutMapping("/{id}/traiter-achat")
+    @PreAuthorize("hasAnyRole('ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'ADMINISTRATEUR')")
     public ResponseEntity<DemandeAchatInterne> traiterAchat(@PathVariable @NonNull Long id, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.traiterAchat(id, user));
     }
 
     @PutMapping("/{id}/valider-amg")
+    @PreAuthorize("hasAnyRole('AMG', 'ADMINISTRATEUR')")
     public ResponseEntity<DemandeAchatInterne> validerAMG(@PathVariable @NonNull Long id, @RequestBody @NonNull Map<String, Object> payload, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         boolean valider = (boolean) payload.get("valider");
@@ -93,6 +99,7 @@ public class DemandeAchatInterneController {
     }
 
     @PutMapping("/{id}/valider-daf")
+    @PreAuthorize("hasAnyRole('DAF', 'ADMINISTRATEUR')")
     public ResponseEntity<DemandeAchatInterne> validerDAF(@PathVariable @NonNull Long id, @RequestBody @NonNull Map<String, Object> payload, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         boolean valider = (boolean) payload.get("valider");
@@ -101,6 +108,7 @@ public class DemandeAchatInterneController {
     }
 
     @PutMapping("/{id}/valider-dg")
+    @PreAuthorize("hasAnyRole('DG', 'ADMINISTRATEUR')")
     public ResponseEntity<DemandeAchatInterne> validerDG(@PathVariable @NonNull Long id, @RequestBody @NonNull Map<String, Object> payload, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         boolean valider = (boolean) payload.get("valider");
@@ -109,6 +117,7 @@ public class DemandeAchatInterneController {
     }
 
     @PostMapping("/{id}/ajustement")
+    @PreAuthorize("hasAnyRole('ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'ADMINISTRATEUR')")
     public ResponseEntity<DemandeAchatInterne> ajustement(
             @PathVariable @NonNull Long id, 
             @RequestParam @NonNull com.pfe.gestionsachat.model.TypeAjustement type, 
@@ -123,6 +132,7 @@ public class DemandeAchatInterneController {
     }
 
     @PostMapping("/{id}/creer-po")
+    @PreAuthorize("hasAnyRole('DG', 'ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'ADMINISTRATEUR')")
     public ResponseEntity<com.pfe.gestionsachat.model.PurchaseOrder> creerPO(@PathVariable @NonNull Long id, @RequestParam @NonNull Integer userId) {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.creerPO(id, user));
@@ -139,12 +149,18 @@ public class DemandeAchatInterneController {
         User user = userRepository.findById(userId).orElseThrow();
         return ResponseEntity.ok(demandeService.getDemandesAValider(user));
     }
-    @Autowired
-    private com.pfe.gestionsachat.repository.SupplierRepository supplierRepository;
-
     @GetMapping("/{id}/offres")
     public ResponseEntity<List<OffreFournisseur>> getOffres(@PathVariable Long id) {
-        return ResponseEntity.ok(offreRepository.findByDa_Id(id));
+        return ResponseEntity.ok(demandeService.getOffresByDemande(id));
+    }
+
+    /**
+     * GET /api/demandes/offres/all
+     * Retourne TOUTES les offres (devis) pour le Centre de Documents (Administrateur/Acheteur)
+     */
+    @GetMapping("/offres/all")
+    public ResponseEntity<List<OffreFournisseur>> getAllOffres() {
+        return ResponseEntity.ok(demandeService.getAllOffres());
     }
 
     public static class OffreRequest {
@@ -155,15 +171,8 @@ public class DemandeAchatInterneController {
     }
 
     @PostMapping("/{id}/offres")
-    @org.springframework.transaction.annotation.Transactional
     public ResponseEntity<OffreFournisseur> addOffre(@PathVariable Long id, @RequestBody OffreRequest request) {
-        if (request.prixPropose == null || request.prixPropose.compareTo(java.math.BigDecimal.ZERO) <= 0) {
-            throw new IllegalArgumentException("Le prix proposé doit être strictement positif pour constituer un devis valide.");
-        }
-        DemandeAchatInterne da = demandeRepository.findById(id).orElseThrow();
-        com.pfe.gestionsachat.model.Supplier supplier = supplierRepository.findById(request.fournisseurId).orElseThrow();
-        OffreFournisseur offre = new OffreFournisseur(da, supplier, request.prixPropose, request.conditions, request.delai);
-        return ResponseEntity.ok(offreRepository.save(offre));
+        return ResponseEntity.ok(demandeService.addOffre(id, request.fournisseurId, request.prixPropose, request.conditions, request.delai));
     }
 }
 

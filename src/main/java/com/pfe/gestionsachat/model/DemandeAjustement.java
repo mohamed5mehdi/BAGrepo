@@ -12,9 +12,6 @@ public class DemandeAjustement {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "da_id", nullable = true)
-    private DaHeader da;
 
     @ManyToOne
     @JoinColumn(name = "demande_interne_id", nullable = true)
@@ -63,11 +60,19 @@ public class DemandeAjustement {
     @Column(name = "statut_demande_interne_avant_ajustement")
     private StatutDemande statutDemandeInterneAvantAjustement;
 
-    @Column(name = "acheteur_id")
-    private Long acheteurId;
+    /**
+     * BUG-10 FIX : acheteur et valideur comme vrais @ManyToOne User avec FK en base.
+     * Avant : acheteurId/valideurId étaient des Long bruts — pas de FK, pas d'intégrité référentielle,
+     * jointure JPA impossible sans appel séparé au repository.
+     * Maintenant : contrainte FK réelle, chargement LAZY, jointures JPQL natives.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "acheteur_id")
+    private User acheteur;
 
-    @Column(name = "valideur_id")
-    private Long valideurId;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "valideur_id")
+    private User valideur;
 
     @Column(name = "date_creation")
     private LocalDateTime dateCreation;
@@ -87,8 +92,6 @@ public class DemandeAjustement {
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
 
-    public DaHeader getDa() { return da; }
-    public void setDa(DaHeader da) { this.da = da; }
 
     public DemandeAchatInterne getDemandeInterne() { return demandeInterne; }
     public void setDemandeInterne(DemandeAchatInterne demandeInterne) { this.demandeInterne = demandeInterne; }
@@ -132,11 +135,35 @@ public class DemandeAjustement {
     public StatutDemande getStatutDemandeInterneAvantAjustement() { return statutDemandeInterneAvantAjustement; }
     public void setStatutDemandeInterneAvantAjustement(StatutDemande statutDemandeInterneAvantAjustement) { this.statutDemandeInterneAvantAjustement = statutDemandeInterneAvantAjustement; }
 
-    public Long getAcheteurId() { return acheteurId; }
-    public void setAcheteurId(Long acheteurId) { this.acheteurId = acheteurId; }
+    /** BUG-10 FIX : acheteur comme entité User complète. */
+    public User getAcheteur() { return acheteur; }
+    public void setAcheteur(User acheteur) { this.acheteur = acheteur; }
+    
+    @Deprecated
+    public void setAcheteurId(Long acheteurId) {
+        if (acheteurId != null) {
+            User proxy = new User();
+            proxy.setOidUser(acheteurId.intValue());
+            this.acheteur = proxy;
+        } else {
+            this.acheteur = null;
+        }
+    }
 
-    public Long getValideurId() { return valideurId; }
-    public void setValideurId(Long valideurId) { this.valideurId = valideurId; }
+    /** BUG-10 FIX : valideur comme entité User complète. */
+    public User getValideur() { return valideur; }
+    public void setValideur(User valideur) { this.valideur = valideur; }
+    
+    @Deprecated
+    public void setValideurId(Long valideurId) {
+        if (valideurId != null) {
+            User proxy = new User();
+            proxy.setOidUser(valideurId.intValue());
+            this.valideur = proxy;
+        } else {
+            this.valideur = null;
+        }
+    }
 
     public LocalDateTime getDateCreation() { return dateCreation; }
     public void setDateCreation(LocalDateTime dateCreation) { this.dateCreation = dateCreation; }

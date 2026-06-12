@@ -11,25 +11,41 @@ public class Invoice {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "purchase_order_id")
     private PurchaseOrder purchaseOrder;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "grn_header_id")
     private GrnHeader grnHeader;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "grc_header_id")
     private GrcHeader grcHeader;
 
+    /**
+     * BUG-08 FIX : lien direct vers le fournisseur — évite 2 jointures PO→Supplier.
+     * Indispensable pour les rapports de facturation par fournisseur et les requêtes JPQL directes.
+     * nullable = false : une facture sans fournisseur est métier impossible.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id", nullable = false)
+    private Supplier supplier;
+
+    /**
+     * BUG-08 FIX : invoiceNumber unique — empêche les doublons de numéro de facture en base.
+     * Avant : aucune contrainte, un même numéro pouvait être persisté plusieurs fois.
+     */
+    @Column(name = "invoice_number", unique = true, nullable = false)
     private String invoiceNumber;
+
     private LocalDate invoiceDate = LocalDate.now();
     private BigDecimal montantHT;
     private BigDecimal montantTTC;
 
     @Enumerated(EnumType.STRING)
     private InvoiceStatus status;
+
 
     /**
      * Invariant comptable fondamental : TTC >= HT (TVA >= 0).
@@ -54,6 +70,11 @@ public class Invoice {
                 "Invariant comptable violé : montantHT (" + montantHT + ") ne peut pas être négatif."
             );
         }
+        if (montantTTC != null && montantTTC.compareTo(BigDecimal.ZERO) < 0) {
+            throw new IllegalStateException(
+                "Invariant comptable violé : montantTTC (" + montantTTC + ") ne peut pas être négatif."
+            );
+        }
     }
 
     // Getters and Setters
@@ -65,6 +86,9 @@ public class Invoice {
     public void setGrnHeader(GrnHeader grnHeader) { this.grnHeader = grnHeader; }
     public GrcHeader getGrcHeader() { return grcHeader; }
     public void setGrcHeader(GrcHeader grcHeader) { this.grcHeader = grcHeader; }
+    /** BUG-08 FIX : accès direct au fournisseur sans traverser PO. */
+    public Supplier getSupplier() { return supplier; }
+    public void setSupplier(Supplier supplier) { this.supplier = supplier; }
     public String getInvoiceNumber() { return invoiceNumber; }
     public void setInvoiceNumber(String invoiceNumber) { this.invoiceNumber = invoiceNumber; }
     public LocalDate getInvoiceDate() { return invoiceDate; }
@@ -76,3 +100,4 @@ public class Invoice {
     public InvoiceStatus getStatus() { return status; }
     public void setStatus(InvoiceStatus status) { this.status = status; }
 }
+

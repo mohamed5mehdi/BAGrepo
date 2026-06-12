@@ -10,8 +10,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+import com.pfe.gestionsachat.dto.transfer.*;
 
 /**
  * TransferService — Cœur du flux LTO/LTI inter-sites.
@@ -48,10 +52,61 @@ public class TransferService {
      * avec l'UX. Le lock définitif est acquis au shipTransfer (double-check).
      * Contrainte : toutes les lignes doivent appartenir au même warehouseSource (RISQUE-21).
      */
+    private boolean isMagasinierOrAdmin(Role role) {
+        return role == Role.MAGASINIER || role == Role.MAGASINIER_DEST || 
+               role == Role.ADMINISTRATEUR;
+    }
+
+    @Transactional
+    public List<TransferHeader> submitBulkTransfers(BulkTransferRequest request, User requester) {
+        if (!isMagasinierOrAdmin(requester.getRole())) {
+            throw new SecurityException("Seul un MAGASINIER ou ADMINISTRATEUR peut soumettre un transfert.");
+        }
+
+        Warehouse destWarehouse = warehouseRepo.findById(request.getDestWarehouseId())
+                .orElseThrow(() -> new IllegalArgumentException("Entrepôt de destination introuvable."));
+
+        Map<Long, List<TransferItemReq>> groupedBySource = request.getItems().stream()
+                .collect(Collectors.groupingBy(TransferItemReq::getSourceWarehouseId));
+
+        List<TransferHeader> createdHeaders = new ArrayList<>();
+
+        for (Map.Entry<Long, List<TransferItemReq>> entry : groupedBySource.entrySet()) {
+            Long sourceWarehouseId = entry.getKey();
+            List<TransferItemReq> itemsReq = entry.getValue();
+
+            Warehouse sourceWarehouse = warehouseRepo.findById(sourceWarehouseId)
+                    .orElseThrow(() -> new IllegalArgumentException("Entrepôt source introuvable."));
+
+            TransferHeader header = new TransferHeader();
+            header.setWarehouseSource(sourceWarehouse);
+            header.setWarehouseDest(destWarehouse);
+            
+            List<TransferLine> lines = new ArrayList<>();
+            for(TransferItemReq itemReq : itemsReq) {
+                TransferLine line = new TransferLine();
+                StockItem stockItem = stockItemRepo.findById(itemReq.getStockItemId())
+                    .orElseThrow(() -> new IllegalArgumentException("Article introuvable."));
+                line.setStockItem(stockItem);
+                line.setQuantityRequested(itemReq.getQuantityRequested());
+                lines.add(line);
+            }
+            header.setLines(lines);
+
+            createdHeaders.add(submitTransfer(header, requester));
+        }
+        return createdHeaders;
+    }
+
     @Transactional
     public TransferHeader submitTransfer(TransferHeader header, User requester) {
 
-        // Guard 1 : warehouseSource ≠ warehouseDest
+        // Guard 1 : rôle
+        if (!isMagasinierOrAdmin(requester.getRole())) {
+            throw new SecurityException("Seul un MAGASINIER ou ADMINISTRATEUR peut soumettre un transfert.");
+        }
+
+        // Guard 2 : warehouseSource ≠ warehouseDest
         if (header.getWarehouseSource() == null || header.getWarehouseDest() == null)
             throw new IllegalArgumentException("Le warehouse source et destination sont obligatoires.");
         if (header.getWarehouseSource().getId().equals(header.getWarehouseDest().getId()))
@@ -114,12 +169,12 @@ public class TransferService {
      * Décrémente le stock source + génère les StockMovements TRANSFER_OUT (RISQUE-01).
      */
     @Transactional
-    public TransferHeader shipTransfer(Long headerId, User magasinier) {
+    public TransferHeader shipTransfer(Long headerId, User magasinier, TransferShipRequest request) {
 
         // Guards rôle et warehouse
-        if (magasinier.getRole() != Role.MAGASINIER)
-            throw new SecurityException("Seul un MAGASINIER peut expédier un transfert.");
-        if (magasinier.getWarehouse() == null)
+        if (!isMagasinierOrAdmin(magasinier.getRole()))
+            throw new SecurityException("Seul un MAGASINIER ou ADMINISTRATEUR peut expédier un transfert.");
+        if (magasinier.getRole() != Role.ADMINISTRATEUR && magasinier.getWarehouse() == null)
             throw new IllegalStateException("Magasinier non assigné à un entrepôt.");
 
         // MAJEUR-01 : JOIN FETCH lignes + stockItems → tri déterministe, zéro N+1, proxy ids fiables
@@ -132,7 +187,7 @@ public class TransferService {
                 "Transition impossible : " + header.getStatus() + " → IN_TRANSIT");
 
         // Guard warehouse source (sécurité)
-        if (!magasinier.getWarehouse().getId().equals(header.getWarehouseSource().getId()))
+        if (magasinier.getRole() != Role.ADMINISTRATEUR && !magasinier.getWarehouse().getId().equals(header.getWarehouseSource().getId()))
             throw new SecurityException("Ce transfert ne concerne pas votre entrepôt.");
 
         // Tri par stockItem.id croissant — ordre déterministe pour anti-deadlock (RISQUE-05)
@@ -146,6 +201,17 @@ public class TransferService {
         header.setLtoNumber(lto);
 
         for (TransferLine line : sortedLines) {
+            Integer shippedQty = request.getLines().stream()
+                .filter(l -> l.getLineId().equals(line.getId()))
+                .map(LineQty::getQuantity)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Quantité expédiée manquante pour la ligne " + line.getId()));
+            
+            if (shippedQty < 0)
+                throw new IllegalArgumentException("La quantité expédiée ne peut être négative.");
+                
+            line.setQuantityShipped(shippedQty);
+
             // SELECT FOR UPDATE — lock pessimiste (RISQUE-05, RISQUE-06)
             StockItem src = stockItemRepo.findByItemCodeAndWarehouseIdWithLock(
                 line.getStockItem().getItemCode(),
@@ -159,7 +225,23 @@ public class TransferService {
                 throw new InsufficientStockTransferException(
                     src.getItemCode(), reserved, line.getQuantityRequested());
 
-            src.setQuantityReserved(reserved - line.getQuantityRequested());
+            // Libérer la réservation complète initiale
+            src.setQuantityReserved(Math.max(0, reserved - line.getQuantityRequested()));
+            
+            // Ajuster le stock disponible si la quantité expédiée diffère de la quantité demandée
+            int diff = line.getQuantityRequested() - shippedQty;
+            if (diff < 0) {
+                // On expédie PLUS que demandé : vérifier qu'il y a assez de dispo
+                int extraNeeded = -diff;
+                if (src.getQuantityAvailable() < extraNeeded) {
+                    throw new InsufficientStockTransferException(src.getItemCode(), src.getQuantityAvailable(), extraNeeded);
+                }
+                src.setQuantityAvailable(src.getQuantityAvailable() - extraNeeded);
+            } else if (diff > 0) {
+                // On expédie MOINS que demandé : restituer la différence au disponible
+                src.setQuantityAvailable(src.getQuantityAvailable() + diff);
+            }
+
             // CRITIQUE-01 : saveAndFlush() — force la réconciliation @Version avant
             // la ligne suivante, évite ObjectOptimisticLockingFailureException
             // causée par un proxy L1-cache stale chargé en début de transaction.
@@ -167,7 +249,7 @@ public class TransferService {
 
             // Mouvement TRANSFER_OUT avec snapshot warehouse et référence document correcte (RISQUE-01)
             persistMovement(src, header.getWarehouseSource(),
-                MovementType.TRANSFER_OUT, line.getQuantityRequested(), lto);
+                MovementType.TRANSFER_OUT, shippedQty, lto);
         }
 
         header.setStatus(TransferStatus.IN_TRANSIT);
@@ -190,12 +272,12 @@ public class TransferService {
      * Idempotence garantie par machine à états (RISQUE-11).
      */
     @Transactional
-    public TransferHeader receiveTransfer(Long headerId, User magasinierDest) {
+    public TransferHeader receiveTransfer(Long headerId, User magasinierDest, TransferReceiveRequest request) {
 
         // Guards rôle et warehouse
-        if (magasinierDest.getRole() != Role.MAGASINIER_DEST)
-            throw new SecurityException("Seul un MAGASINIER_DEST peut valider la réception.");
-        if (magasinierDest.getWarehouse() == null)
+        if (!isMagasinierOrAdmin(magasinierDest.getRole()))
+            throw new SecurityException("Seul un MAGASINIER ou ADMINISTRATEUR peut valider la réception.");
+        if (magasinierDest.getRole() != Role.ADMINISTRATEUR && magasinierDest.getWarehouse() == null)
             throw new IllegalStateException("Magasinier destination non assigné à un entrepôt.");
 
         // MAJEUR-01 : JOIN FETCH lignes + stockItems → tri déterministe, zéro N+1
@@ -208,7 +290,7 @@ public class TransferService {
                 "Transition impossible : " + header.getStatus() + " → RECEIVED");
 
         // Guard warehouse destination
-        if (!magasinierDest.getWarehouse().getId().equals(header.getWarehouseDest().getId()))
+        if (magasinierDest.getRole() != Role.ADMINISTRATEUR && !magasinierDest.getWarehouse().getId().equals(header.getWarehouseDest().getId()))
             throw new SecurityException("Ce transfert ne concerne pas votre entrepôt destination.");
 
         // MAJEUR-01 : JOIN FETCH déjà fait — tri par id croissant déterministe, anti-deadlock (RISQUE-05)
@@ -222,6 +304,17 @@ public class TransferService {
         header.setLtiNumber(lti);
 
         for (TransferLine line : sortedLines) {
+            Integer receivedQty = request.getLines().stream()
+                .filter(l -> l.getLineId().equals(line.getId()))
+                .map(LineQty::getQuantity)
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException("Quantité reçue manquante pour la ligne " + line.getId()));
+            
+            if (receivedQty < 0)
+                throw new IllegalArgumentException("La quantité reçue ne peut être négative.");
+                
+            line.setQuantityReceived(receivedQty);
+
             String itemCode = line.getStockItem().getItemCode();
             Long destWarehouseId = header.getWarehouseDest().getId();
 
@@ -231,17 +324,24 @@ public class TransferService {
             // avec le même article simultanément → gap non couvert par SELECT FOR UPDATE
             // sur une ligne inexistante (PostgreSQL ne pose pas de gap lock ici).
             // Pattern robuste : find-or-insert avec re-read après violation contrainte.
-            StockItem dest = stockItemRepo
-                .findByItemCodeAndWarehouseIdWithLock(itemCode, destWarehouseId)
-                .orElseGet(() -> createStockItemAtDest(line.getStockItem(), header.getWarehouseDest()));
+            StockItem dest;
+            try {
+                dest = stockItemRepo
+                    .findByItemCodeAndWarehouseIdWithLock(itemCode, destWarehouseId)
+                    .orElseGet(() -> createStockItemAtDest(line.getStockItem(), header.getWarehouseDest()));
+            } catch (org.springframework.dao.DataIntegrityViolationException e) {
+                dest = stockItemRepo
+                    .findByItemCodeAndWarehouseIdWithLock(itemCode, destWarehouseId)
+                    .orElseThrow(() -> new RuntimeException("Erreur de concurrence sur l'article " + itemCode));
+            }
 
-            dest.setQuantityAvailable(dest.getQuantityAvailable() + line.getQuantityRequested());
+            dest.setQuantityAvailable(dest.getQuantityAvailable() + receivedQty);
             // CRITIQUE-01 : saveAndFlush() — réconciliation @Version avant ligne suivante
             stockItemRepo.saveAndFlush(dest);
 
             // Mouvement TRANSFER_IN avec snapshot warehouse et référence document correcte (LTI) (RISQUE-01)
             persistMovement(dest, header.getWarehouseDest(),
-                MovementType.TRANSFER_IN, line.getQuantityRequested(),
+                MovementType.TRANSFER_IN, receivedQty,
                 lti);
         }
 
@@ -330,6 +430,14 @@ public class TransferService {
             throw new IllegalStateException("Magasinier destination non assigné à un entrepôt.");
         return transferRepo.findByWarehouseDestAndStatus(
             magasinierDest.getWarehouse(), TransferStatus.IN_TRANSIT);
+    }
+
+    /**
+     * Retourne tous les transferts (global) pour l'Admin dans le Centre de Documents.
+     */
+    @Transactional(readOnly = true)
+    public List<TransferHeader> getAllTransfers() {
+        return transferRepo.findAll();
     }
 
     /**

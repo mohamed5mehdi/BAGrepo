@@ -7,6 +7,7 @@ import com.pfe.gestionsachat.service.MatchingService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.List;
 
 @RestController
@@ -30,17 +31,21 @@ public class InvoiceController {
     }
 
     @PostMapping
+    @org.springframework.transaction.annotation.Transactional
+    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMINISTRATEUR')")
     public ResponseEntity<Invoice> createInvoice(@RequestBody Invoice invoice) {
         invoice.setStatus(InvoiceStatus.RECEIVED);
         return ResponseEntity.ok(invoiceRepository.save(invoice));
     }
 
     @PostMapping("/{id}/match")
+    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMINISTRATEUR')")
     public ResponseEntity<Invoice> matchInvoice(@PathVariable Long id) {
         return ResponseEntity.ok(matchingService.matchInvoice(java.util.Objects.requireNonNull(id)));
     }
 
     @PostMapping("/{id}/approve")
+    @PreAuthorize("hasAnyRole('DAF', 'DG', 'ADMINISTRATEUR')")
     public ResponseEntity<Invoice> approveInvoice(@PathVariable Long id) {
         return ResponseEntity.ok(matchingService.approveInvoice(java.util.Objects.requireNonNull(id)));
     }

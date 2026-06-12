@@ -11,12 +11,19 @@ public class GrnHeader {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @ManyToOne
-    @JoinColumn(name = "purchase_order_id")
+    /**
+     * BUG-12 FIX : nullable = false — un GRN sans PO associé viole le circuit BAG ERP (PO→GRN→GRC).
+     * Avant : @JoinColumn sans nullable=false permettait la persistance d'un GRN orphelin.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "purchase_order_id", nullable = false)
     private PurchaseOrder purchaseOrder;
 
-    @ManyToOne
-    @JoinColumn(name = "supplier_id")
+    /**
+     * BUG-12 FIX : nullable = false — un GRN sans fournisseur est métier impossible.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "supplier_id", nullable = false)
     private Supplier supplier;
 
     private String deliveryNoteNumber;
@@ -30,11 +37,11 @@ public class GrnHeader {
     @Column(name = "grn_number", unique = true)
     private String grnNumber;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "received_by")
     private User receivedBy;
 
-    @ManyToOne
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "parent_grn_id")
     private GrnHeader parentGrn;
 

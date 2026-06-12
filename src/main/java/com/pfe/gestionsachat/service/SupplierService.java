@@ -5,14 +5,17 @@ import com.pfe.gestionsachat.repository.SupplierRepository;
 import org.springframework.lang.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
+@Transactional(readOnly = true)
 public class SupplierService {
 
     @Autowired
     private SupplierRepository supplierRepository;
 
+    @Transactional
     public Supplier createSupplier(@NonNull Supplier supplier) {
         return supplierRepository.save(supplier);
     }
@@ -27,6 +30,7 @@ public class SupplierService {
                 .orElseThrow(() -> new RuntimeException("Fournisseur non trouvé")));
     }
 
+    @Transactional
     @NonNull
     public Supplier updateSupplier(@NonNull Integer id, @NonNull Supplier supplierDetails) {
         Supplier supplier = getSupplierById(id);
@@ -36,6 +40,7 @@ public class SupplierService {
         return supplierRepository.save(supplier);
     }
 
+    @Transactional
     public void deleteSupplier(@NonNull Integer id) {
         supplierRepository.deleteById(id);
     }

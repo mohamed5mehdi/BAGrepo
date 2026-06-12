@@ -8,20 +8,20 @@ export interface CatalogEntry {
 
 export const MOCK_CATALOG: Record<string, CatalogEntry[]> = {
     'PC Portables & Stations': [
-        { fournisseurId: 1, fournisseurNom: 'Alpha IT Solutions', prixRef: 27500, delaiRef: 5, conditionsRef: 'Garantie 5 ans ProSupport, Housse incluse' },
-        { fournisseurId: 2, fournisseurNom: 'Global Office Systems', prixRef: 29000, delaiRef: 10, conditionsRef: 'Garantie standard 2 ans' }
+        { fournisseurId: 1, fournisseurNom: 'Alpha IT Solutions', prixRef: 11500, delaiRef: 5, conditionsRef: 'Garantie 3 ans ProSupport, Sacoche incluse' },
+        { fournisseurId: 2, fournisseurNom: 'Global Office Systems', prixRef: 12000, delaiRef: 10, conditionsRef: 'Garantie standard 2 ans' }
     ],
     'Abonnements Cloud (Azure/AWS)': [
-        { fournisseurId: 1, fournisseurNom: 'Alpha IT Solutions', prixRef: 50000, delaiRef: 1, conditionsRef: 'Support 24/7' },
-        { fournisseurId: 3, fournisseurNom: 'Elite Services Group', prixRef: 48500, delaiRef: 2, conditionsRef: 'SLA 99.9%' }
+        { fournisseurId: 1, fournisseurNom: 'Alpha IT Solutions', prixRef: 35000, delaiRef: 1, conditionsRef: 'Support 24/7 (Annuel)' },
+        { fournisseurId: 3, fournisseurNom: 'Elite Services Group', prixRef: 42000, delaiRef: 2, conditionsRef: 'SLA 99.9% (Annuel)' }
     ],
     'Suites Bureautiques (M365)': [
-        { fournisseurId: 1, fournisseurNom: 'Alpha IT Solutions', prixRef: 450, delaiRef: 1, conditionsRef: 'Licence Annuelle, Support Tel' },
-        { fournisseurId: 2, fournisseurNom: 'Global Office Systems', prixRef: 480, delaiRef: 2, conditionsRef: 'Licence Annuelle' }
+        { fournisseurId: 1, fournisseurNom: 'Alpha IT Solutions', prixRef: 1800, delaiRef: 1, conditionsRef: 'Business Standard Annuel' },
+        { fournisseurId: 2, fournisseurNom: 'Global Office Systems', prixRef: 1950, delaiRef: 2, conditionsRef: 'Business Standard Annuel + Setup' }
     ],
     'Bureaux & Chaises Ergonomiques': [
-        { fournisseurId: 2, fournisseurNom: 'Global Office Systems', prixRef: 13500, delaiRef: 15, conditionsRef: 'Montage sur site inclus' },
-        { fournisseurId: 3, fournisseurNom: 'Elite Services Group', prixRef: 14200, delaiRef: 10, conditionsRef: 'Livraison express, sans montage' }
+        { fournisseurId: 2, fournisseurNom: 'Global Office Systems', prixRef: 4500, delaiRef: 15, conditionsRef: 'Poste Complet, Montage sur site' },
+        { fournisseurId: 3, fournisseurNom: 'Elite Services Group', prixRef: 5200, delaiRef: 10, conditionsRef: 'Poste Premium Express' }
     ],
     'Climatisation & Aménagement': [
         { fournisseurId: 2, fournisseurNom: 'Global Office Systems', prixRef: 8500, delaiRef: 7, conditionsRef: 'Garantie 2 ans, installation comprise' },

@@ -11,14 +11,17 @@ public class GrcHeader {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @OneToOne
+    @OneToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "grn_header_id")
     @com.fasterxml.jackson.annotation.JsonProperty(access = com.fasterxml.jackson.annotation.JsonProperty.Access.WRITE_ONLY)
     private GrnHeader grnHeader;
 
     private LocalDate costingDate = LocalDate.now();
 
-    @ManyToOne
+    /**
+     * BUG-22 FIX : fetch = FetchType.LAZY pour éviter les problèmes de N+1 queries.
+     */
+    @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "processed_by")
     private User processedBy;
 

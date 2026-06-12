@@ -5,11 +5,12 @@ import DocumentViewerModal from '../components/DocumentViewerModal';
 import { useAuth } from '../context/AuthContext';
 import { 
   getAllPurchaseOrders, getAllGrns, getAllGrcs, getInvoices,
-  downloadPoPdf, downloadGrnPdf, downloadGrcPdf, downloadInvoicePdf
+  downloadPoPdf, downloadGrnPdf, downloadGrcPdf, downloadInvoicePdf,
+  getAllTransfers, getAllOffres, downloadLtoPdf, downloadLtiPdf
 } from '../api/services';
 import toast from 'react-hot-toast';
 
-type TabType = 'PO' | 'GRN' | 'GRC' | 'INVOICE';
+type TabType = 'PO' | 'GRN' | 'GRC' | 'INVOICE' | 'LTO' | 'LTI' | 'DEVIS';
 
 export default function DocumentsPage() {
   const { user } = useAuth();
@@ -17,9 +18,10 @@ export default function DocumentsPage() {
   // Onglets autorisés par rôle
   const allowedTabs: TabType[] = useMemo(() => {
     const role = user?.role || '';
-    if (role === 'MAGASINIER') return ['GRN'];
+    if (role === 'MAGASINIER' || role.startsWith('MAGASINIER')) return ['GRN', 'LTO', 'LTI'];
     if (role === 'COMPTABLE') return ['GRN', 'GRC', 'INVOICE'];
-    return ['PO', 'GRN', 'GRC', 'INVOICE']; // ACHETEUR, ADMINISTRATEUR
+    if (role === 'ACHETEUR' || role.startsWith('ACHETEUR')) return ['PO', 'GRN', 'GRC', 'INVOICE', 'DEVIS'];
+    return ['PO', 'GRN', 'GRC', 'INVOICE', 'LTO', 'LTI', 'DEVIS']; // ADMINISTRATEUR
   }, [user]);
 
   const [activeTab, setActiveTab] = useState<TabType>(allowedTabs[0]);
@@ -53,6 +55,18 @@ export default function DocumentsPage() {
     enabled: allowedTabs.includes('INVOICE'),
   });
 
+  const { data: transfers = [], isLoading: loadTransfers } = useQuery({
+    queryKey: ['docs-transfers-all'],
+    queryFn: () => getAllTransfers().then(r => r.data),
+    enabled: allowedTabs.includes('LTO') || allowedTabs.includes('LTI'),
+  });
+
+  const { data: offres = [], isLoading: loadOffres } = useQuery({
+    queryKey: ['docs-offres-all'],
+    queryFn: () => getAllOffres().then(r => r.data),
+    enabled: allowedTabs.includes('DEVIS'),
+  });
+
   // Handler Download
   const handleDownload = async (id: number, type: TabType) => {
     try {
@@ -63,6 +77,13 @@ export default function DocumentsPage() {
       else if (type === 'GRN') { res = await downloadGrnPdf(id); filename = `GRN_${id}.pdf`; }
       else if (type === 'GRC') { res = await downloadGrcPdf(id); filename = `GRC_${id}.pdf`; }
       else if (type === 'INVOICE') { res = await downloadInvoicePdf(id); filename = `Facture_${id}.pdf`; }
+      else if (type === 'LTO') { res = await downloadLtoPdf(id); filename = `LTO_${id}.pdf`; }
+      else if (type === 'LTI') { res = await downloadLtiPdf(id); filename = `LTI_${id}.pdf`; }
+      else if (type === 'DEVIS') {
+          toast.dismiss(loadingToast);
+          toast.error("Le téléchargement PDF n'est pas supporté pour les Devis.");
+          return;
+      }
       
       const url = window.URL.createObjectURL(new Blob([res.data], { type: 'application/pdf' }));
       const link = document.createElement('a');
@@ -104,20 +125,23 @@ export default function DocumentsPage() {
     if (activeTab === 'GRN') return filterData(grns, 'receiptDate', ['grnNumber', 'deliveryNoteNumber', 'supplier.name', 'status']);
     if (activeTab === 'GRC') return filterData(grcs, 'costingDate', ['grnHeader.grnNumber', 'status']);
     if (activeTab === 'INVOICE') return filterData(invoices, 'invoiceDate', ['invoiceNumber', 'supplier.name', 'status']);
+    if (activeTab === 'LTO') return filterData(transfers.filter((t: any) => t.status === 'IN_TRANSIT' || t.status === 'RECEIVED'), 'shippedAt', ['ltoNumber', 'warehouseSource.name', 'warehouseDest.name', 'status']);
+    if (activeTab === 'LTI') return filterData(transfers.filter((t: any) => t.status === 'RECEIVED'), 'receivedAt', ['ltiNumber', 'warehouseSource.name', 'warehouseDest.name', 'status']);
+    if (activeTab === 'DEVIS') return filterData(offres, 'dateOffre', ['fournisseur.name', 'demandeInterne.objet']);
     return [];
   };
 
   const currentData = getFilteredData();
-  const isLoading = loadPO || loadGRN || loadGRC || loadInv;
+  const isLoading = loadPO || loadGRN || loadGRC || loadInv || loadTransfers || loadOffres;
 
   return (
     <DashboardLayout title="Centre de Documents & Archives" pendingCount={0}>
       <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full">
         
         {/* En-tête : Onglets et Filtres */}
-        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-xl shadow-slate-200/50 dark:shadow-none flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4">
+        <div className="bg-white dark:bg-slate-800 rounded-3xl p-6 shadow-xl shadow-slate-200/50 dark:shadow-none flex flex-col gap-4">
           
-          <div className="flex gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl overflow-x-auto w-full xl:w-auto">
+          <div className="flex flex-wrap gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-2xl w-full">
             {allowedTabs.includes('PO') && (
               <button 
                 onClick={() => setActiveTab('PO')} 
@@ -148,6 +172,30 @@ export default function DocumentsPage() {
                 className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'INVOICE' ? 'bg-white dark:bg-slate-800 text-rose-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
               >
                 🧾 Factures (INV)
+              </button>
+            )}
+            {allowedTabs.includes('LTO') && (
+              <button 
+                onClick={() => setActiveTab('LTO')} 
+                className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'LTO' ? 'bg-white dark:bg-slate-800 text-amber-500 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                📤 Bons de Sortie (LTO)
+              </button>
+            )}
+            {allowedTabs.includes('LTI') && (
+              <button 
+                onClick={() => setActiveTab('LTI')} 
+                className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'LTI' ? 'bg-white dark:bg-slate-800 text-teal-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                📥 Bons d'Entrée (LTI)
+              </button>
+            )}
+            {allowedTabs.includes('DEVIS') && (
+              <button 
+                onClick={() => setActiveTab('DEVIS')} 
+                className={`px-5 py-2.5 rounded-xl font-bold text-sm transition-all whitespace-nowrap ${activeTab === 'DEVIS' ? 'bg-white dark:bg-slate-800 text-blue-600 shadow-md' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                🤝 Devis (Offres)
               </button>
             )}
           </div>
@@ -218,10 +266,32 @@ export default function DocumentsPage() {
                       date = item.invoiceDate;
                       details = `Fournisseur: ${item.supplier?.name || 'Interne'} - ${item.totalAmount} MAD`;
                       status = item.status;
+                    } else if (activeTab === 'LTO') {
+                      id = item.id;
+                      ref = item.ltoNumber || `LTO-${id}`;
+                      date = item.shippedAt;
+                      details = `Dest: ${item.warehouseDest?.name || 'N/A'}`;
+                      status = item.status;
+                    } else if (activeTab === 'LTI') {
+                      id = item.id;
+                      ref = item.ltiNumber || `LTI-${id}`;
+                      date = item.receivedAt;
+                      details = `Source: ${item.warehouseSource?.name || 'N/A'}`;
+                      status = item.status;
+                    } else if (activeTab === 'DEVIS') {
+                      id = item.id;
+                      ref = `DEVIS-${id}`;
+                      date = item.dateOffre || '-';
+                      details = `Fournisseur: ${item.fournisseur?.name || 'N/A'} - Montant: ${item.prixPropose} MAD`;
+                      status = item.demandeInterne?.statut || 'N/A';
                     }
 
                     return (
-                      <tr key={idx} className="border-b border-slate-50 dark:border-slate-700/30 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors">
+                      <tr 
+                        key={idx} 
+                        onClick={() => { setSelectedDoc(item); setSelectedDocType(activeTab); }}
+                        className="border-b border-slate-50 dark:border-slate-700/30 hover:bg-slate-50/50 dark:hover:bg-slate-700/20 transition-colors cursor-pointer"
+                      >
                         <td className="p-4 font-bold text-slate-800 dark:text-white">{ref}</td>
                         <td className="p-4 text-sm font-medium text-slate-500">{date ? String(date).substring(0, 10) : '-'}</td>
                         <td className="p-4 text-sm text-slate-500 truncate max-w-[200px]">{details}</td>
@@ -232,7 +302,7 @@ export default function DocumentsPage() {
                         </td>
                         <td className="p-4 text-right">
                           <button 
-                            onClick={() => { setSelectedDoc(item); setSelectedDocType(activeTab); }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedDoc(item); setSelectedDocType(activeTab); }}
                             className="inline-flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 text-sm font-bold rounded-xl hover:bg-indigo-100 dark:hover:bg-indigo-900/50 transition-colors"
                           >
                             👀 Visualiser

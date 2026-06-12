@@ -23,39 +23,42 @@ public class StockAlertService {
         for (StockItem item : items) {
             if (item.getQuantityAvailable() != null && item.getReorderPoint() != null) {
                 if (item.getQuantityAvailable() < item.getReorderPoint()) {
-                    log.warn("Alerte Stock : L'article {} est sous le seuil (Dispo: {}, Seuil: {}).", 
-                             item.getItemCode(), item.getQuantityAvailable(), item.getReorderPoint());
-                    // Déclencher automatiquement une nouvelle DA
-                    createAutomaticDa(item);
+                    boolean daExists = demandeAchatInterneRepository.findAll().stream()
+                        .anyMatch(da -> da.getItemCode() != null && da.getItemCode().equals(item.getItemCode()) 
+                            && da.getStatut() != com.pfe.gestionsachat.model.StatutDemande.REJETEE);
+                    if (!daExists) {
+                        log.warn("Alerte Stock : L'article {} est sous le seuil (Dispo: {}, Seuil: {}).", 
+                                 item.getItemCode(), item.getQuantityAvailable(), item.getReorderPoint());
+                        createAutomaticDa(item);
+                    }
                 }
             }
         }
     }
 
     @Autowired
-    private DaHeaderService daHeaderService;
+    private DemandeAchatInterneService demandeAchatInterneService;
+    
+    @Autowired
+    private com.pfe.gestionsachat.repository.DemandeAchatInterneRepository demandeAchatInterneRepository;
 
     @Autowired
     private com.pfe.gestionsachat.repository.UserRepository userRepository;
 
     private void createAutomaticDa(StockItem item) {
         log.info("Création automatique d'une DA pour l'article {}", item.getItemCode());
-        com.pfe.gestionsachat.model.DaHeader da = new com.pfe.gestionsachat.model.DaHeader();
-        da.setObjet("Réapprovisionnement automatique pour: " + item.getItemName());
+        com.pfe.gestionsachat.model.DemandeAchatInterne da = new com.pfe.gestionsachat.model.DemandeAchatInterne();
+        da.setDesignation("Réapprovisionnement automatique pour: " + item.getItemName());
+        da.setItemCode(item.getItemCode());
         
         // Find a system user or first user to be the requester
-        com.pfe.gestionsachat.model.User systemUser = userRepository.findAll().stream().findFirst().orElse(null);
-        da.setDemandeur(systemUser);
+        userRepository.findAll().stream().findFirst().ifPresent(da::setDemandeur);
         
-        com.pfe.gestionsachat.model.DaDetails details = new com.pfe.gestionsachat.model.DaDetails();
-        details.setItemCode(item.getItemCode());
-        details.setItemName(item.getItemName());
-        details.setQuantite(item.getReorderPoint() != null ? item.getReorderPoint() : 10);
-        details.setDescription("Alerte stock déclenchée automatiquement");
-        details.setDaHeader(da);
+        da.setQuantite(item.getReorderPoint() != null ? item.getReorderPoint() : 10);
+        da.setJustification("Alerte stock déclenchée automatiquement");
+        da.setUrgence(com.pfe.gestionsachat.model.UrgenceDemande.CRITIQUE);
         
-        da.setDetails(java.util.List.of(details));
-        
-        daHeaderService.createPurchaseRequest(da);
+        com.pfe.gestionsachat.model.User sysUser = userRepository.findAll().stream().findFirst().orElse(null);
+        demandeAchatInterneService.createDemande(da, sysUser);
     }
 }

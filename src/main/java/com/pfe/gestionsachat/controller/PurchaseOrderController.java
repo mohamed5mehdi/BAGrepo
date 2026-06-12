@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.access.prepost.PreAuthorize;
 import java.util.List;
 
 @RestController
@@ -31,7 +32,7 @@ public class PurchaseOrderController {
     }
 
     @GetMapping("/da/{oidDa}")
-    public ResponseEntity<PurchaseOrder> getPurchaseOrderByDa(@PathVariable @org.springframework.lang.NonNull Integer oidDa) {
+    public ResponseEntity<PurchaseOrder> getPurchaseOrderByDa(@PathVariable @org.springframework.lang.NonNull Long oidDa) {
         return ResponseEntity.ok(purchaseOrderService.getPurchaseOrderByDa(oidDa));
     }
 
@@ -52,6 +53,7 @@ public class PurchaseOrderController {
 
     /** Responsable Achat approuve un PO PENDING_APPROVAL → APPROVED */
     @PutMapping("/{id}/approve")
+    @PreAuthorize("hasAnyRole('RESP_ACHAT', 'ADMINISTRATEUR')")
     public ResponseEntity<PurchaseOrder> approvePO(
             @PathVariable Integer id,
             @RequestParam Integer userId,
@@ -62,6 +64,7 @@ public class PurchaseOrderController {
 
     /** Responsable Achat rejette un PO PENDING_APPROVAL → REJECTED */
     @PutMapping("/{id}/reject")
+    @PreAuthorize("hasAnyRole('RESP_ACHAT', 'ADMINISTRATEUR')")
     public ResponseEntity<PurchaseOrder> rejectPO(
             @PathVariable Integer id,
             @RequestParam Integer userId,
@@ -72,6 +75,7 @@ public class PurchaseOrderController {
 
     /** Clôture manuelle forcée SHORT_CLOSED (APPROVED → SHORT_CLOSED) */
     @PutMapping("/{id}/short-close")
+    @PreAuthorize("hasAnyRole('RESP_ACHAT', 'ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'ADMINISTRATEUR')")
     public ResponseEntity<PurchaseOrder> shortClose(
             @PathVariable Integer id,
             @RequestParam Integer userId,
@@ -89,7 +93,7 @@ public class PurchaseOrderController {
 
     @GetMapping("/da/{oidDa}/download")
     @Transactional(readOnly = true)
-    public ResponseEntity<byte[]> downloadPoByDa(@PathVariable Integer oidDa) {
+    public ResponseEntity<byte[]> downloadPoByDa(@PathVariable Long oidDa) {
         PurchaseOrder po = purchaseOrderService.getPurchaseOrderByDa(oidDa);
         if (po == null) {
             return ResponseEntity.notFound().build();

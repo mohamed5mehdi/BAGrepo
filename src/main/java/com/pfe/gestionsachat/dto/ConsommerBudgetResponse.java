@@ -9,8 +9,8 @@ import java.time.LocalDateTime;
  */
 public class ConsommerBudgetResponse {
 
-    @JsonProperty("da_id")
-    private Integer daId;
+    @JsonProperty("demande_interne_id")
+    private Long demandeInterneId;
 
     @JsonProperty("sous_famille_id")
     private Integer sousFamilleId;
@@ -46,9 +46,9 @@ public class ConsommerBudgetResponse {
 
     // ─── Getters / Setters ─────────────────────────────────────────────────────
 
-    @JsonProperty("da_id")
-    public Integer getDaId()                        { return daId; }
-    public void setDaId(Integer v)                  { this.daId = v; }
+    @JsonProperty("demande_interne_id")
+    public Long getDemandeInterneId()                        { return demandeInterneId; }
+    public void setDemandeInterneId(Long v)                  { this.demandeInterneId = v; }
 
     @JsonProperty("sous_famille_id")
     public Integer getSousFamilleId()               { return sousFamilleId; }

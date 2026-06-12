@@ -22,8 +22,7 @@ public class DataInitializer implements CommandLineRunner {
     @Autowired private FamilyRepository familyRepository;
     @Autowired private SubFamilyRepository subFamilyRepository;
     @Autowired private SupplierRepository supplierRepository;
-    @Autowired private DaHeaderRepository daHeaderRepository;
-    @Autowired private DaDetailsRepository daDetailsRepository;
+
     @Autowired private WarehouseRepository warehouseRepository;
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
     @Autowired private DemandeAchatInterneRepository demandeAchatInterneRepository;
@@ -49,7 +48,7 @@ public class DataInitializer implements CommandLineRunner {
 
         // 1. Nettoyage complet et robuste via TRUNCATE avec RESTART IDENTITY pour éviter les décalages d'IDs
         try {
-            jdbcTemplate.execute("TRUNCATE TABLE audit_log, status_history, justification, action, budget_transfer, purchase_order, offre_fournisseur, da_details, da_header, demande_achat_interne, demande_ajustement, sub_family, family, warehouse, stock_item, stock_movement, grn_details, grn_header, grc_details, grc_header, credit_note, invoice, transfer_header, transfer_line, users RESTART IDENTITY CASCADE");
+            jdbcTemplate.execute("TRUNCATE TABLE audit_log, status_history, justification, action, budget_transfer, purchase_order, offre_fournisseur, da_details, da_header, demande_achat_interne, demande_ajustement, sub_family, family, budget_pieces, warehouse, stock_item, stock_movement, grn_details, grn_header, grc_details, grc_header, credit_note, invoice, transfer_header, transfer_line, users RESTART IDENTITY CASCADE");
             log.info("✅ Nettoyage par TRUNCATE terminé.");
         } catch (Exception e) {
             log.warn("⚠️ Échec du TRUNCATE : {}", e.getMessage());
@@ -65,6 +64,11 @@ public class DataInitializer implements CommandLineRunner {
             User n1       = new User("Younesse Filali",    "n1@test.com",       encoder.encode("password"), Role.MANAGER_N1);
             User tech     = new User("Halim Mansouri",     "tech@test.com",     encoder.encode("password"), Role.TECHNICIEN);
             User acheteur = new User("Abdsamad Alami",     "acheteur@test.com", encoder.encode("password"), Role.ACHETEUR);
+            User acheteurInfo = new User("Acheteur Info",  "acheteur.info@test.com", encoder.encode("password"), Role.ACHETEUR_INFORMATIQUE);
+            User acheteurBureau = new User("Acheteur Bureau",  "acheteur.bureau@test.com", encoder.encode("password"), Role.ACHETEUR_BUREAUTIQUE);
+            User acheteurMob = new User("Acheteur Mobilier",  "acheteur.mob@test.com", encoder.encode("password"), Role.ACHETEUR_MOBILIER);
+            User acheteurCons = new User("Acheteur Consommable",  "acheteur.cons@test.com", encoder.encode("password"), Role.ACHETEUR_CONSOMMABLE);
+            User acheteurAutre = new User("Acheteur Autre",  "acheteur.autre@test.com", encoder.encode("password"), Role.ACHETEUR_AUTRE);
             User amg      = new User("Ilham Bennani",      "amg@test.com",      encoder.encode("password"), Role.AMG);
             User daf      = new User("Ibtissame Saadalh",  "daf@test.com",      encoder.encode("password"), Role.DAF);
             User dg       = new User("Abdelhamid Barakate", "dg@test.com",       encoder.encode("password"), Role.DG);
@@ -78,46 +82,48 @@ public class DataInitializer implements CommandLineRunner {
             User comptable   = new User("Nadia Berrada",    "comptable@test.com",  encoder.encode("password"), Role.COMPTABLE);
             User respAchat   = new User("Omar Kettani",     "resp.achat@test.com", encoder.encode("password"), Role.RESP_ACHAT);
 
-            userRepository.saveAll(List.of(n1, tech, acheteur, amg, daf, dg, admin, demandeur, magasinier, comptable, respAchat));
+            userRepository.saveAll(List.of(n1, tech, acheteur, acheteurInfo, acheteurBureau, acheteurMob, acheteurCons, acheteurAutre, amg, daf, dg, admin, demandeur, magasinier, comptable, respAchat));
         } else {
             demandeur = userRepository.findByEmail("demandeur@test.com").orElse(null);
         }
 
         log.info("🏗️ Début du seeding des données...");
 
-        // 3. Familles & Sous-familles (Besoins Internes BAG)
-        Family famIT     = new Family("Matériel Informatique",  BigDecimal.valueOf(500000.0));
+        // Familles — budgets annuels réalistes grande entreprise (en DHS)
+        Family famIT     = new Family("Matériel Informatique",  BigDecimal.valueOf(2_000_000.0));
         famIT.setCategorie(CategorieDemande.INFORMATIQUE);
 
-        Family famSoft   = new Family("Licences & Logiciels",   BigDecimal.valueOf(300000.0));
+        Family famSoft   = new Family("Licences & Logiciels",   BigDecimal.valueOf(1_200_000.0));
         famSoft.setCategorie(CategorieDemande.INFORMATIQUE);
 
-        Family famBur    = new Family("Bureautique & Mobilier", BigDecimal.valueOf(200000.0));
+        Family famBur    = new Family("Bureautique & Mobilier", BigDecimal.valueOf(800_000.0));
         famBur.setCategorie(CategorieDemande.BUREAUTIQUE);
 
-        Family famDivers = new Family("Fournitures & Services", BigDecimal.valueOf(100000.0));
+        Family famDivers = new Family("Fournitures & Services", BigDecimal.valueOf(600_000.0));
         famDivers.setCategorie(CategorieDemande.AUTRE);
         familyRepository.saveAll(List.of(famIT, famSoft, famBur, famDivers));
         log.info("📂 4 Familles créées.");
 
-        SubFamily sfLaptop  = new SubFamily("PC Portables & Stations", BigDecimal.valueOf(250000.0), famIT);
-        SubFamily sfPeri    = new SubFamily("Périphériques (Écrans, Claviers)", BigDecimal.valueOf(150000.0), famIT);
-        SubFamily sfStock   = new SubFamily("Stockage & Serveurs", BigDecimal.valueOf(100000.0), famIT);
-        
-        SubFamily sfCloud   = new SubFamily("Abonnements Cloud (Azure/AWS)", BigDecimal.valueOf(150000.0), famSoft);
-        SubFamily sfOffice  = new SubFamily("Suites Bureautiques (M365)", BigDecimal.valueOf(100000.0), famSoft);
-        SubFamily sfSpec    = new SubFamily("Logiciels Métiers", BigDecimal.valueOf(50000.0), famSoft);
-        
-        SubFamily sfMobilier = new SubFamily("Bureaux & Chaises Ergonomiques", BigDecimal.valueOf(120000.0), famBur);
-        SubFamily sfClim     = new SubFamily("Climatisation & Aménagement", BigDecimal.valueOf(80000.0), famBur);
-        
-        SubFamily sfFourni   = new SubFamily("Fournitures de bureau", BigDecimal.valueOf(50000.0), famDivers);
-        SubFamily sfTraiteur = new SubFamily("Services Traiteur & Réception", BigDecimal.valueOf(50000.0), famDivers);
-        
+        // Sous-Familles — ventilation cohérente avec l'enveloppe Famille
+        // Règle : Σ SubFamily.budgetInitial = Family.budgetInitial
+        SubFamily sfLaptop  = new SubFamily("PC Portables & Stations",          BigDecimal.valueOf(900_000.0), famIT);
+        SubFamily sfPeri    = new SubFamily("Périphériques (Écrans, Claviers)", BigDecimal.valueOf(600_000.0), famIT);
+        SubFamily sfStock   = new SubFamily("Stockage & Serveurs",               BigDecimal.valueOf(500_000.0), famIT);
+
+        SubFamily sfCloud   = new SubFamily("Abonnements Cloud (Azure/AWS)",     BigDecimal.valueOf(500_000.0), famSoft);
+        SubFamily sfOffice  = new SubFamily("Suites Bureautiques (M365)",        BigDecimal.valueOf(400_000.0), famSoft);
+        SubFamily sfSpec    = new SubFamily("Logiciels Métiers",                 BigDecimal.valueOf(300_000.0), famSoft);
+
+        SubFamily sfMobilier = new SubFamily("Bureaux & Chaises Ergonomiques",   BigDecimal.valueOf(450_000.0), famBur);
+        SubFamily sfClim     = new SubFamily("Climatisation & Aménagement",      BigDecimal.valueOf(350_000.0), famBur);
+
+        SubFamily sfFourni   = new SubFamily("Fournitures de bureau",            BigDecimal.valueOf(300_000.0), famDivers);
+        SubFamily sfTraiteur = new SubFamily("Services Traiteur & Réception",    BigDecimal.valueOf(300_000.0), famDivers);
+
         subFamilyRepository.saveAll(List.of(
-            sfLaptop, sfPeri, sfStock, 
+            sfLaptop, sfPeri, sfStock,
             sfCloud, sfOffice, sfSpec,
-            sfMobilier, sfClim, 
+            sfMobilier, sfClim,
             sfFourni, sfTraiteur
         ));
         log.info("📂 10 Sous-Familles créées.");
@@ -153,38 +159,47 @@ public class DataInitializer implements CommandLineRunner {
         // 6. Demandes d'achat (Exemples Internes)
         
         // DA 1: En attente N1
-        DaHeader da1 = new DaHeader("Renouvellement parc Laptops (Dev Team)", demandeur);
-        da1.setStatut(StatutDA.EN_ATTENTE_N1);
-        da1 = daHeaderRepository.save(da1);
-        daDetailsRepository.save(new DaDetails(da1, sfLaptop, 3, "MacBook Pro M3", BigDecimal.valueOf(28000.0)));
-        log.info("📄 DA-1 créée.");
+        DemandeAchatInterne da1 = new DemandeAchatInterne();
+        da1.setDesignation("Renouvellement parc Laptops (Dev Team)");
+        da1.setDemandeur(demandeur);
+        da1.setStatut(StatutDemande.SOUMISE);
+        da1.setQuantite(3);
+        da1.setMontantEstime(BigDecimal.valueOf(28_000.0).multiply(BigDecimal.valueOf(3)));
+        da1 = demandeAchatInterneRepository.save(da1);
+        log.info("✅ DA Interne-1 créée.");
 
         // DA 2: En attente Technicien
-        DaHeader da2 = new DaHeader("Installation Climatisation Salle Réunion", demandeur);
-        da2.setStatut(StatutDA.EN_ATTENTE_TECH);
-        daHeaderRepository.save(da2);
-        daDetailsRepository.save(new DaDetails(da2, sfClim, 1, "Split LG 24000 BTU", BigDecimal.valueOf(8500.0)));
+        DemandeAchatInterne da2 = new DemandeAchatInterne();
+        da2.setDesignation("Installation Climatisation Salle Réunion");
+        da2.setDemandeur(demandeur);
+        da2.setStatut(StatutDemande.VALIDE_N1);
+        da2.setQuantite(1);
+        da2.setMontantEstime(BigDecimal.valueOf(8_500.0));
+        demandeAchatInterneRepository.save(da2);
 
         // DA 3: En attente Acheteur
-        DaHeader da3 = new DaHeader("Licences Microsoft 365 Business", demandeur);
-        da3.setStatut(StatutDA.EN_ATTENTE_ACHAT);
-        daHeaderRepository.save(da3);
-        daDetailsRepository.save(new DaDetails(da3, sfOffice, 50, "Abonnement Annuel E3", BigDecimal.valueOf(450.0)));
+        DemandeAchatInterne da3 = new DemandeAchatInterne();
+        da3.setDesignation("Licences Microsoft 365 Business");
+        da3.setDemandeur(demandeur);
+        da3.setStatut(StatutDemande.VALIDE_TECH);
+        da3.setQuantite(50);
+        da3.setMontantEstime(BigDecimal.valueOf(450.0).multiply(BigDecimal.valueOf(50)));
+        demandeAchatInterneRepository.save(da3);
 
         // DA 4: VALIDÉE & PO GÉNÉRÉ (Pour tester la logistique)
         if (purchaseOrderRepository.count() == 0) {
-            DaHeader da4 = new DaHeader("Fournitures de bureau (Stock)", demandeur);
-            da4.setStatut(StatutDA.PO_CREE);
-            daHeaderRepository.save(da4);
+            DemandeAchatInterne da4 = new DemandeAchatInterne();
+            da4.setDesignation("Fournitures de bureau (Stock)");
+            da4.setDemandeur(demandeur);
+            da4.setStatut(StatutDemande.PO_CREE);
+            da4.setQuantite(100);
+            da4.setMontantEstime(BigDecimal.valueOf(65.0).multiply(BigDecimal.valueOf(100)));
+            da4.setItemCode("PPR-A4");
+            da4.setFournisseur(sup2);
+            demandeAchatInterneRepository.save(da4);
             
-            DaDetails det4 = new DaDetails(da4, sfFourni, 100, "Papier A4 80g", BigDecimal.valueOf(65.0));
-            det4.setItemCode("PPR-A4");
-            det4.setItemName("Ramette Papier A4");
-            det4.setFournisseur(sup2);
-            daDetailsRepository.save(det4);
-
             PurchaseOrder po = new PurchaseOrder();
-            po.setDaHeader(da4);
+            po.setDemandeInterne(da4);
             po.setStatut(POStatus.APPROVED);  // Seedé en APPROVED pour tests logistique (GRN/GRC)
             po.setMontantTotal(BigDecimal.valueOf(6500.0));
             po.setDateCreation(java.time.LocalDate.now());
@@ -308,35 +323,8 @@ public class DataInitializer implements CommandLineRunner {
 
         // 9. Seeding des Rayons et Articles (Flux de Pièces)
         if (stockItemRepository.count() < 10) {
-            log.info("🛠️ Seeding des Rayons et Pièces de Rechange...");
+            log.info("🛠️ Seeding des Rayons et Pièces de Rechange (Taxonomie Réaliste)...");
             Warehouse central = warehouseRepository.findAll().get(0);
-            
-            StockItem h1 = new StockItem();
-            h1.setWarehouse(central); h1.setItemCode("HUI-POMP-001"); h1.setItemName("Huile à pompe hydraulique");
-            h1.setCategory(ItemCategory.PIECE_RECHANGE); h1.setLocationCode("RAYON-LUBRIFIANT");
-            h1.setQuantityAvailable(10); h1.setUnitCost(BigDecimal.valueOf(150.0));
-            
-            StockItem r1 = new StockItem();
-            r1.setWarehouse(central); r1.setItemCode("ROUE-SEC-045"); r1.setItemName("Roue de secours 17 pouces");
-            r1.setCategory(ItemCategory.PIECE_RECHANGE); r1.setLocationCode("RAYON-MECANIQUE");
-            r1.setQuantityAvailable(4); r1.setUnitCost(BigDecimal.valueOf(1200.0));
-            
-            StockItem b1 = new StockItem();
-            b1.setWarehouse(central); b1.setItemCode("BAT-V12-70AH"); b1.setItemName("Batterie 12V 70Ah");
-            b1.setCategory(ItemCategory.PIECE_RECHANGE); b1.setLocationCode("RAYON-ELECTRIQUE");
-            b1.setQuantityAvailable(0); b1.setUnitCost(BigDecimal.valueOf(850.0)); // Hors stock pour tester le flux achat
-            
-            StockItem c1 = new StockItem();
-            c1.setWarehouse(central); c1.setItemCode("CLE-DYN-SMALL"); c1.setItemName("Clé dynamométrique 1/4");
-            c1.setCategory(ItemCategory.PIECE_RECHANGE); c1.setLocationCode("RAYON-OUTILLAGE");
-            c1.setQuantityAvailable(2); c1.setUnitCost(BigDecimal.valueOf(450.0));
-            
-            StockItem p1 = new StockItem();
-            p1.setWarehouse(central); p1.setItemCode("PNEU-MIC-205"); p1.setItemName("Pneu Michelin 205/55 R16");
-            p1.setCategory(ItemCategory.PIECE_RECHANGE); p1.setLocationCode("RAYON-PNEUMATIQUE");
-            p1.setQuantityAvailable(8); p1.setUnitCost(BigDecimal.valueOf(950.0));
-            
-            // Nouveaux magasins pour le transfert inter-sites
             Warehouse magTanger = warehouseRepository.findByName("Magasin Tanger BAG").orElseGet(() -> {
                 Warehouse w = new Warehouse(); w.setName("Magasin Tanger BAG"); w.setLocation("Tanger"); w.setType(WarehouseType.REGIONAL); return warehouseRepository.save(w);
             });
@@ -346,27 +334,92 @@ public class DataInitializer implements CommandLineRunner {
             Warehouse magAgadir = warehouseRepository.findByName("Magasin Agadir BAG").orElseGet(() -> {
                 Warehouse w = new Warehouse(); w.setName("Magasin Agadir BAG"); w.setLocation("Agadir"); w.setType(WarehouseType.REGIONAL); return warehouseRepository.save(w);
             });
+            Warehouse agenceCasa = warehouseRepository.findByName("Agence Casablanca").orElseGet(() -> {
+                Warehouse w = new Warehouse(); w.setName("Agence Casablanca"); w.setLocation("Casablanca - Agence Commerciale"); w.setType(WarehouseType.REGIONAL); return warehouseRepository.save(w);
+            });
+            Warehouse magRabat = warehouseRepository.findByName("Magasin Rabat BAG").orElseGet(() -> {
+                Warehouse w = new Warehouse(); w.setName("Magasin Rabat BAG"); w.setLocation("Rabat"); w.setType(WarehouseType.REGIONAL); return warehouseRepository.save(w);
+            });
 
-            // Pièces pour Tanger
-            StockItem t1 = new StockItem();
-            t1.setWarehouse(magTanger); t1.setItemCode("FILTRE-HUILE-01"); t1.setItemName("Filtre à huile Premium");
-            t1.setCategory(ItemCategory.PIECE_RECHANGE); t1.setLocationCode("RAYON-FILTRATION");
-            t1.setQuantityAvailable(15); t1.setUnitCost(BigDecimal.valueOf(45.0));
+            // ── NOMENCLATURE CODE SITE : LOC-{SITE}-{YYYYMM}-{HEX8} ────────────────────────────
+            // Règle : le suffixe HEX8 est déterministe = hash(itemCode + sitePrefix) & 0xFFFFFFFF
+            // Cela garantit que le même article au même site a toujours le même code entre redémarrages.
+            String yyyymm = java.time.LocalDate.now().format(java.time.format.DateTimeFormatter.ofPattern("yyyyMM"));
+            java.util.function.BiFunction<String, String, String> loc = (sitePrefix, itemCode) -> {
+                long hash = (long)(itemCode + sitePrefix).hashCode() & 0xFFFFFFFFL;
+                return String.format("LOC-%s-%s-%08X", sitePrefix, yyyymm, hash);
+            };
 
-            // Pièces pour Marrakech
-            StockItem m1 = new StockItem();
-            m1.setWarehouse(magMarrakech); m1.setItemCode("PLAQUETTE-FREIN"); m1.setItemName("Plaquettes de frein avant");
-            m1.setCategory(ItemCategory.PIECE_RECHANGE); m1.setLocationCode("RAYON-FREINAGE");
-            m1.setQuantityAvailable(6); m1.setUnitCost(BigDecimal.valueOf(320.0));
+            // Helper : (Warehouse, sitePrefix, itemCode, itemName, qty, unitCost) -> StockItem
+            java.util.function.Function<Object[], StockItem> createItem = (Object[] d) -> {
+                Warehouse w  = (Warehouse) d[0];
+                String site  = (String)    d[1];  // prefix : BAG, CASA, TNG, MRK, AGA, RBT
+                String code  = (String)    d[2];
+                String name  = (String)    d[3];
+                int qty      = (int)       d[4];
+                double cost  = (double)    d[5];
+                StockItem item = new StockItem();
+                item.setWarehouse(w);
+                item.setItemCode(code);
+                item.setItemName(name);
+                item.setCategory(ItemCategory.PIECE_RECHANGE);
+                item.setLocationCode(loc.apply(site, code));  // ← LOC-CASA-202606-XXXXXXXX
+                item.setQuantityAvailable(qty);
+                item.setUnitCost(BigDecimal.valueOf(cost));
+                return item;
+            };
 
-            // Pièces pour Agadir
-            StockItem a1 = new StockItem();
-            a1.setWarehouse(magAgadir); a1.setItemCode("COURROIE-DIST"); a1.setItemName("Courroie de distribution");
-            a1.setCategory(ItemCategory.PIECE_RECHANGE); a1.setLocationCode("RAYON-MOTEUR");
-            a1.setQuantityAvailable(3); a1.setUnitCost(BigDecimal.valueOf(600.0));
+            List<StockItem> newItems = List.of(
+                // ══ ZONE A — Consommables & Fluides ══════════════════════════════
+                createItem.apply(new Object[]{central,      "BAG",  "FILT-001",  "Filtre à huile Premium",             0, 45.0}), // ⚠️ RUPTURE POUR DEMO
+                createItem.apply(new Object[]{central,      "BAG",  "HUI-5W40",  "Huile Moteur 5W40 5L",               0, 150.0}), // ⚠️ RUPTURE POUR DEMO
+                createItem.apply(new Object[]{central,      "BAG",  "LIQ-FR-1L", "Liquide de Frein DOT4 1L",         250, 65.0}),
 
-            stockItemRepository.saveAll(List.of(h1, r1, b1, c1, p1, t1, m1, a1));
-            log.info("✅ Rayons et articles seedés pour le flux Pièces et Transferts Inter-Sites.");
+                createItem.apply(new Object[]{agenceCasa,   "CASA", "FILT-001",  "Filtre à huile Premium",            50, 45.0}),
+                createItem.apply(new Object[]{agenceCasa,   "CASA", "HUI-5W40",  "Huile Moteur 5W40 5L",               0, 150.0}), // ⚠️ RUPTURE
+
+                createItem.apply(new Object[]{magTanger,    "TNG",  "FILT-001",  "Filtre à huile Premium",            20, 45.0}),
+                createItem.apply(new Object[]{magTanger,    "TNG",  "HUI-5W40",  "Huile Moteur 5W40 5L",              10, 150.0}),
+
+                // ══ ZONE B — Liaisons au Sol & Freinage ══════════════════════════
+                createItem.apply(new Object[]{central,      "BAG",  "FREIN-AV",  "Plaquettes de frein avant",        200, 320.0}),
+                createItem.apply(new Object[]{central,      "BAG",  "PNEU-205",  "Pneu Michelin 205/55 R16",         400, 950.0}),
+                createItem.apply(new Object[]{central,      "BAG",  "AMORT-AV",  "Amortisseur avant à gaz",          150, 850.0}),
+
+                createItem.apply(new Object[]{agenceCasa,   "CASA", "FREIN-AV",  "Plaquettes de frein avant",          0, 320.0}), // ⚠️ RUPTURE
+                createItem.apply(new Object[]{agenceCasa,   "CASA", "PNEU-205",  "Pneu Michelin 205/55 R16",          12, 950.0}),
+
+                createItem.apply(new Object[]{magMarrakech, "MRK",  "FREIN-AV",  "Plaquettes de frein avant",         30, 320.0}),
+                createItem.apply(new Object[]{magMarrakech, "MRK",  "AMORT-AV",  "Amortisseur avant à gaz",            8, 850.0}),
+
+                // ══ ZONE C — Moteur & Électricité ════════════════════════════════
+                createItem.apply(new Object[]{central,      "BAG",  "BATT-70",   "Batterie 12V 70Ah",                100, 850.0}),
+                createItem.apply(new Object[]{central,      "BAG",  "COUR-DIST", "Kit Courroie de distribution",      80, 600.0}),
+
+                createItem.apply(new Object[]{agenceCasa,   "CASA", "BATT-70",   "Batterie 12V 70Ah",                  5, 850.0}),
+                createItem.apply(new Object[]{agenceCasa,   "CASA", "COUR-DIST", "Kit Courroie de distribution",       0, 600.0}), // ⚠️ RUPTURE
+
+                createItem.apply(new Object[]{magAgadir,    "AGA",  "COUR-DIST", "Kit Courroie de distribution",       5, 600.0}),
+                createItem.apply(new Object[]{magRabat,     "RBT",  "BATT-70",   "Batterie 12V 70Ah",                  0, 850.0}), // ⚠️ RUPTURE
+
+                // ══ ZONE D — Outillage & Équipement ══════════════════════════════
+                createItem.apply(new Object[]{central,      "BAG",  "CLE-DYN",   "Clé dynamométrique 1/4",            50, 450.0})
+            );
+
+            try {
+                stockItemRepository.saveAll(newItems);
+                log.info("✅ {} articles seedés — Nomenclature LOC-{{SITE}}-{{}}-{{HEX8}} appliquée.", newItems.size());
+            } catch (Exception e) {
+                log.info("⚠️ Erreur lors du seeding des articles : {}", e.getMessage());
+            }
+        }
+
+        // FORCE OUT OF STOCK FOR DEMO (regardless of whether seeding ran or was skipped)
+        try {
+            jdbcTemplate.execute("UPDATE stock_item SET quantity_available = 0 WHERE item_code IN ('FILT-001', 'HUI-5W40') AND location_code LIKE 'LOC-BAG%'");
+            log.info("🔥 FORCE DEMO : Stock de FILT-001 et HUI-5W40 mis à 0 pour le magasin BAG !");
+        } catch (Exception e) {
+            log.warn("⚠️ Impossible de forcer le stock à 0 : {}", e.getMessage());
         }
 
         // 10. Budget Pièces de Rechange
@@ -418,6 +471,38 @@ public class DataInitializer implements CommandLineRunner {
             warehouseRepository.findByName("Magasin Marrakech BAG").ifPresent(magDest::setWarehouse);
             userRepository.save(magDest);
             log.info("👷 MAGASINIER_DEST Karim Alaoui seedé pour warehouse 'Magasin Marrakech BAG'");
+        }
+
+        // 13. Nouveaux Magasiniers Spécifiques
+        if (userRepository.findByEmail("magasinier.casa@test.com").isEmpty()) {
+            User magCasa = new User("Magasinier Casa", "magasinier.casa@test.com", encoder.encode("password"), Role.MAGASINIER);
+            warehouseRepository.findByName("Agence Casablanca").ifPresent(magCasa::setWarehouse);
+            userRepository.save(magCasa);
+            log.info("👷 MAGASINIER seedé pour 'Agence Casablanca'");
+        }
+        
+        if (userRepository.findByEmail("magasinier.rabat@test.com").isEmpty()) {
+            Warehouse magRabat = warehouseRepository.findByName("Magasin Rabat BAG").orElseGet(() -> {
+                Warehouse w = new Warehouse(); w.setName("Magasin Rabat BAG"); w.setLocation("Rabat"); w.setType(WarehouseType.REGIONAL); return warehouseRepository.save(w);
+            });
+            User magUserRabat = new User("Magasinier Rabat", "magasinier.rabat@test.com", encoder.encode("password"), Role.MAGASINIER);
+            magUserRabat.setWarehouse(magRabat);
+            userRepository.save(magUserRabat);
+            log.info("👷 MAGASINIER seedé pour 'Magasin Rabat BAG'");
+        }
+
+        if (userRepository.findByEmail("magasinier.tanger@test.com").isEmpty()) {
+            User magTangerUser = new User("Magasinier Tanger", "magasinier.tanger@test.com", encoder.encode("password"), Role.MAGASINIER);
+            warehouseRepository.findByName("Magasin Tanger BAG").ifPresent(magTangerUser::setWarehouse);
+            userRepository.save(magTangerUser);
+            log.info("👷 MAGASINIER seedé pour 'Magasin Tanger BAG'");
+        }
+
+        if (userRepository.findByEmail("magasinier.marrakech@test.com").isEmpty()) {
+            User magMarrakechUser = new User("Magasinier Marrakech", "magasinier.marrakech@test.com", encoder.encode("password"), Role.MAGASINIER);
+            warehouseRepository.findByName("Magasin Marrakech BAG").ifPresent(magMarrakechUser::setWarehouse);
+            userRepository.save(magMarrakechUser);
+            log.info("👷 MAGASINIER seedé pour 'Magasin Marrakech BAG'");
         }
 
 

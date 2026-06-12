@@ -29,6 +29,7 @@ public class AggregationService {
     @Autowired private FamilyRepository familyRepo;
     @Autowired private DemandeAchatInterneRepository daRepo;
 
+
     // ─── DTOs internes ────────────────────────────────────────────────────────
 
     public record KpiGlobal(
@@ -61,66 +62,60 @@ public class AggregationService {
     public KpiGlobal getKpiGlobal() {
         long total = daRepo.count();
 
-        List<StatutDemande> enAttente = List.of(
+        // DemandeAchatInterne Stats
+        List<StatutDemande> enAttenteDAI = List.of(
             StatutDemande.SOUMISE, StatutDemande.VALIDE_N1, StatutDemande.VALIDE_TECH,
             StatutDemande.VALIDE_AMG, StatutDemande.VALIDE_DAF, StatutDemande.VALIDE_DG,
             StatutDemande.EN_TRAITEMENT
         );
 
         @SuppressWarnings("unchecked")
-        List<Object[]> countByStatut = em.createQuery(
+        List<Object[]> countByStatutDAI = em.createQuery(
             "SELECT d.statut, COUNT(d) FROM DemandeAchatInterne d GROUP BY d.statut"
         ).getResultList();
 
-        long enAttenteCnt  = 0L;
-        long approuveeCnt  = 0L;
-        long rejeteeCount  = 0L;
+        long enAttenteCnt = 0L;
+        long approuveeCnt = 0L;
+        long rejeteeCount = 0L;
 
-        for (Object[] row : countByStatut) {
+        for (Object[] row : countByStatutDAI) {
             StatutDemande s = (StatutDemande) row[0];
             long cnt = (long) row[1];
-            if (enAttente.contains(s)) enAttenteCnt += cnt;
-            if (s == StatutDemande.APPROUVEE || s == StatutDemande.PO_CREE
-                    || s == StatutDemande.AFFECTEE) approuveeCnt += cnt;
+            if (enAttenteDAI.contains(s)) enAttenteCnt += cnt;
+            if (s == StatutDemande.APPROUVEE || s == StatutDemande.PO_CREE || s == StatutDemande.AFFECTEE) approuveeCnt += cnt;
             if (s == StatutDemande.REJETEE) rejeteeCount += cnt;
         }
 
-        BigDecimal montantEngage = montantAggrege(List.of(
-            StatutDemande.APPROUVEE, StatutDemande.PO_CREE, StatutDemande.AFFECTEE
-        ));
+        BigDecimal montantEngageDAI = montantAggregeDAI(List.of(StatutDemande.APPROUVEE, StatutDemande.PO_CREE, StatutDemande.AFFECTEE));
+        BigDecimal montantAttenteDAI = montantAggregeDAI(enAttenteDAI);
 
-        BigDecimal montantAttente = montantAggrege(enAttente);
-
-        double tauxApprobation = total == 0 ? 0.0
-            : Math.round((double) approuveeCnt / total * 10000.0) / 100.0;
+        double tauxApprobation = total == 0 ? 0.0 : Math.round((double) approuveeCnt / total * 10000.0) / 100.0;
 
         return new KpiGlobal(total, enAttenteCnt, approuveeCnt, rejeteeCount,
-            montantEngage, montantAttente, tauxApprobation, 0L);
+            montantEngageDAI, montantAttenteDAI, tauxApprobation, 0L);
     }
 
     // ─── 2. Dépenses par Catégorie ────────────────────────────────────────────
 
     public List<DepenseParCategorie> getDepensesParCategorie() {
+        Map<String, DepenseParCategorie> map = new HashMap<>();
+
         @SuppressWarnings("unchecked")
-        List<Object[]> rows = em.createQuery(
+        List<Object[]> rowsDAI = em.createQuery(
             "SELECT d.categorie, SUM(d.montantEstime), COUNT(d) " +
             "FROM DemandeAchatInterne d " +
             "WHERE d.montantEstime IS NOT NULL " +
             "  AND d.statut IN :statuts " +
-            "GROUP BY d.categorie " +
-            "ORDER BY SUM(d.montantEstime) DESC"
-        ).setParameter("statuts", List.of(
-            StatutDemande.APPROUVEE, StatutDemande.PO_CREE, StatutDemande.AFFECTEE,
-            StatutDemande.VALIDE_DAF, StatutDemande.VALIDE_DG
-        )).getResultList();
+            "GROUP BY d.categorie"
+        ).setParameter("statuts", List.of(StatutDemande.APPROUVEE, StatutDemande.PO_CREE, StatutDemande.AFFECTEE, StatutDemande.VALIDE_DAF, StatutDemande.VALIDE_DG)).getResultList();
 
-        return rows.stream()
-            .filter(r -> r[0] != null)
-            .map(r -> new DepenseParCategorie(
-                r[0].toString(),
-                ((BigDecimal) r[1]).setScale(2, RoundingMode.HALF_UP),
-                (long) r[2]
-            ))
+        for(Object[] r : rowsDAI) {
+            if (r[0] == null) continue;
+            map.put(r[0].toString(), new DepenseParCategorie(r[0].toString(), ((BigDecimal) r[1]).setScale(2, RoundingMode.HALF_UP), (long) r[2]));
+        }
+
+        return map.values().stream()
+            .sorted((a, b) -> b.montant().compareTo(a.montant()))
             .collect(Collectors.toList());
     }
 
@@ -128,47 +123,45 @@ public class AggregationService {
 
     public List<EvolutionMensuelle> getEvolutionMensuelle() {
         LocalDateTime since = LocalDateTime.now().minusMonths(6).withDayOfMonth(1);
+        Map<String, EvolutionMensuelle> map = new HashMap<>();
 
         @SuppressWarnings("unchecked")
-        List<Object[]> rows = em.createQuery(
-            "SELECT YEAR(d.dateCreation), MONTH(d.dateCreation), " +
-            "       COALESCE(SUM(d.montantEstime), 0), COUNT(d) " +
-            "FROM DemandeAchatInterne d " +
-            "WHERE d.dateCreation >= :since " +
-            "GROUP BY YEAR(d.dateCreation), MONTH(d.dateCreation) " +
-            "ORDER BY YEAR(d.dateCreation) ASC, MONTH(d.dateCreation) ASC"
+        List<Object[]> rowsDAI = em.createQuery(
+            "SELECT YEAR(d.dateCreation), MONTH(d.dateCreation), COALESCE(SUM(d.montantEstime), 0), COUNT(d) " +
+            "FROM DemandeAchatInterne d WHERE d.dateCreation >= :since " +
+            "GROUP BY YEAR(d.dateCreation), MONTH(d.dateCreation)"
         ).setParameter("since", since).getResultList();
 
-        return rows.stream().map(r -> new EvolutionMensuelle(
-            ((Number) r[0]).intValue(),
-            ((Number) r[1]).intValue(),
-            ((BigDecimal) r[2]).setScale(2, RoundingMode.HALF_UP),
-            (long) r[3]
-        )).collect(Collectors.toList());
+        for(Object[] r : rowsDAI) {
+            String key = r[0] + "-" + r[1];
+            map.put(key, new EvolutionMensuelle(((Number) r[0]).intValue(), ((Number) r[1]).intValue(), ((BigDecimal) r[2]).setScale(2, RoundingMode.HALF_UP), (long) r[3]));
+        }
+
+        return map.values().stream()
+            .sorted(Comparator.comparingInt(EvolutionMensuelle::annee).thenComparingInt(EvolutionMensuelle::mois))
+            .collect(Collectors.toList());
     }
 
     // ─── 4. Dépenses par Département ─────────────────────────────────────────
 
     public List<DepenseParDepartement> getDepensesParDepartement() {
+        Map<String, DepenseParDepartement> map = new HashMap<>();
+
         @SuppressWarnings("unchecked")
-        List<Object[]> rows = em.createQuery(
+        List<Object[]> rowsDAI = em.createQuery(
             "SELECT d.departement, COALESCE(SUM(d.montantEstime), 0), COUNT(d) " +
             "FROM DemandeAchatInterne d " +
-            "WHERE d.montantEstime IS NOT NULL " +
-            "  AND d.statut IN :statuts " +
-            "GROUP BY d.departement " +
-            "ORDER BY SUM(d.montantEstime) DESC"
-        ).setParameter("statuts", List.of(
-            StatutDemande.APPROUVEE, StatutDemande.PO_CREE, StatutDemande.AFFECTEE
-        )).getResultList();
+            "WHERE d.montantEstime IS NOT NULL AND d.statut IN :statuts " +
+            "GROUP BY d.departement"
+        ).setParameter("statuts", List.of(StatutDemande.APPROUVEE, StatutDemande.PO_CREE, StatutDemande.AFFECTEE)).getResultList();
 
-        return rows.stream()
-            .filter(r -> r[0] != null)
-            .map(r -> new DepenseParDepartement(
-                (String) r[0],
-                ((BigDecimal) r[1]).setScale(2, RoundingMode.HALF_UP),
-                (long) r[2]
-            ))
+        for(Object[] r : rowsDAI) {
+            if (r[0] == null) continue;
+            map.put((String) r[0], new DepenseParDepartement((String) r[0], ((BigDecimal) r[1]).setScale(2, RoundingMode.HALF_UP), (long) r[2]));
+        }
+
+        return map.values().stream()
+            .sorted((a, b) -> b.montant().compareTo(a.montant()))
             .collect(Collectors.toList());
     }
 
@@ -189,14 +182,15 @@ public class AggregationService {
 
     // ─── Helper privé ─────────────────────────────────────────────────────────
 
-    private BigDecimal montantAggrege(List<StatutDemande> statuts) {
+    private BigDecimal montantAggregeDAI(List<StatutDemande> statuts) {
+        if (statuts.isEmpty()) return BigDecimal.ZERO;
         Object result = em.createQuery(
             "SELECT COALESCE(SUM(d.montantEstime), 0) FROM DemandeAchatInterne d " +
             "WHERE d.statut IN :statuts AND d.montantEstime IS NOT NULL"
         ).setParameter("statuts", statuts).getSingleResult();
-        return result instanceof BigDecimal bd ? bd.setScale(2, RoundingMode.HALF_UP)
-               : BigDecimal.ZERO;
+        return result instanceof BigDecimal bd ? bd.setScale(2, RoundingMode.HALF_UP) : BigDecimal.ZERO;
     }
+
 
     private static BigDecimal orZero(BigDecimal v) {
         return v != null ? v : BigDecimal.ZERO;

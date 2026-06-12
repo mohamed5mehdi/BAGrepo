@@ -10,12 +10,9 @@ import java.util.List;
 @Repository
 public interface DemandeAjustementRepository extends JpaRepository<DemandeAjustement, Long> {
 
-    List<DemandeAjustement> findByDaOidDa(Integer daId);
+    List<DemandeAjustement> findByDemandeInterne_Id(Long demandeInterneId);
 
     List<DemandeAjustement> findByStatut(StatutAjustement statut);
-
-    @Query("SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END FROM DemandeAjustement d WHERE d.da.oidDa = :daId AND d.statut IN :statuts")
-    boolean existsByDaIdAndStatutIn(@org.springframework.data.repository.query.Param("daId") Integer daId, java.util.List<StatutAjustement> statuts);
 
     @Query("SELECT CASE WHEN COUNT(d) > 0 THEN true ELSE false END FROM DemandeAjustement d WHERE d.demandeInterne.id = :demandeInterneId AND d.statut IN :statuts")
     boolean existsByDemandeInterneIdAndStatutIn(@org.springframework.data.repository.query.Param("demandeInterneId") Long demandeInterneId, java.util.List<StatutAjustement> statuts);

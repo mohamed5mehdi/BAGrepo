@@ -11,6 +11,7 @@ import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 import java.util.Objects;
@@ -30,6 +31,7 @@ public class GrnController {
     }
 
     @PostMapping
+    @PreAuthorize("hasAnyRole('ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'MAGASINIER', 'ADMINISTRATEUR')")
     public ResponseEntity<GrnHeader> createGrn(@RequestBody GrnHeader grn) {
         return ResponseEntity.ok(grnService.createGrn(grn));
     }
@@ -39,6 +41,7 @@ public class GrnController {
      * Déclenche la mise à jour du stock et génère le grnNumber.
      */
     @PutMapping("/{id}/valider")
+    @PreAuthorize("hasAnyRole('MAGASINIER', 'ADMINISTRATEUR')")
     public ResponseEntity<GrnHeader> validateGrn(@PathVariable Long id) {
         return ResponseEntity.ok(grnService.validateGrn(Objects.requireNonNull(id)));
     }

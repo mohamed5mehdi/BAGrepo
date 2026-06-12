@@ -44,7 +44,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 username = jwtUtil.extractUsername(jwt);
             } catch (Exception e) {
-                // Log de l'erreur si nécessaire (Token malformé, expiré, etc.)
+                SecurityContextHolder.clearContext();
+                System.err.println("JWT validation error: " + e.getMessage());
             }
         }
 
@@ -53,7 +54,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             final String fUsername = username;
             final String fJwt = jwt;
             userRepository.findByEmail(fUsername).ifPresent(user -> {
-                if (jwtUtil.validateToken(fJwt, fUsername)) {
+                if (Boolean.TRUE.equals(user.getActif()) && jwtUtil.validateToken(fJwt, fUsername)) {
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             user, 
                             null, 

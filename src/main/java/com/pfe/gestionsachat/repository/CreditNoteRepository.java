@@ -6,4 +6,10 @@ import org.springframework.stereotype.Repository;
 
 @Repository
 public interface CreditNoteRepository extends JpaRepository<CreditNote, Long> {
+
+    /**
+     * Vérification d'idempotence : évite la création de deux notes de crédit avec le même numéro.
+     * Utilisé dans CreditNoteService.processCreditNote() avant toute opération financière.
+     */
+    boolean existsByCreditNoteNumber(String creditNoteNumber);
 }

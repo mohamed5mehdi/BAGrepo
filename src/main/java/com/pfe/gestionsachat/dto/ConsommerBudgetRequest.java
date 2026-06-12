@@ -12,8 +12,8 @@ import java.math.BigDecimal;
 public class ConsommerBudgetRequest {
 
     @NotNull(message = "L'identifiant de la DA est obligatoire")
-    @JsonProperty("da_id")
-    private Integer daId;
+    @JsonProperty("demande_interne_id")
+    private Long demandeInterneId;
 
     @NotNull(message = "L'identifiant de la sous-famille est obligatoire")
     @JsonProperty("sous_famille_id")
@@ -25,15 +25,15 @@ public class ConsommerBudgetRequest {
 
     public ConsommerBudgetRequest() {}
 
-    public ConsommerBudgetRequest(Integer daId, Integer sousFamilleId, BigDecimal montant) {
-        this.daId         = daId;
+    public ConsommerBudgetRequest(Long demandeInterneId, Integer sousFamilleId, BigDecimal montant) {
+        this.demandeInterneId         = demandeInterneId;
         this.sousFamilleId = sousFamilleId;
         this.montant      = montant;
     }
 
-    @JsonProperty("da_id")
-    public Integer getDaId()              { return daId; }
-    public void setDaId(Integer v)        { this.daId = v; }
+    @JsonProperty("demande_interne_id")
+    public Long getDemandeInterneId()              { return demandeInterneId; }
+    public void setDemandeInterneId(Long v)        { this.demandeInterneId = v; }
 
     @JsonProperty("sous_famille_id")
     public Integer getSousFamilleId()     { return sousFamilleId; }

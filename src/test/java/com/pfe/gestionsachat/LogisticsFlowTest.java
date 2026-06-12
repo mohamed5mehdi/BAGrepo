@@ -29,6 +29,7 @@ public class LogisticsFlowTest {
     @Autowired private SupplierRepository supplierRepository;
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
     @Autowired private UserRepository userRepository;
+    @Autowired private com.pfe.gestionsachat.repository.StockMovementRepository stockMovementRepository;
 
     private Warehouse warehouse;
     private StockItem stockItem;
@@ -40,6 +41,7 @@ public class LogisticsFlowTest {
             u.setWarehouse(null);
             userRepository.save(u);
         });
+        stockMovementRepository.deleteAll();
         stockItemRepository.deleteAll();
         warehouseRepository.deleteAll();
 
@@ -61,6 +63,7 @@ public class LogisticsFlowTest {
 
         po = new PurchaseOrder();
         po.setStatut(POStatus.APPROVED);
+        po.setFournisseur(supplier);
         po.setMontantTotal(new java.math.BigDecimal("1000.00"));
         po = purchaseOrderRepository.save(po);
     }
@@ -70,6 +73,7 @@ public class LogisticsFlowTest {
         // --- ETAPE 1: Reception Physique (GRN) ---
         GrnHeader grn = new GrnHeader();
         grn.setPurchaseOrder(po);
+        grn.setSupplier(po.getFournisseur());
         grn.setReceiptDate(LocalDate.now());
         grn.setStatus(GrnStatus.PENDING);
         grn = grnRepository.save(grn);
@@ -125,12 +129,20 @@ public class LogisticsFlowTest {
         grcDetail.setAcceptedQuantity(8);
         grcDetail.setItemCode("PART-123"); // Important pour GrcService
         grcDetail.setUnitCost(java.math.BigDecimal.valueOf(100.0));
-        grcDetail.setTaxRate(java.math.BigDecimal.valueOf(20.0));
+        grcDetail.setTaxRate(java.math.BigDecimal.valueOf(0.20));
         grc.setDetails(new java.util.ArrayList<>(List.of(grcDetail)));
         grc = grcService.createGrc(grc);
 
+        // Create Comptable User for validation
+        User comptable = new User();
+        comptable.setNom("Comptable Test");
+        comptable.setEmail("comptable@test.com");
+        comptable.setPassword("password");
+        comptable.setRole(Role.COMPTABLE);
+        comptable = userRepository.save(comptable);
+
         // Validation GRC -> Calcul totalCost (incluant 20% TVA par défaut si non spécifié, ici on le spécifie)
-        GrcHeader validatedGrc = grcService.validateGrc(java.util.Objects.requireNonNull(grc.getId()));
+        GrcHeader validatedGrc = grcService.validateGrc(java.util.Objects.requireNonNull(grc.getId()), comptable);
         assertEquals(GrcStatus.POSTED, validatedGrc.getStatus());
         // 8 items * 100 * 1.20 = 960.0
         assertEquals(java.math.BigDecimal.valueOf(960.0).setScale(2), validatedGrc.getTotalAmount().setScale(2));
@@ -139,6 +151,8 @@ public class LogisticsFlowTest {
         Invoice invoice = new Invoice();
         invoice.setGrnHeader(validatedGrn);
         invoice.setPurchaseOrder(po);
+        invoice.setSupplier(po.getFournisseur());
+        invoice.setInvoiceNumber("FACT-12345");
         invoice.setInvoiceDate(LocalDate.now());
         invoice.setMontantHT(java.math.BigDecimal.valueOf(800.0));
         invoice.setMontantTTC(java.math.BigDecimal.valueOf(960.0));

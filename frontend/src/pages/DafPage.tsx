@@ -6,14 +6,16 @@ import KpiCard from '../components/KpiCard';
 import DaTable from '../components/DaTable';
 import DaModal from '../components/DaModal';
 import { useAuth } from '../context/AuthContext';
+import api from '../api/axios';
 import { getAllDA, adjustSubFamily, getSubFamilies } from '../api/services';
-import type { DaHeader, SubFamily } from '../types';
+import type { DemandeAchatInterne, SubFamily, ValidationDecision } from '../types';
 import { formatCurrency } from '../utils/constants';
 
 export default function DafPage() {
   const { user } = useAuth();
   const qc = useQueryClient();
-  const [selectedDa, setSelectedDa] = useState<DaHeader | null>(null);
+  const [selectedDa, setSelectedDa] = useState<DemandeAchatInterne | null>(null);
+  const [comment, setComment] = useState('');
   const [sourceId, setSourceId] = useState('');
   const [cibleId, setCibleId] = useState('');
   const [montant, setMontant] = useState('');
@@ -30,11 +32,11 @@ export default function DafPage() {
     queryFn: () => getSubFamilies().then(r => r.data),
   });
 
-  const mine = all.filter(d => ['VALIDE_DAF'].includes(d.statut));
+  const mine = all.filter(d => ['VALIDE_DAF', 'EN_ATTENTE_AJUSTEMENT_DAF'].includes(d.statut));
 
   const adjustMutation = useMutation({
     mutationFn: () => adjustSubFamily(
-      selectedDa!.oid_da, user!.userId,
+      (selectedDa as any)!.id || selectedDa!.oid_da, user!.userId,
       Number(sourceId), Number(cibleId), parseFloat(montant)
     ),
     onSuccess: () => {
@@ -44,6 +46,17 @@ export default function DafPage() {
       setSourceId(''); setCibleId(''); setMontant('');
     },
     onError: (err: any) => toast.error(err?.response?.data?.message ?? 'Erreur lors de l\'ajustement'),
+  });
+
+  const validateMutation = useMutation({
+    mutationFn: ({ decision }: { decision: ValidationDecision }) =>
+      api.put(`/demandes/${(selectedDa as any)!.id || selectedDa!.oid_da}/valider-daf?approved=${decision === 'ACCEPTE'}&comment=${encodeURIComponent(comment)}&userId=${user!.userId}`),
+    onSuccess: (_, { decision }) => {
+      toast.success(decision === 'ACCEPTE' ? '✅ Validation DAF effectuée !' : '❌ Dossier renvoyé en brouillon');
+      qc.invalidateQueries({ queryKey: ['da'] });
+      setSelectedDa(null); setComment('');
+    },
+    onError: () => toast.error('Erreur lors de la validation'),
   });
 
   const kpis = {
@@ -69,7 +82,7 @@ export default function DafPage() {
           className="px-4 py-2 rounded-xl bg-slate-100 text-slate-600 text-sm font-medium hover:bg-slate-200 transition-colors">🔄 Actualiser</button>
       </div>
 
-      <DaTable rows={mine as any} onRowClick={(da) => setSelectedDa(da as DaHeader)} loading={isLoading} searchQuery={search} />
+      <DaTable rows={mine as any} onRowClick={(da) => { setSelectedDa(da as DemandeAchatInterne); setComment(''); setSourceId(''); setCibleId(''); setMontant(''); }} loading={isLoading} searchQuery={search} />
 
       {selectedDa && (
         <DaModal da={selectedDa} onClose={() => setSelectedDa(null)} title="💰 Ajustement Budgétaire — DAF">
@@ -110,17 +123,37 @@ export default function DafPage() {
               </div>
             </div>
 
-            <div className="flex justify-end gap-3">
-              <button onClick={() => setSelectedDa(null)}
-                className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-colors">
-                Fermer
-              </button>
               <button
                 id="btn-daf-adjust"
                 onClick={() => adjustMutation.mutate()}
                 disabled={!sourceId || !cibleId || !montant || adjustMutation.isPending}
-                className="px-6 py-2 rounded-xl bg-gradient-to-r from-fuchsia-500 to-purple-700 text-white text-sm font-semibold hover:from-fuchsia-600 hover:to-purple-800 transition-all shadow-md disabled:opacity-60">
+                className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-fuchsia-500 to-purple-700 text-white text-sm font-semibold hover:from-fuchsia-600 hover:to-purple-800 transition-all shadow-md disabled:opacity-60">
                 {adjustMutation.isPending ? 'Traitement...' : '💰 Effectuer le Transfert'}
+              </button>
+
+            {/* Standard validation */}
+            <div>
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Décision Finale (DAF)</p>
+              <textarea value={comment} onChange={e => setComment(e.target.value)} rows={2}
+                placeholder="Commentaire (facultatif)..."
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-600 bg-slate-50 dark:bg-slate-800 text-sm focus:outline-none focus:ring-2 focus:ring-fuchsia-300 resize-none" />
+            </div>
+
+            <div className="flex justify-end gap-3">
+              <button onClick={() => setSelectedDa(null)} className="px-5 py-2 rounded-xl bg-slate-100 text-slate-700 text-sm font-medium hover:bg-slate-200 transition-colors">Fermer</button>
+              <button
+                id="btn-daf-reject"
+                onClick={() => validateMutation.mutate({ decision: 'REJETE' })}
+                disabled={validateMutation.isPending}
+                className="px-5 py-2 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 text-sm font-semibold transition-colors disabled:opacity-60">
+                ✖ Rejeter (Brouillon)
+              </button>
+              <button
+                id="btn-daf-validate"
+                onClick={() => validateMutation.mutate({ decision: 'ACCEPTE' })}
+                disabled={validateMutation.isPending}
+                className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-green-600 text-white text-sm font-semibold hover:from-emerald-600 hover:to-green-700 transition-all shadow-md disabled:opacity-60">
+                ✔ Validation Finale
               </button>
             </div>
           </div>

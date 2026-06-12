@@ -53,24 +53,15 @@ class BudgetInvariantTest {
     @Test
     void testNegativeBudgetThrowsException() {
         Family family = new Family("Marketing", new BigDecimal("5000.00"));
-        family.deductBudget(new BigDecimal("6000.00"));
-
         IllegalStateException thrown = assertThrows(
             IllegalStateException.class,
             () -> {
-                // Simulation du @PrePersist/@PreUpdate
-                java.lang.reflect.Method method = Family.class.getDeclaredMethod("checkBudgetIntegrity");
-                method.setAccessible(true);
-                try {
-                    method.invoke(family);
-                } catch (java.lang.reflect.InvocationTargetException e) {
-                    throw e.getCause(); // Extract actual exception
-                }
+                family.deductBudget(new BigDecimal("6000.00"));
             },
-            "Expected checkBudgetIntegrity() to throw, but it didn't"
+            "Expected deductBudget() to throw, but it didn't"
         );
 
-        assertTrue(thrown.getMessage().contains("ne peut pas être négatif"));
+        assertTrue(thrown.getMessage().toLowerCase().contains("insuffisant") || thrown.getMessage().toLowerCase().contains("négatif"));
     }
     
     @Test

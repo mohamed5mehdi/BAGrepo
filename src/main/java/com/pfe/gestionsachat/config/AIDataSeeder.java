@@ -51,6 +51,10 @@ public class AIDataSeeder implements CommandLineRunner {
     private StatusHistoryRepository statusHistoryRepo;
     @Autowired
     private JdbcTemplate jdbcTemplate;
+    @Autowired
+    private SupplierRepository supplierRepo;
+    @Autowired
+    private BudgetPiecesRepository budgetPiecesRepo;
 
     // ─── Données de référence métier BAG ────────────────────────────────────
 
@@ -212,22 +216,22 @@ public class AIDataSeeder implements CommandLineRunner {
             subsByFamily.computeIfAbsent(sf.getFamily().getIdFamily(), k -> new ArrayList<>()).add(sf);
         }
 
-        // Distribution des statuts sur 300 DAs
-        // BROUILLON(15), SOUMISE(40), VALIDE_N1(30), VALIDE_TECH(25),
-        // VALIDE_AMG(15), VALIDE_DAF(15), VALIDE_DG(10),
-        // APPROUVEE(50), PO_CREE(50), REJETEE(20), AFFECTEE(30)
+        List<Supplier> suppliers = supplierRepo.findAll();
+        BudgetPieces budgetPieces = budgetPiecesRepo.findAll().stream().findFirst().orElse(null);
+
+        // Distribution des statuts sur 50 DAs (Volume réduit pour plus de clarté)
         List<StatutDemande> pool = new ArrayList<>();
-        addToPool(pool, StatutDemande.BROUILLON, 15);
-        addToPool(pool, StatutDemande.SOUMISE, 40);
-        addToPool(pool, StatutDemande.VALIDE_N1, 30);
-        addToPool(pool, StatutDemande.VALIDE_TECH, 25);
-        addToPool(pool, StatutDemande.VALIDE_AMG, 15);
-        addToPool(pool, StatutDemande.VALIDE_DAF, 15);
-        addToPool(pool, StatutDemande.VALIDE_DG, 10);
-        addToPool(pool, StatutDemande.APPROUVEE, 50);
-        addToPool(pool, StatutDemande.PO_CREE, 45);
-        addToPool(pool, StatutDemande.REJETEE, 20);
-        addToPool(pool, StatutDemande.AFFECTEE, 35);
+        addToPool(pool, StatutDemande.BROUILLON, 3);
+        addToPool(pool, StatutDemande.SOUMISE, 5);
+        addToPool(pool, StatutDemande.VALIDE_N1, 4);
+        addToPool(pool, StatutDemande.VALIDE_TECH, 4);
+        addToPool(pool, StatutDemande.VALIDE_AMG, 2);
+        addToPool(pool, StatutDemande.VALIDE_DAF, 2);
+        addToPool(pool, StatutDemande.VALIDE_DG, 2);
+        addToPool(pool, StatutDemande.APPROUVEE, 10);
+        addToPool(pool, StatutDemande.PO_CREE, 10);
+        addToPool(pool, StatutDemande.REJETEE, 3);
+        addToPool(pool, StatutDemande.AFFECTEE, 5);
         Collections.shuffle(pool, rnd);
 
         List<DemandeAchatInterne> batch = new ArrayList<>();
@@ -290,6 +294,8 @@ public class AIDataSeeder implements CommandLineRunner {
 
             UrgenceDemande urgence = pickUrgence();
             String justification = pickJustification(designation, dept);
+            
+            boolean isFluxB = (rnd.nextInt(100) < 15); // 15% de DAs Flux B
 
             // Construire la DA
             DemandeAchatInterne da = new DemandeAchatInterne();
@@ -297,15 +303,50 @@ public class AIDataSeeder implements CommandLineRunner {
             da.setDepartement(dept);
             da.setDesignation(designation);
             da.setQuantite(quantite);
-            da.setMontantEstime(montant);
-            da.setPrixUnitaire(prixUnit);
             da.setJustification(justification);
             da.setUrgence(urgence);
             da.setStatut(statut);
             da.setDateCreation(dateCreation);
-            da.setBudgetFamille(famille);
-            if (sousFamille != null)
-                da.setBudgetSousFamille(sousFamille);
+            
+            if (isFluxB) {
+                da.setIsPieceRechange(true);
+                da.setItemCode("SEED-ITEM-" + rnd.nextInt(100));
+                
+                // Fix sémantique : Assigner une vraie désignation SAV/Maintenance
+                String[] savItems = {
+                    "Filtre à huile Moteur", 
+                    "Plaquettes de frein", 
+                    "Kit Courroie de distribution", 
+                    "Batterie 12V 70Ah", 
+                    "Maintenance Ascenseur",
+                    "Intervention SAV Onduleur", 
+                    "Compresseur Climatisation",
+                    "Réparation Pompe Hydraulique"
+                };
+                da.setDesignation(savItems[rnd.nextInt(savItems.length)]);
+                // Flux B ne touche pas à la sous-famille
+            } else {
+                da.setIsPieceRechange(false);
+                da.setBudgetFamille(famille);
+                if (sousFamille != null) da.setBudgetSousFamille(sousFamille);
+            }
+
+            // Montant estimé par le demandeur (toujours présent)
+            da.setMontantEstime(montant);
+
+            // Fix forensique : Prix et fournisseur uniquement pour les DAs valorisées
+            if (hasBeenValorized(statut)) {
+                da.setPrixUnitaire(prixUnit);
+                if (!suppliers.isEmpty()) {
+                    da.setFournisseur(suppliers.get(rnd.nextInt(suppliers.size())));
+                }
+            }
+                
+            // Consommation directe du pool BudgetPieces pour le Flux B
+            if (isConsommeBudget(statut) && isFluxB && budgetPieces != null) {
+                budgetPieces.setBudgetEngage(budgetPieces.getBudgetEngage() != null ? budgetPieces.getBudgetEngage().add(montant) : montant);
+                budgetPieces.setBudgetRestant(budgetPieces.getBudgetRestant().subtract(montant));
+            }
 
             // Fix risque #3 : dateValidation renseignée pour les statuts avancés
             if (isValidated(statut)) {
@@ -337,9 +378,9 @@ public class AIDataSeeder implements CommandLineRunner {
         statusHistoryRepo.saveAll(allHistory);
         log.info("   📜 {} entrées StatusHistory persistées.", allHistory.size());
 
-        // Fix risque #2 + #8 : décrémenter budgetRestant famille (rechargement safe
-        // @Version)
+        // Fix risque #2 + #8 : décrémenter budgetRestant famille (rechargement safe @Version)
         decrementBudgets(saved);
+        if (budgetPieces != null) budgetPiecesRepo.save(budgetPieces);
     }
 
     // ─── Décrémentation budget (fix risques #2 et #8) ────────────────────────
@@ -350,10 +391,10 @@ public class AIDataSeeder implements CommandLineRunner {
         Set<Integer> affectedFamilies = new HashSet<>();
         
         for (DemandeAchatInterne da : savedDas) {
-            if (da.getBudgetSousFamille() == null || da.getMontantEstime() == null)
-                continue;
-            if (!isConsommeBudget(da.getStatut()))
-                continue;
+            if (Boolean.TRUE.equals(da.getIsPieceRechange())) continue; // Géré séparément
+            if (da.getBudgetSousFamille() == null || da.getMontantEstime() == null) continue;
+            if (!isConsommeBudget(da.getStatut())) continue;
+            
             Integer subId = da.getBudgetSousFamille().getOidSub();
             consumptionBySubFamily.merge(subId, da.getMontantEstime(), BigDecimal::add);
             affectedFamilies.add(da.getBudgetFamille().getIdFamily());
@@ -489,10 +530,18 @@ public class AIDataSeeder implements CommandLineRunner {
     }
 
     private boolean isConsommeBudget(StatutDemande s) {
-        return s == StatutDemande.APPROUVEE
+        return s == StatutDemande.VALIDE_TECH
+                || s == StatutDemande.VALIDE_AMG
+                || s == StatutDemande.VALIDE_DAF
+                || s == StatutDemande.VALIDE_DG
+                || s == StatutDemande.APPROUVEE
                 || s == StatutDemande.PO_CREE
                 || s == StatutDemande.EN_LIVRAISON
                 || s == StatutDemande.AFFECTEE;
+    }
+
+    private boolean hasBeenValorized(StatutDemande s) {
+        return isConsommeBudget(s) || s == StatutDemande.REJETEE;
     }
 
     private UrgenceDemande pickUrgence() {

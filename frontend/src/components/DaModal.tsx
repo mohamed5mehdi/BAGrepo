@@ -131,7 +131,7 @@ export default function DaModal({ da, onClose, title, children, wide = false, sh
           {/* Stepper */}
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Progression du workflow</p>
-            <WorkflowStepper statut={da.statut} />
+            <WorkflowStepper statut={da.statut} isPieceRechange={da.isPieceRechange} />
           </div>
 
           {/* Role-specific action panel */}

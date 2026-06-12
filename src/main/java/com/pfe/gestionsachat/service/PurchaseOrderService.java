@@ -17,9 +17,15 @@ import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
+import jakarta.persistence.EntityManager;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 public class PurchaseOrderService {
+
+    private static final Logger log = LoggerFactory.getLogger(PurchaseOrderService.class);
 
     /**
      * Taux de TVA par défaut appliqué lors de la génération du PO depuis une DA interne.
@@ -27,7 +33,6 @@ public class PurchaseOrderService {
      * À centraliser dans une table de configuration si le taux devient paramétrable.
      */
     private static final BigDecimal TVA_DEFAUT = new BigDecimal("0.20");
-    private static final BigDecimal TVA_FACTEUR_DEFAUT = BigDecimal.ONE.add(TVA_DEFAUT); // 1.20
 
     @Autowired private PurchaseOrderRepository purchaseOrderRepository;
     @Autowired private StatusHistoryRepository historyRepository;
@@ -37,11 +42,15 @@ public class PurchaseOrderService {
     @Autowired @org.springframework.context.annotation.Lazy private DemandeAchatInterneService demandeAchatInterneService;
     @Autowired @org.springframework.context.annotation.Lazy private GrnService grnService;
     @Autowired @org.springframework.context.annotation.Lazy private GrcService grcService;
+    @Autowired @org.springframework.context.annotation.Lazy private BudgetSuiviService budgetSuiviService;
+    @Autowired private EntityManager entityManager;
 
+    @Transactional(readOnly = true)
     public List<PurchaseOrder> getAllPurchaseOrders() {
         return purchaseOrderRepository.findAll();
     }
 
+    @Transactional(readOnly = true)
     public List<PurchaseOrder> getPendingInternalPOsForAutomation() {
         return purchaseOrderRepository.findPendingInternalPOsForAutomation(POStatus.APPROVED);
     }
@@ -55,13 +64,6 @@ public class PurchaseOrderService {
 
         if (po.getDemandeInterne() != null) {
             balance.put("GLOBAL", grnRepository.sumAllReceivedByPoId(poId));
-        } else if (po.getDaHeader() != null && po.getDaHeader().getDetails() != null) {
-            for (DaDetails d : po.getDaHeader().getDetails()) {
-                String code = d.getItemCode();
-                if (code != null) {
-                    balance.put(code, grnRepository.sumReceivedQuantityByPoIdAndItemCode(poId, code));
-                }
-            }
         }
         return balance;
     }
@@ -71,9 +73,10 @@ public class PurchaseOrderService {
                 .orElseThrow(() -> new RuntimeException("PO non trouvé : " + id));
     }
 
-    public PurchaseOrder getPurchaseOrderByDa(Integer oidDa) {
-        return purchaseOrderRepository.findByDaHeader_OidDa(oidDa);
+    public PurchaseOrder getPurchaseOrderByDa(Long oidDa) {
+        return purchaseOrderRepository.findByDemandeInterne_Id(oidDa);
     }
+
 
     public List<PurchaseOrder> getPurchaseOrdersByStatus(POStatus statut) {
         List<PurchaseOrder> pos = purchaseOrderRepository.findByStatut(statut);
@@ -86,27 +89,11 @@ public class PurchaseOrderService {
 
     private boolean isFullyReceived(PurchaseOrder po) {
         Map<String, Integer> balance = getPoBalance(po.getIdPo());
-        System.out.println("[DEBUG] isFullyReceived pour PO-" + po.getIdPo() + ", balance: " + balance);
+        log.debug("[DEBUG] isFullyReceived pour PO-{}, balance: {}", po.getIdPo(), balance);
         if (po.getDemandeInterne() != null) {
             int ordered = po.getDemandeInterne().getQuantite() != null ? po.getDemandeInterne().getQuantite() : 0;
             int received = balance.getOrDefault("GLOBAL", 0);
             return ordered > 0 && received >= ordered;
-        } else if (po.getDaHeader() != null && po.getDaHeader().getDetails() != null) {
-            boolean allReceived = true;
-            for (DaDetails d : po.getDaHeader().getDetails()) {
-                String code = d.getItemCode();
-                if (code != null) {
-                    int ordered = d.getQuantite() != null ? d.getQuantite() : 0;
-                    int received = balance.getOrDefault(code, 0);
-                    System.out.println("[DEBUG] Item: " + code + ", ordered: " + ordered + ", received: " + received);
-                    if (ordered > 0 && received < ordered) {
-                        allReceived = false;
-                        break;
-                    }
-                }
-            }
-            System.out.println("[DEBUG] allReceived: " + allReceived);
-            return allReceived;
         }
         return false;
     }
@@ -156,43 +143,6 @@ public class PurchaseOrderService {
         return saved;
     }
 
-    /**
-     * Génère un PO depuis une DA classique (DaHeader).
-     */
-    @Transactional
-    public PurchaseOrder generateFromClassic(DaHeader da) {
-        if (da.getDetails() == null || da.getDetails().isEmpty()) {
-            throw new IllegalArgumentException("Impossible de créer un PO : DA [" + da.getOidDa() + "] sans détails.");
-        }
-
-        BigDecimal totalHt = da.getDetails().stream()
-                .filter(d -> d.getPrixUnitaire() != null && d.getQuantite() != null)
-                .map(d -> d.getPrixUnitaire().multiply(BigDecimal.valueOf(d.getQuantite())))
-                .reduce(BigDecimal.ZERO, BigDecimal::add);
-
-        // Même constante TVA_DEFAUT — cohérence garantie avec generateFromInternal()
-        BigDecimal montantTtc = totalHt.multiply(TVA_FACTEUR_DEFAUT).setScale(2, RoundingMode.HALF_UP);
-
-        Supplier fournisseur = da.getDetails().stream()
-                .map(DaDetails::getFournisseur).filter(java.util.Objects::nonNull).findFirst().orElse(null);
-
-        PurchaseOrder po = new PurchaseOrder();
-        po.setDaHeader(da);
-        po.setFournisseur(fournisseur);
-        po.setStatut(POStatus.APPROVED);
-        po.setMontantTotal(montantTtc);
-        po.setDateCreation(LocalDate.now());
-
-        PurchaseOrder saved = purchaseOrderRepository.save(po);
-        saved.setPoNumber(generatePoNumber(saved.getIdPo()));
-        purchaseOrderRepository.save(saved);
-
-        logTransition(saved, null, POStatus.APPROVED, null,
-            "PO généré et approuvé automatiquement depuis DA classique #" + da.getOidDa());
-
-        return saved;
-    }
-
     @Transactional
     public PurchaseOrder submitForApproval(Integer poId, User acheteur) {
         PurchaseOrder po = purchaseOrderRepository.findByIdWithLock(poId).orElseThrow();
@@ -203,6 +153,9 @@ public class PurchaseOrderService {
 
     @Transactional
     public PurchaseOrder approvePO(Integer poId, User responsable, String commentaire) {
+        if (responsable.getRole() != Role.RESP_ACHAT && responsable.getRole() != Role.DG && responsable.getRole() != Role.ADMINISTRATEUR) {
+            throw new SecurityException("Seul le Responsable Achat ou le DG peut approuver un Bon de Commande.");
+        }
         PurchaseOrder po = purchaseOrderRepository.findByIdWithLock(poId).orElseThrow();
         assertTransition(po, POStatus.PENDING_APPROVAL, POStatus.APPROVED);
         po.setStatut(POStatus.APPROVED);
@@ -216,18 +169,26 @@ public class PurchaseOrderService {
 
     @Transactional
     public PurchaseOrder rejectPO(Integer poId, User responsable, String motif) {
+        if (responsable.getRole() != Role.RESP_ACHAT && responsable.getRole() != Role.DG && responsable.getRole() != Role.ADMINISTRATEUR) {
+            throw new SecurityException("Seul le Responsable Achat ou le DG peut rejeter un Bon de Commande.");
+        }
         PurchaseOrder po = purchaseOrderRepository.findByIdWithLock(poId).orElseThrow();
         assertTransition(po, POStatus.PENDING_APPROVAL, POStatus.REJECTED);
         po.setStatut(POStatus.REJECTED);
+        
         if (po.getDemandeInterne() != null) {
             demandeAchatInterneService.rejeterDaSuiteAuPO(po.getDemandeInterne().getId(), responsable, motif);
         }
+        
         logTransition(po, POStatus.PENDING_APPROVAL, POStatus.REJECTED, responsable, motif);
         return purchaseOrderRepository.save(po);
     }
 
     @Transactional
     public PurchaseOrder shortClose(Integer poId, User responsable, String motif) {
+        if (responsable.getRole() != Role.RESP_ACHAT && responsable.getRole() != Role.ADMINISTRATEUR) {
+            throw new SecurityException("Seul le Responsable Achat peut clôturer prématurément un PO.");
+        }
         PurchaseOrder po = purchaseOrderRepository.findByIdWithLock(poId).orElseThrow();
         if (po.getStatut() != POStatus.APPROVED) throw new IllegalStateException("Non-APPROVED");
         po.setStatut(POStatus.SHORT_CLOSED);
@@ -256,9 +217,7 @@ public class PurchaseOrderService {
         List<GrnDetails> grnDetailsList = new java.util.ArrayList<>();
         int qtyOrdered = po.getDemandeInterne().getQuantite() != null ? po.getDemandeInterne().getQuantite() : 1;
         String itemCode = po.getDemandeInterne().getItemCode();
-        if (itemCode == null && po.getDemandeInterne().getDetails() != null && !po.getDemandeInterne().getDetails().isEmpty()) {
-            itemCode = po.getDemandeInterne().getDetails().get(0).getItemCode();
-        }
+
         
         GrnDetails gd = new GrnDetails();
         gd.setItemCode(itemCode != null ? itemCode : "INTERNE-ITEM");
@@ -274,20 +233,7 @@ public class PurchaseOrderService {
         grnService.completeGrnEntry(savedGrn.getId(), acheteur); // Passe le GRN à ENTRY_COMPLETED + màj Stock
     }
 
-    private void deduireBudgetInterne(DemandeAchatInterne da) {
-        if (da.getBudgetSousFamille() != null && da.getMontantEstime() != null) {
-            SubFamily sf = subFamilyRepository.findByIdWithLock(
-                da.getBudgetSousFamille().getOidSub()).orElseThrow();
-            sf.deductBudget(da.getMontantEstime());
-            subFamilyRepository.save(sf);
-            if (sf.getFamily() != null) {
-                Family fam = familyRepository.findByIdWithLock(
-                    sf.getFamily().getIdFamily()).orElseThrow();
-                fam.deductBudget(da.getMontantEstime());
-                familyRepository.save(fam);
-            }
-        }
-    }
+    // Suppression de la méthode morte deduireBudgetInterne() qui n'était plus utilisée.
 
     private void assertTransition(PurchaseOrder po, POStatus from, POStatus to) {
         if (po.getStatut() != from) throw new IllegalStateException("Transition invalide");

@@ -14,7 +14,7 @@ import {
   getPendingInternalPOsForAutomation, autoGenerateGrnGrc, valoriserDaClassic
 } from '../api/services';
 import { getAIAnomalies } from '../api/ai-services';
-import type { Supplier, SupplierOffer, SubFamily, DaHeader, DemandeAchatInterne } from '../types';
+import type { Supplier, SupplierOffer, SubFamily, DemandeAchatInterne } from '../types';
 import { formatCurrency } from '../utils/constants';
 import { MOCK_CATALOG, CatalogEntry } from '../utils/catalogMock';
 
@@ -34,23 +34,13 @@ export default function AcheteurPage() {
   const [showOfferForm, setShowOfferForm] = useState(false);
   const [offerForm, setOfferForm] = useState({ fournisseurId: 0, prixPropose: 0, delai: 0, conditions: '' });
 
-  // Flux 1 & 2 : Récupération unifiée des demandes (Internes + Classiques)
-  const { data: internalDAs = [], isLoading: loadingInternal } = useQuery({
-    queryKey: ['da', 'acheteur', 'internal', user?.userId],
-    queryFn: () => getDemandesAValiderInternes(user!.userId).then(r => {
-        // Pour l'acheteur, on veut voir tout ce qui est EN_TRAITEMENT ou DISPONIBLE_STOCK
-        return r.data;
-    }),
+  const { data: actionableDAs = [], isLoading: loadingActionable } = useQuery({
+    queryKey: ['da', 'acheteur', 'actionable', user?.userId],
+    queryFn: () => getDemandesAValiderInternes(user!.userId).then(r => r.data),
     enabled: !!user,
   });
 
-  const { data: classicDAs = [], isLoading: loadingClassic } = useQuery({
-    queryKey: ['da', 'acheteur', 'classic'],
-    queryFn: () => getAllDA().then(r => r.data.filter(d => 
-        d.statut === 'EN_ATTENTE_ACHAT' || d.statut === 'VALIDE_TECH' || d.statut === 'APPROUVEE' || d.statut === 'VALIDEE'
-    )),
-    enabled: !!user,
-  });
+  const isSpecializedBuyer = user?.role !== 'ACHETEUR';
 
   const { data: suppliers = [] } = useQuery({
     queryKey: ['suppliers'],
@@ -69,17 +59,17 @@ export default function AcheteurPage() {
     enabled: !!user,
   });
 
-  const combinedDAs = [...internalDAs, ...classicDAs].sort((a, b) => 
+  const combinedDAs = actionableDAs.sort((a, b) => 
     new Date(b.dateCreation || 0).getTime() - new Date(a.dateCreation || 0).getTime()
   );
 
   let displayedDAs = [];
   if (activeTab === 'CLASSIC') {
-      displayedDAs = classicDAs.filter(d => d.statut === 'EN_ATTENTE_ACHAT' || d.statut === 'VALIDE_TECH');
+      displayedDAs = actionableDAs.filter(d => d.statut === 'VALIDE_TECH' && !d.isPieceRechange);
   } else if (activeTab === 'INTERNAL') {
-      displayedDAs = internalDAs.filter(d => d.statut === 'EN_TRAITEMENT' || d.statut === 'DISPONIBLE_STOCK');
+      displayedDAs = actionableDAs.filter(d => (d.statut === 'EN_TRAITEMENT' || d.statut === 'DISPONIBLE_STOCK') && d.isPieceRechange);
   } else if (activeTab === 'PO_GEN') {
-      displayedDAs = combinedDAs.filter(d => d.statut === 'APPROUVEE' || d.statut === 'VALIDEE');
+      displayedDAs = actionableDAs.filter(d => d.statut === 'APPROUVEE' || d.statut === 'VALIDE_DG');
   }
 
   const openDa = (da: any) => {
@@ -95,7 +85,7 @@ export default function AcheteurPage() {
     setShowPOForm(isApproved);
   };
 
-  const isClassicFlux = (da: any) => !!da.oid_da;
+  const isClassicFlux = (da: any) => !da.isPieceRechange;
 
   const getDynamicCatalogForSubFamily = (da: any, allSuppliers: Supplier[]) => {
       if (!da) return [];
@@ -125,13 +115,8 @@ export default function AcheteurPage() {
 
   const submitTreatmentMutation = useMutation({
     mutationFn: async () => {
-        if (isClassicFlux(selectedDa)) {
-            await valoriserDaClassic(selectedDa.oid_da, prixUnitaire, selectedSupplier!);
-            return checkBudgetClassic(selectedDa.oid_da, user!.userId);
-        } else {
-            await valoriserDemandeInterne(selectedDa.id, prixUnitaire, selectedSupplier!);
-            return traiterAchatDemandeInterne(selectedDa.id, user!.userId);
-        }
+        await valoriserDemandeInterne(selectedDa.id, prixUnitaire, selectedSupplier!);
+        return traiterAchatDemandeInterne(selectedDa.id, user!.userId);
     },
     onSuccess: () => {
       if (selectedDa.isPieceRechange) {
@@ -146,11 +131,7 @@ export default function AcheteurPage() {
 
   const generatePOMutation = useMutation({
     mutationFn: () => {
-        if (isClassicFlux(selectedDa)) {
-            return createClassicPO(selectedDa.oid_da, user!.userId);
-        } else {
-            return creerPODemandeInterne(selectedDa.id, user!.userId);
-        }
+        return creerPODemandeInterne(selectedDa.id, user!.userId);
     },
     onSuccess: () => {
       toast.success(`📜 Bon de Commande (PO) généré avec succès !`);
@@ -205,10 +186,10 @@ export default function AcheteurPage() {
   return (
     <DashboardLayout title="Espace Acheteur — BAG Procurement" pendingCount={combinedDAs.length}>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-5 mb-8">
-        <KpiCard label="DA en attente" value={combinedDAs.filter(d => d.statut === 'VALIDE_TECH' || d.statut === 'EN_ATTENTE_ACHAT').length} icon="⏳" color="from-blue-600 to-indigo-700" />
-        <KpiCard label="Prêt pour PO" value={combinedDAs.filter(d => d.statut === 'APPROUVEE' || d.statut === 'VALIDEE').length} icon="📜" color="from-emerald-500 to-teal-600" />
-        <KpiCard label="Flux Classique" value={classicDAs.length} icon="📋" color="from-slate-600 to-slate-800" />
-        <KpiCard label="Flux Interne" value={internalDAs.length} icon="internal" color="from-violet-600 to-indigo-800" />
+        <KpiCard label="DA en attente" value={actionableDAs.filter(d => d.statut === 'EN_TRAITEMENT').length} icon="⏳" color="from-blue-600 to-indigo-700" />
+        <KpiCard label="Prêt pour PO" value={actionableDAs.filter(d => d.statut === 'APPROUVEE' || d.statut === 'VALIDE_DG').length} icon="📜" color="from-emerald-500 to-teal-600" />
+        <KpiCard label="Flux Classique" value={actionableDAs.filter(d => d.statut === 'EN_TRAITEMENT' && !d.isPieceRechange).length} icon="📋" color="from-slate-600 to-slate-800" />
+        <KpiCard label="Flux Interne" value={actionableDAs.filter(d => d.statut === 'EN_TRAITEMENT' && d.isPieceRechange).length} icon="internal" color="from-violet-600 to-indigo-800" />
       </div>
 
       {/* TABS (Modern Pills) */}
@@ -248,7 +229,7 @@ export default function AcheteurPage() {
       <DaTable 
         rows={displayedDAs} 
         onRowClick={openDa} 
-        loading={loadingInternal || loadingClassic} 
+        loading={loadingActionable} 
         searchQuery={search} 
         showRequester={activeTab !== 'PO_GEN'} 
         renderExtraBadge={(d: any) => d.isPieceRechange && (

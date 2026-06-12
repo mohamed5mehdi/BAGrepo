@@ -15,7 +15,7 @@ import java.util.Optional;
 @Repository
 public interface PurchaseOrderRepository extends JpaRepository<PurchaseOrder, Integer> {
 
-    PurchaseOrder findByDaHeader_OidDa(Integer oidDa);
+    PurchaseOrder findByDemandeInterne_Id(Long oidDa);
 
     List<PurchaseOrder> findByStatut(POStatus statut);
 

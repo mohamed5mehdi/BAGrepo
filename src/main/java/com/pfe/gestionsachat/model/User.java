@@ -40,9 +40,7 @@ public class User {
     @JsonIgnoreProperties({"hibernateLazyInitializer", "handler"})
     private Warehouse warehouse;
 
-    @OneToMany(mappedBy = "user")
-    @com.fasterxml.jackson.annotation.JsonIgnore
-    private List<Action> actions = new ArrayList<>();
+
 
     public User() {}
 
@@ -64,7 +62,7 @@ public class User {
     public User getN1() { return n1; }
     public Boolean getActif() { return actif; }
     public Warehouse getWarehouse() { return warehouse; }
-    public List<Action> getActions() { return actions; }
+
 
     @com.fasterxml.jackson.annotation.JsonProperty("n1_id")
     public Integer getN1Id() {
@@ -81,5 +79,5 @@ public class User {
     public void setN1(User n1) { this.n1 = n1; }
     public void setActif(Boolean actif) { this.actif = actif; }
     public void setWarehouse(Warehouse warehouse) { this.warehouse = warehouse; }
-    public void setActions(List<Action> actions) { this.actions = actions; }
+
 }

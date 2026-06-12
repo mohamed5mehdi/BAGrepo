@@ -14,7 +14,7 @@ public class NotificationEventListener {
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     public void handleWorkflowNotification(WorkflowNotificationEvent event) {
         log.info("Envoi de notification asynchrone pour la DA {} : {}", 
-                 event.getDa().getOidDa(), event.getMessage());
+                 event.getDa().getId(), event.getMessage());
         
         // Simuler l'envoi d'email ou WebSocket
         if (event.getTargetUser() != null && event.getTargetUser().getEmail() != null) {

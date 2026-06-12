@@ -62,8 +62,8 @@ export default function LogistiquePage() {
                   <tr key={po.id_po} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                     <td className="px-6 py-4 font-mono font-bold text-blue-600">{po.poNumber || `PO-${po.id_po}`}</td>
                     <td className="px-6 py-4">
-                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase ${po.daHeader ? 'bg-slate-100 text-slate-600' : 'bg-violet-100 text-violet-600'}`}>
-                        {po.daHeader ? 'Classique' : 'Interne'}
+                      <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase bg-violet-100 text-violet-600`}>
+                        Interne
                       </span>
                     </td>
                     <td className="px-6 py-4 font-semibold text-slate-700 dark:text-slate-200">{po.fournisseur?.nom || '—'}</td>

@@ -52,19 +52,56 @@ public class Family {
         this.budgetRestant = budgetInitial;
     }
 
+    /**
+     * BUG-03 FIX : déduction stricte — symétrique avec SubFamily.deductBudget().
+     * Invariant : budget_initial = budget_engage + budget_restant.
+     * Garde pré-écriture : exception métier avant soustraction si budget insuffisant.
+     */
     public void deductBudget(BigDecimal amount) {
-        if (this.budgetRestant != null) {
-            this.budgetRestant = this.budgetRestant.subtract(amount);
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                "Montant à déduire invalide pour la famille '" + libelle + "' : " + amount);
         }
-        this.budgetEngage = (this.budgetEngage != null ? this.budgetEngage : BigDecimal.ZERO).add(amount);
+        if (this.budgetRestant == null) {
+            throw new IllegalStateException(
+                "Impossible de déduire sur la famille '" + libelle +
+                "' : budgetRestant non initialisé. Vérifier la configuration du budget.");
+        }
+        if (this.budgetRestant.compareTo(amount) < 0) {
+            throw new IllegalStateException(
+                "Budget insuffisant sur la famille '" + libelle +
+                "' : montant demandé (" + amount +
+                ") > budget_restant (" + this.budgetRestant + ").");
+        }
+        this.budgetRestant = this.budgetRestant.subtract(amount);
+        this.budgetEngage  = (this.budgetEngage != null ? this.budgetEngage : BigDecimal.ZERO).add(amount);
     }
 
+    /**
+     * BUG-03 FIX : restitution stricte avec garde sur-restitution.
+     */
     public void addBudget(BigDecimal amount) {
-        if (this.budgetRestant != null) {
-            this.budgetRestant = this.budgetRestant.add(amount);
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException(
+                "Montant à restituer invalide pour la famille '" + libelle + "' : " + amount);
         }
+        if (this.budgetRestant == null) {
+            throw new IllegalStateException(
+                "Impossible de restituer sur la famille '" + libelle +
+                "' : budgetRestant non initialisé.");
+        }
+        BigDecimal restantApres = this.budgetRestant.add(amount);
+        if (this.budgetInitial != null && restantApres.compareTo(this.budgetInitial) > 0) {
+            throw new IllegalStateException(
+                "Sur-restitution détectée sur la famille '" + libelle +
+                "' : budget_restant après restitution (" + restantApres +
+                ") dépasserait budget_initial (" + budgetInitial + ").");
+        }
+        this.budgetRestant = restantApres;
         if (this.budgetEngage != null && this.budgetEngage.compareTo(amount) >= 0) {
             this.budgetEngage = this.budgetEngage.subtract(amount);
+        } else {
+            this.budgetEngage = BigDecimal.ZERO;
         }
     }
 
@@ -82,12 +119,22 @@ public class Family {
     }
     public List<SubFamily> getSubFamilies() { return subFamilies; }
 
+    /**
+     * BUG-03 FIX : borne inférieure ET supérieure vérifiées.
+     */
     @PrePersist
     @PreUpdate
     private void checkBudgetIntegrity() {
         if (budgetRestant != null && budgetRestant.compareTo(BigDecimal.ZERO) < 0) {
             throw new IllegalStateException(
                 "Intégrité compromise: le budget_restant de la famille '" + libelle + "' ne peut pas être négatif.");
+        }
+        if (budgetInitial != null && budgetRestant != null
+                && budgetRestant.compareTo(budgetInitial) > 0) {
+            throw new IllegalStateException(
+                "Intégrité compromise: budget_restant (" + budgetRestant +
+                ") > budget_initial (" + budgetInitial +
+                ") pour la famille '" + libelle + "'. Sur-restitution non bloquée.");
         }
     }
 

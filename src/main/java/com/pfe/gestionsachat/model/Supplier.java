@@ -25,9 +25,19 @@ public class Supplier {
     private Boolean isCertified;
     private String ice;
 
-    @OneToMany(mappedBy = "fournisseur")
-    @com.fasterxml.jackson.annotation.JsonIgnore
-    private List<DaDetails> details = new ArrayList<>();
+
+
+    /**
+     * BUG-19 FIX : Validation de la plage du rating.
+     * Le rating doit toujours être entre 1 et 5 s'il est renseigné.
+     */
+    @PrePersist
+    @PreUpdate
+    private void validateRating() {
+        if (rating != null && (rating < 1 || rating > 5)) {
+            throw new IllegalStateException("Supplier [" + nom + "] : le rating doit être compris entre 1 et 5.");
+        }
+    }
 
     public Supplier() {}
 
@@ -57,7 +67,7 @@ public class Supplier {
     public Integer getAverageLeadTime() { return averageLeadTime; }
     public Boolean getIsCertified() { return isCertified; }
     public String getIce() { return ice; }
-    public List<DaDetails> getDetails() { return details; }
+
 
     // Setters
     public void setOidSupplier(Integer oidSupplier) { this.oidSupplier = oidSupplier; }
@@ -71,5 +81,5 @@ public class Supplier {
     public void setAverageLeadTime(Integer averageLeadTime) { this.averageLeadTime = averageLeadTime; }
     public void setIsCertified(Boolean isCertified) { this.isCertified = isCertified; }
     public void setIce(String ice) { this.ice = ice; }
-    public void setDetails(List<DaDetails> details) { this.details = details; }
+
 }

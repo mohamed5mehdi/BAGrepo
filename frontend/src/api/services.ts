@@ -50,17 +50,19 @@ export const postDemandeOffre = (daId: number, data: { fournisseurId: number; pr
 export const getArticles = () => api.get('/warehouse/stock');
 export const getStockItems = () => api.get('/warehouse/stock');
 
-// ── ADMIN ────────────────────────────────────────────
+// ── ADMIN & GLOBAL ─────────────────────────────────────
 export const getAllDA = () => api.get('/demandes');
 export const getUsers = () => api.get('/users');
 export const deleteDA = (id: number) => api.delete(`/demandes/${id}`);
+export const getAllTransfers = () => api.get('/transfers/all');
+export const getAllOffres = () => api.get('/demandes/offres/all');
 
 // ── DAF / DG ─────────────────────────────────────────
 export const getSubFamilies = () => api.get('/sub-families');
 export const adjustSubFamily = (daId: number, userId: number, sourceId: number, cibleId: number, montant: number) =>
-  api.post(`/demandes/${daId}/adjust-subfamily?userId=${userId}&sourceId=${sourceId}&cibleId=${cibleId}&montant=${montant}`);
+  api.post(`/workflow/adjust-subfamily?daId=${daId}&dafId=${userId}&sourceId=${sourceId}&cibleId=${cibleId}&montant=${montant}`);
 export const adjustFamily = (daId: number, userId: number, familyId: number, montant: number) =>
-  api.post(`/demandes/${daId}/adjust-family?userId=${userId}&familyId=${familyId}&montant=${montant}`);
+  api.post(`/workflow/adjust-family?daId=${daId}&dgId=${userId}&cibleId=${familyId}&montant=${montant}`);
 export const validateWorkflow = (daId: number, userId: number, decision: string, comment: string) =>
   api.post(`/demandes/${daId}/validate?userId=${userId}&decision=${decision}&comment=${encodeURIComponent(comment)}`);
 export const checkBudgetClassic = (daId: number, acheteurId: number) => 
@@ -133,17 +135,17 @@ export const getWarehouses = () => api.get('/warehouse');
 /** Stock disponible avec warehouse (RISQUE-13 : JOIN FETCH garanti côté backend). */
 export const getAvailableStock = () => api.get('/transfers/stock/available');
 
-/** Soumet une nouvelle demande de transfert (EMPLOYE). */
-export const submitTransfer = (payload: any, userId: number) =>
-  api.post(`/transfers?userId=${userId}`, payload);
+/** Soumet une demande de transfert groupée multi-sources (MAGASINIER). */
+export const submitBulkTransfers = (payload: any, userId: number) =>
+  api.post(`/transfers/bulk?userId=${userId}`, payload);
 
 /** Expédie le transfert PENDING → IN_TRANSIT (MAGASINIER source). */
-export const shipTransfer = (id: number, userId: number) =>
-  api.put(`/transfers/${id}/ship?userId=${userId}`);
+export const shipTransfer = (id: number, userId: number, payload: any) =>
+  api.put(`/transfers/${id}/ship?userId=${userId}`, payload);
 
 /** Valide la réception IN_TRANSIT → RECEIVED (MAGASINIER_DEST). */
-export const receiveTransfer = (id: number, userId: number) =>
-  api.put(`/transfers/${id}/receive?userId=${userId}`);
+export const receiveTransfer = (id: number, userId: number, payload: any) =>
+  api.put(`/transfers/${id}/receive?userId=${userId}`, payload);
 
 /** Annule le transfert PENDING → CANCELLED (auteur ou ADMINISTRATEUR). */
 export const cancelTransfer = (id: number, userId: number) =>

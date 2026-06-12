@@ -13,7 +13,6 @@ import java.util.Optional;
 
 @RestController
 @RequestMapping(value = "/api/auth", produces = "application/json")
-
 public class AuthController {
 
     @Autowired
@@ -25,6 +24,11 @@ public class AuthController {
     @Autowired
     private JwtUtil jwtUtil;
 
+    /**
+     * CORRECTIF SECURITE :
+     * - Vérification de user.getActif() : un compte désactivé ne peut plus se connecter.
+     * - Les credentials restent en @RequestParam pour compatibilité frontend existant.
+     */
     @PostMapping("/login")
     public ResponseEntity<Map<String, Object>> login(
             @RequestParam String email,
@@ -33,10 +37,17 @@ public class AuthController {
         String cleanEmail = email.trim().toLowerCase();
         Map<String, Object> response = new HashMap<>();
 
-        // Chercher dans User
         Optional<User> userOpt = userRepository.findByEmail(cleanEmail);
         if (userOpt.isPresent()) {
             User user = userOpt.get();
+
+            // CORRECTIF : vérification du flag actif (rejet des null et false)
+            if (user.getActif() == null || !user.getActif()) {
+                response.put("success", false);
+                response.put("message", "Account disabled. Please contact your administrator.");
+                return ResponseEntity.status(403).body(response);
+            }
+
             if (encoder.matches(password, user.getPassword())) {
                 String token = jwtUtil.generateToken(user.getEmail());
                 return buildSuccessResponse(user.getOidUser(), user.getNom(), user.getEmail(), user.getRole(), token);
@@ -60,3 +71,4 @@ public class AuthController {
         return ResponseEntity.ok(response);
     }
 }
+

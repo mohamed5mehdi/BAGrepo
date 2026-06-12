@@ -45,7 +45,7 @@ export function RoleHome() {
 
     case 'AMG': return <ValidatorPage 
       role="AMG" 
-      myStatut="VALIDE_TECH" 
+      myStatut="VALIDE_ACHETEUR" 
       title="Dashboard AMG — Validation Intermédiaire" 
       icon="📂" 
       color="from-orange-500 to-amber-600" />;

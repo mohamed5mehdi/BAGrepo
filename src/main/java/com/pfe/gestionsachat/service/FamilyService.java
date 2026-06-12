@@ -5,14 +5,17 @@ import com.pfe.gestionsachat.repository.FamilyRepository;
 import org.springframework.lang.NonNull;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
+@Transactional(readOnly = true)
 public class FamilyService {
 
     @Autowired
     private FamilyRepository familyRepository;
 
+    @Transactional
     public Family createFamily(@NonNull Family family) {
         return familyRepository.save(family);
     }
@@ -27,15 +30,18 @@ public class FamilyService {
                 .orElseThrow(() -> new RuntimeException("Famille non trouvée")));
     }
 
+    @Transactional
     @NonNull
     public Family updateFamily(@NonNull Integer id, @NonNull Family familyDetails) {
         Family family = getFamilyById(id);
         family.setLibelle(familyDetails.getLibelle());
         family.setBudgetInitial(familyDetails.getBudgetInitial());
-        family.setBudgetRestant(familyDetails.getBudgetRestant());
+        java.math.BigDecimal engage = family.getBudgetEngage() != null ? family.getBudgetEngage() : java.math.BigDecimal.ZERO;
+        family.setBudgetRestant(familyDetails.getBudgetInitial().subtract(engage));
         return familyRepository.save(family);
     }
 
+    @Transactional
     public void deleteFamily(@NonNull Integer id) {
         familyRepository.deleteById(id);
     }

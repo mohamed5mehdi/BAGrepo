@@ -41,7 +41,7 @@ public class BudgetSuiviService {
 
     @Autowired private FamilyRepository    familyRepository;
     @Autowired private SubFamilyRepository subFamilyRepository;
-    @Autowired private DaHeaderRepository  daHeaderRepository;
+    @Autowired private DemandeAchatInterneRepository demandeAchatInterneRepository;
     @Autowired private AuditLogRepository  auditLogRepository;
 
     // ══════════════════════════════════════════════════════════════════════════
@@ -80,16 +80,14 @@ public class BudgetSuiviService {
     )
     public ConsommerBudgetResponse consommerBudget(ConsommerBudgetRequest request) {
 
-        // ── Récupération et validation de la DA ────────────────────────────
-        DaHeader da = daHeaderRepository.findById(request.getDaId())
+        DemandeAchatInterne da = demandeAchatInterneRepository.findById(request.getDemandeInterneId())
                 .orElseThrow(() -> new IllegalArgumentException(
-                        "DA introuvable : id=" + request.getDaId()));
+                        "Demande interne introuvable : id=" + request.getDemandeInterneId()));
 
-        if (da.getStatut() != StatutDA.VALIDEE &&
-            da.getStatut() != StatutDA.PO_CREE  &&
-            da.getStatut() != StatutDA.EN_ATTENTE_ACHAT) {
+        if (da.getStatut() != StatutDemande.APPROUVEE &&
+            da.getStatut() != StatutDemande.PO_CREE) {
             throw new IllegalStateException(
-                    "La DA [id=" + request.getDaId() + "] n'est pas dans un statut permettant l'imputation (statut=" + da.getStatut() + ")");
+                    "La Demande Interne [id=" + request.getDemandeInterneId() + "] n'est pas dans un statut permettant l'imputation (statut=" + da.getStatut() + ")");
         }
 
         // ── Récupération de la sous-famille avec LOCK ──────────────────────
@@ -123,7 +121,7 @@ public class BudgetSuiviService {
 
         // ── Construction de la réponse ──────────────────────────────────────
         ConsommerBudgetResponse response = new ConsommerBudgetResponse();
-        response.setDaId(da.getOidDa());
+        response.setDemandeInterneId(da.getId());
         response.setSousFamilleId(sf.getOidSub());
         response.setLibelleSousFamille(sf.getLibelle());
         response.setMontantImpute(montant);
@@ -133,7 +131,7 @@ public class BudgetSuiviService {
         response.setBudgetRestantApres(restantApres);
         response.setEquationValidee(true);
 
-        log.info("Imputation réussie : DA={} SF={} montant={}", da.getOidDa(), sf.getOidSub(), montant);
+        log.info("Imputation réussie : DA Interne={} SF={} montant={}", da.getId(), sf.getOidSub(), montant);
         return response;
     }
 

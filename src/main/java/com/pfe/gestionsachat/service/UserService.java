@@ -69,19 +69,11 @@ public class UserService {
     @Transactional
     public void deleteUser(@NonNull Integer id) {
         User user = getUserById(id);
-        userRepository.delete(user);
+        user.setActif(false);
+        userRepository.save(user);
     }
 
     public List<User> searchUsers(String keyword) {
         return userRepository.searchByKeyword(keyword);
-    }
-
-    @NonNull
-    public User authenticate(@NonNull String email, @NonNull String password) {
-        User user = getUserByEmail(email);
-        if (encoder.matches(password, user.getPassword())) {
-            return user;
-        }
-        throw new RuntimeException("Mot de passe incorrect");
     }
 }
