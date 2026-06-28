@@ -2,6 +2,7 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 import ChatbotWidget from './ChatbotWidget';
 import { useAuth } from '../context/AuthContext';
+import { useLocation } from 'react-router-dom';
 
 interface Props {
   title: string;
@@ -11,7 +12,9 @@ interface Props {
 
 export default function DashboardLayout({ title, pendingCount, children }: Props) {
   const { user } = useAuth();
-  const showBiButton = user?.role === 'DAF' || user?.role === 'DG' || user?.role === 'ADMINISTRATEUR';
+  const { pathname } = useLocation();
+  const isOnBiPage = pathname === '/ai-dashboard' || pathname === '/bi-dashboard';
+  const showBiButton = (user?.role === 'DAF' || user?.role === 'DG' || user?.role === 'ADMINISTRATEUR') && !isOnBiPage;
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950 font-sans overflow-hidden">

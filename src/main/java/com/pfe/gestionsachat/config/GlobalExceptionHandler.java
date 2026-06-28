@@ -84,6 +84,22 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Intercepte explicitement les exceptions Spring Security pour retourner 403 au lieu de 500.
+     */
+    @ExceptionHandler({
+        org.springframework.security.access.AccessDeniedException.class,
+        org.springframework.security.authorization.AuthorizationDeniedException.class
+    })
+    public ResponseEntity<Object> handleAccessDenied(RuntimeException ex, WebRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("error", "FORBIDDEN");
+        body.put("message", "Accès refusé par Spring Security");
+        body.put("status", HttpStatus.FORBIDDEN.value());
+        return new ResponseEntity<>(body, HttpStatus.FORBIDDEN);
+    }
+
+    /**
      * Stock insuffisant lors d'un transfert — HTTP 409 CONFLICT.
      * Code métier INSUFFICIENT_STOCK avec détail itemCode/available/requested
      * pour un message d'erreur précis côté frontend.
@@ -102,6 +118,34 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(body, HttpStatus.CONFLICT);
     }
     
+    /**
+     * FAILLE-4 : Spring Web Binding Errors → JSON 400 garanti.
+     *
+     * Sans ce handler, les appels malformés (ex: /api/bi/query?userId=undefined)
+     * produisent une MethodArgumentTypeMismatchException que Spring MVC résout
+     * en text/html (Whitelabel Error Page) si aucun handler plus spécifique n'est
+     * déclaré avant @ExceptionHandler(Exception.class).
+     *
+     * Ce handler est enregistré avant le handler générique grâce à l'ordre de
+     * résolution Spring : un ExceptionHandler sur un type exact (feuille de hiérarchie)
+     * est toujours préféré à un handler sur un type parent (Exception.class).
+     *
+     * Couvre également MissingServletRequestParameterException (paramètre absent),
+     * par exemple si le client oublie complètement le paramètre ?userId.
+     */
+    @ExceptionHandler({
+        org.springframework.web.method.annotation.MethodArgumentTypeMismatchException.class,
+        org.springframework.web.bind.MissingServletRequestParameterException.class
+    })
+    public ResponseEntity<Object> handleSpringBindingErrors(Exception ex, WebRequest request) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("timestamp", LocalDateTime.now());
+        body.put("error", "BAD_REQUEST");
+        body.put("message", "Paramètre de requête invalide ou manquant : " + ex.getMessage());
+        body.put("status", HttpStatus.BAD_REQUEST.value());
+        return new ResponseEntity<>(body, HttpStatus.BAD_REQUEST);
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Object> handleGeneralException(Exception ex, WebRequest request) {
         ex.printStackTrace();

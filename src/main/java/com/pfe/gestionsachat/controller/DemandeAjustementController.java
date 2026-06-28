@@ -5,6 +5,7 @@ import com.pfe.gestionsachat.service.DemandeAjustementService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.math.BigDecimal;
 import java.util.Map;
@@ -20,6 +21,8 @@ public class DemandeAjustementController {
     @Autowired
     private com.pfe.gestionsachat.repository.DemandeAjustementRepository demandeAjustementRepository;
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("hasAnyRole('DG', 'ADMINISTRATEUR')")
     @PostMapping("/famille/soumettre")
     public ResponseEntity<?> soumettreFamille(@RequestBody Map<String, Object> payload) {
         try {
@@ -36,6 +39,8 @@ public class DemandeAjustementController {
         }
     }
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("hasAnyRole('DG', 'ADMINISTRATEUR')")
     @PostMapping("/{id}/dg/decider")
     public ResponseEntity<?> deciderDg(@PathVariable Long id, @RequestBody Map<String, Object> payload) {
         try {
@@ -50,6 +55,8 @@ public class DemandeAjustementController {
         }
     }
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("hasAnyRole('DAF', 'ADMINISTRATEUR')")
     @PostMapping("/sous-famille/soumettre")
     public ResponseEntity<?> soumettreSousFamille(@RequestBody Map<String, Object> payload) {
         try {
@@ -67,6 +74,8 @@ public class DemandeAjustementController {
         }
     }
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("hasAnyRole('DAF', 'ADMINISTRATEUR')")
     @PostMapping("/{id}/daf/decider")
     public ResponseEntity<?> deciderDaf(@PathVariable Long id, @RequestBody Map<String, Object> payload) {
         try {
@@ -82,6 +91,8 @@ public class DemandeAjustementController {
         }
     }
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR', 'ADMINISTRATEUR')")
     @PostMapping("/{id}/acheteur/confirmer")
     public ResponseEntity<?> confirmerAcheteur(@PathVariable Long id, @RequestBody Map<String, Object> payload) {
         try {
@@ -93,6 +104,8 @@ public class DemandeAjustementController {
         }
     }
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("hasAnyRole('AMG', 'ADMINISTRATEUR')")
     @PostMapping("/{id}/amg/finaliser")
     public ResponseEntity<?> finaliserAmg(@PathVariable Long id) {
         try {
@@ -103,6 +116,8 @@ public class DemandeAjustementController {
         }
     }
 
+    // RBAC Niv.2 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','COMPTABLE','DAF','DG','RESP_ACHAT','MANAGER_N1','ADMINISTRATEUR')")
     @GetMapping("/{id}")
     public ResponseEntity<?> getDemandeAjustement(@PathVariable Long id) {
         return demandeAjustementRepository.findById(id)

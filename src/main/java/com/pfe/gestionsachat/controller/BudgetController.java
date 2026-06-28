@@ -47,8 +47,8 @@ public class BudgetController {
      * Tableau de bord budgétaire global (familles + sous-familles).
      * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
-    @GetMapping("/suivi")
     @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
+    @GetMapping("/suivi")
     public ResponseEntity<List<BudgetFamilleDto>> getSuiviBudgetaire() {
         log.info("GET /api/budget/suivi");
         return ResponseEntity.ok(budgetSuiviService.getSuiviBudgetaire());
@@ -62,8 +62,8 @@ public class BudgetController {
      * Imputation d'une DA validée sur une sous-famille (achats généraux uniquement).
      * Rôles autorisés : COMPTABLE, ADMINISTRATEUR
      */
-    @PostMapping("/consommer")
     @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR')")
+    @PostMapping("/consommer")
     public ResponseEntity<?> consommerBudget(@Valid @RequestBody ConsommerBudgetRequest request) {
         log.info("POST /api/budget/consommer – DA={} SF={} montant={}",
                 request.getDemandeInterneId(), request.getSousFamilleId(), request.getMontant());
@@ -111,8 +111,8 @@ public class BudgetController {
      * Détail d'une famille budgétaire avec toutes ses sous-familles.
      * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG, ACHETEUR
      */
-    @GetMapping("/famille/{id}")
     @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG','ACHETEUR')")
+    @GetMapping("/famille/{id}")
     public ResponseEntity<?> getFamilleDetail(@PathVariable Integer id) {
         log.info("GET /api/budget/famille/{}", id);
         try {
@@ -131,8 +131,8 @@ public class BudgetController {
      * Liste toutes les familles et sous-familles dont le taux de consommation dépasse 80%.
      * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
-    @GetMapping("/alertes")
     @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
+    @GetMapping("/alertes")
     public ResponseEntity<List<AlerteBudgetaireDto>> getAlertes() {
         log.info("GET /api/budget/alertes");
         return ResponseEntity.ok(budgetSuiviService.getAlertes());
@@ -146,10 +146,12 @@ public class BudgetController {
      * État du pool budgétaire global dédié aux pièces de rechange (exercice courant).
      * Pool totalement étanche du circuit Famille/Sous-Famille.
      *
-     * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
+     * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG, ACHETEUR (toutes variantes)
      */
+    @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG'," +
+                              "'ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE'," +
+                              "'ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE')")
     @GetMapping("/pieces")
-    @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
     public ResponseEntity<?> getBudgetPieces() {
         log.info("GET /api/budget/pieces");
         try {
@@ -164,8 +166,8 @@ public class BudgetController {
      * État du pool budgétaire pièces pour un exercice donné.
      * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
-    @GetMapping("/pieces/{exercice}")
     @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
+    @GetMapping("/pieces/{exercice}")
     public ResponseEntity<?> getBudgetPiecesParExercice(@PathVariable String exercice) {
         log.info("GET /api/budget/pieces/{}", exercice);
         try {
@@ -191,8 +193,8 @@ public class BudgetController {
      *
      * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
-    @GetMapping("/allocation/verification")
     @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
+    @GetMapping("/allocation/verification")
     public ResponseEntity<List<AlerteAllocationDto>> verifierAllocationGlobale() {
         log.info("GET /api/budget/allocation/verification");
         return ResponseEntity.ok(budgetSuiviService.verifierAllocationGlobale());
@@ -202,8 +204,8 @@ public class BudgetController {
      * Vérifie l'invariant Σ SF.budgetInitial = Family.budgetInitial pour une famille donnée.
      * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
-    @GetMapping("/allocation/verification/{familleId}")
     @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
+    @GetMapping("/allocation/verification/{familleId}")
     public ResponseEntity<?> verifierAllocationFamille(@PathVariable Integer familleId) {
         log.info("GET /api/budget/allocation/verification/{}", familleId);
         try {
@@ -223,8 +225,8 @@ public class BudgetController {
      * Vérifie que initial = engage + restant pour toutes les familles et sous-familles.
      * Rôles autorisés : COMPTABLE, ADMINISTRATEUR, DAF, DG
      */
-    @GetMapping("/audit")
     @PreAuthorize("hasAnyRole('COMPTABLE','ADMINISTRATEUR','DAF','DG')")
+    @GetMapping("/audit")
     public ResponseEntity<List<com.pfe.gestionsachat.model.AuditLog>> auditGlobalEquations() {
         log.info("GET /api/budget/audit");
         return ResponseEntity.ok(budgetSuiviService.auditGlobalEquations());

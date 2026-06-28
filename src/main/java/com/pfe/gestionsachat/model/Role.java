@@ -6,8 +6,8 @@ package com.pfe.gestionsachat.model;
  */
 public enum Role {
     EMPLOYE,
+    DEMANDEUR,
     MANAGER_N1,
-    MANAGER_N2,
     TECHNICIEN,
     ACHETEUR,
     ACHETEUR_INFORMATIQUE,

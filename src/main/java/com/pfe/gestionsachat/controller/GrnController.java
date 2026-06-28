@@ -25,13 +25,15 @@ public class GrnController {
     @Autowired private PdfExportService pdfExportService;
     @Autowired private GrnHeaderRepository grnRepository;
 
+    // RBAC Niv.1 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping
     public ResponseEntity<List<GrnHeader>> getAllGrns() {
         return ResponseEntity.ok(grnService.getAllGrns());
     }
 
-    @PostMapping
     @PreAuthorize("hasAnyRole('ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'MAGASINIER', 'ADMINISTRATEUR')")
+    @PostMapping
     public ResponseEntity<GrnHeader> createGrn(@RequestBody GrnHeader grn) {
         return ResponseEntity.ok(grnService.createGrn(grn));
     }
@@ -40,8 +42,8 @@ public class GrnController {
      * /valider — Magasinier : PENDING → ENTRY_COMPLETED.
      * Déclenche la mise à jour du stock et génère le grnNumber.
      */
-    @PutMapping("/{id}/valider")
     @PreAuthorize("hasAnyRole('MAGASINIER', 'ADMINISTRATEUR')")
+    @PutMapping("/{id}/valider")
     public ResponseEntity<GrnHeader> validateGrn(@PathVariable Long id) {
         return ResponseEntity.ok(grnService.validateGrn(Objects.requireNonNull(id)));
     }
@@ -49,6 +51,8 @@ public class GrnController {
     /**
      * Filtre les GRNs par statut — utile pour les dashboards Magasinier/Achat.
      */
+    // RBAC Niv.1 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/status/{status}")
     public ResponseEntity<List<GrnHeader>> getByStatus(@PathVariable GrnStatus status) {
         return ResponseEntity.ok(grnRepository.findByStatus(status));
@@ -59,6 +63,8 @@ public class GrnController {
      * @Transactional(readOnly=true) : maintient la session JPA ouverte pour
      * les relations lazy (details, supplier, purchaseOrder) nécessaires au PDF.
      */
+    // RBAC Niv.3 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','MAGASINIER','MAGASINIER_DEST','COMPTABLE','DAF','DG','RESP_ACHAT','ADMINISTRATEUR')")
     @GetMapping("/{id}/download")
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> downloadGrn(@PathVariable Long id) {

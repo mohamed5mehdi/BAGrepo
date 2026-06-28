@@ -49,10 +49,12 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: string; to: string; categ
   DAF:       [
     { label: 'Contrôle Budget', icon: '💰', to: '/daf' },
     { label: 'Intelligence IA', icon: '🤖', to: '/ai-dashboard' },
+    { label: 'BI Dynamique', icon: '📊', to: '/bi-dashboard' },
   ],
   DG:        [
     { label: 'Direction', icon: '🏢', to: '/dg' },
     { label: 'Dashboard IA', icon: '📊', to: '/ai-dashboard' },
+    { label: 'BI Dynamique', icon: '📈', to: '/bi-dashboard' },
   ],
   MAGASINIER: [
     { label: 'Réception GRN', icon: '📦', to: '/magasinier' },
@@ -104,7 +106,8 @@ const NAV_BY_ROLE: Record<Role, { label: string; icon: string; to: string; categ
   ADMINISTRATEUR:     [
     { category: '⚙️ Paramétrage Global', label: 'Administration', icon: '⚙️', to: '/admin' },
 
-    { category: '📊 Décisionnel & IA', label: 'Surveillance IA', icon: '👁️', to: '/ai-dashboard' },
+    { category: '🎯 Décisionnel & IA', label: 'Surveillance IA', icon: '🤖', to: '/ai-dashboard' },
+    { category: '🎯 Décisionnel & IA', label: 'BI Dynamique', icon: '📊', to: '/bi-dashboard' },
     { category: '📊 Décisionnel & IA', label: 'Documents', icon: '📄', to: '/documents' },
 
     { category: '💰 Finance', label: 'Facturation GRC', icon: '🧾', to: '/comptable' },
@@ -140,8 +143,24 @@ export default function Sidebar() {
 
   return (
     <aside className={`flex flex-col h-screen sticky top-0 bg-slate-900 text-white transition-all duration-300 ${collapsed ? 'w-16' : 'w-60'} flex-shrink-0 z-30`}>
-      {/* Header */}
-      <div className={`flex items-center gap-3 px-4 py-5 border-b border-slate-700/60 ${collapsed ? 'justify-center' : ''}`}>
+      {/* Logo BAG */}
+      {!collapsed ? (
+        <div className="flex items-center justify-center px-4 pt-5 pb-3 border-b border-slate-700/60">
+          <img
+            src="/bag-logo.png"
+            alt="Bugshan Automotive Group"
+            className="h-12 w-auto object-contain"
+            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+          />
+        </div>
+      ) : (
+        <div className="flex items-center justify-center py-3 border-b border-slate-700/60">
+          <span className="text-white font-black text-sm tracking-widest">BAG</span>
+        </div>
+      )}
+
+      {/* Header – User info */}
+      <div className={`flex items-center gap-3 px-4 py-4 border-b border-slate-700/60 ${collapsed ? 'justify-center' : ''}`}>
         <div className={`w-9 h-9 rounded-xl bg-gradient-to-br ${gradientClass} flex items-center justify-center text-lg font-bold flex-shrink-0`}>
           {user.userName.charAt(0).toUpperCase()}
         </div>

@@ -43,12 +43,19 @@ export const getPendingInternalPOsForAutomation = () => api.get(`/purchase-order
 export const getFamilies = () => api.get('/families');
 export const getSubFamiliesByFamily = (familyId: number) => api.get(`/sub-families/family/${familyId}`);
 export const getSuppliers = () => api.get('/suppliers');
+/** Pool budgétaire global pièces de rechange — exercice courant. */
+export const getBudgetPieces = () => api.get('/budget/pieces');
 export const getDemandeOffres = (daId: number) => api.get(`/demandes/${daId}/offres`);
 export const postDemandeOffre = (daId: number, data: { fournisseurId: number; prixPropose: number; delai: number; conditions: string }) => api.post(`/demandes/${daId}/offres`, data);
 
 // ARTICLES & STOCK
-export const getArticles = () => api.get('/warehouse/stock');
-export const getStockItems = () => api.get('/warehouse/stock');
+export const getStockItems = (includeOutOfStock: boolean = false, userId?: number) => {
+  const params = new URLSearchParams();
+  if (includeOutOfStock) params.append('includeOutOfStock', 'true');
+  if (userId) params.append('userId', userId.toString());
+  const queryString = params.toString();
+  return api.get(`/warehouse/stock${queryString ? '?' + queryString : ''}`);
+};
 
 // ── ADMIN & GLOBAL ─────────────────────────────────────
 export const getAllDA = () => api.get('/demandes');
@@ -178,3 +185,10 @@ export const downloadLtoPdf = (id: number) =>
 /** Télécharge le LTI en PDF (Blob). */
 export const downloadLtiPdf = (id: number) =>
   api.get(`/transfers/${id}/pdf/lti`, { responseType: 'blob' });
+
+// --- BI Dashboard (Text-to-SQL) ---
+export const fetchBiOverview = () =>
+  api.get('/bi/overview');
+
+export const executeBiQuery = (userId: number, question: string) =>
+  api.post(`/bi/query?userId=${userId}`, { userQuestion: question });

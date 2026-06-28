@@ -18,6 +18,7 @@ import { RoleProtectedRoute } from './pages/RolePages';
 import DafPage from './pages/DafPage';
 import DgPage from './pages/DgPage';
 import AIDashboardPage from './pages/AIDashboardPage';
+import BiDashboardPage from './pages/BiDashboardPage';
 import LogistiquePage from './pages/LogistiquePage';
 import DocumentsPage from './pages/DocumentsPage';
 import MagasinierStock from './pages/MagasinierStock';
@@ -69,6 +70,7 @@ export default function App() {
             <Route path="/comptable"             element={<RoleProtectedRoute roles={['COMPTABLE', 'ADMINISTRATEUR']}><ComptablePage /></RoleProtectedRoute>} />
             <Route path="/resp-achat"    element={<RoleProtectedRoute roles={['RESP_ACHAT']}><RespAchatPage /></RoleProtectedRoute>} />
             <Route path="/ai-dashboard"  element={<RoleProtectedRoute roles={['DG', 'ADMINISTRATEUR', 'DAF', 'AMG', 'ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'COMPTABLE', 'RESP_ACHAT']}><AIDashboardPage /></RoleProtectedRoute>} />
+            <Route path="/bi-dashboard"  element={<RoleProtectedRoute roles={['DG', 'ADMINISTRATEUR', 'DAF', 'AMG', 'ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'COMPTABLE', 'RESP_ACHAT', 'MANAGER_N1', 'DEMANDEUR']}><BiDashboardPage /></RoleProtectedRoute>} />
             <Route path="/logistics"     element={<RoleProtectedRoute roles={['ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'ADMINISTRATEUR']}><LogistiquePage /></RoleProtectedRoute>} />
             <Route path="/documents"     element={<RoleProtectedRoute roles={['ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'ADMINISTRATEUR', 'COMPTABLE', 'MAGASINIER']}><DocumentsPage /></RoleProtectedRoute>} />
 

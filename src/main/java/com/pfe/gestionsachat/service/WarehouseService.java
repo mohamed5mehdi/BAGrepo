@@ -87,7 +87,7 @@ public class WarehouseService {
                     }
                     item.setQuantityAvailable(item.getQuantityAvailable() - quantity);
                     stockItemRepository.save(item);
-                    persistMovement(item, MovementType.OUT_RETURN, quantity, referenceDoc);
+                    persistMovement(item, MovementType.CONSUMPTION, quantity, referenceDoc);
                 }, () -> {
                     throw new RuntimeException("Article [" + itemCode + "] introuvable en stock.");
                 });
@@ -125,9 +125,9 @@ public class WarehouseService {
      * Pour un GRN de 20 articles appelant addStock 20 fois : 20 requêtes warehouse.
      * Optimisation future : @Cacheable("warehouse-default") si performance requise.
      */
-    private Warehouse getDefaultWarehouse() {
+    public Warehouse getDefaultWarehouse() {
         return warehouseRepository.findAll().stream()
-                .findFirst()
+                .min(java.util.Comparator.comparing(Warehouse::getId))
                 .orElseThrow(() -> new RuntimeException(
                     "Aucun entrepôt configuré. Créez un Warehouse avant toute opération de stock."));
     }

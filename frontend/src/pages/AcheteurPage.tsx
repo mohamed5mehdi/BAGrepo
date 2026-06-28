@@ -11,7 +11,8 @@ import {
   getDemandesAValiderInternes, getSuppliers, traiterAchatDemandeInterne, creerPODemandeInterne, 
   getDemandeInterneById, valoriserDemandeInterne, solliciterAjustementDemandeInterne, 
   getDemandeOffres, postDemandeOffre, getSubFamiliesByFamily, getAllDA, createPO as createClassicPO, checkBudgetClassic,
-  getPendingInternalPOsForAutomation, autoGenerateGrnGrc, valoriserDaClassic
+  getPendingInternalPOsForAutomation, autoGenerateGrnGrc, valoriserDaClassic,
+  getBudgetPieces,
 } from '../api/services';
 import { getAIAnomalies } from '../api/ai-services';
 import type { Supplier, SupplierOffer, SubFamily, DemandeAchatInterne } from '../types';
@@ -59,7 +60,16 @@ export default function AcheteurPage() {
     enabled: !!user,
   });
 
-  const combinedDAs = actionableDAs.sort((a, b) => 
+  // BUG-1 FIX: Charger le pool BudgetPieces uniquement quand une DA pièce est sélectionnée.
+  // staleTime=0 : force un refetch à chaque ouverture de DA (invalidation via openDa).
+  const { data: budgetPiecesPool } = useQuery({
+    queryKey: ['budget', 'pieces'],
+    queryFn: () => getBudgetPieces().then(r => r.data),
+    enabled: !!selectedDa?.isPieceRechange,
+    staleTime: 0,
+  });
+
+  const combinedDAs = [...actionableDAs].sort((a, b) => 
     new Date(b.dateCreation || 0).getTime() - new Date(a.dateCreation || 0).getTime()
   );
 
@@ -76,16 +86,17 @@ export default function AcheteurPage() {
     setSelectedDa(da);
     setSelectedSupplier(da.fournisseur?.oidSupplier || da.fournisseur?.id || null);
     setPrixUnitaire(da.prixUnitaire || da.details?.[0]?.prix_unitaire || 0);
-    // Détection ItemCode
     const itemCode = da.details?.[0]?.itemCode || '';
     setPoItemCode(itemCode);
-    
-    // Si la DA est déjà approuvée/validée, on n'a plus à sélectionner le fournisseur, on passe direct au PO
+    // Force un refetch du pool pièces à chaque sélection pour avoir le current_val réel.
+    if (da.isPieceRechange) {
+      qc.invalidateQueries({ queryKey: ['budget', 'pieces'] });
+    }
     const isApproved = da.statut === 'APPROUVEE' || da.statut === 'VALIDEE';
     setShowPOForm(isApproved);
   };
 
-  const isClassicFlux = (da: any) => !da.isPieceRechange;
+  const isClassicFlux = (da: any) => !da?.isPieceRechange;
 
   const getDynamicCatalogForSubFamily = (da: any, allSuppliers: Supplier[]) => {
       if (!da) return [];
@@ -180,8 +191,18 @@ export default function AcheteurPage() {
 
   const totalHT  = (selectedDa?.quantite || 0) * prixUnitaire;
   const totalTTC = Number((totalHT * (1 + VAT)).toFixed(2));
-  const budgetRestant = selectedDa?.budgetSousFamille?.budget_disponible ?? 0;
-  const isBudgetExceeded = totalHT > budgetRestant && !isClassicFlux(selectedDa);
+
+  // BUG-1 FIX: Pour une DA pièce, lire le pool dédié BudgetPieces (current_val).
+  //            Pour une DA classique, lire la sous-famille budgétaire (inchangé).
+  const budgetRestant = selectedDa?.isPieceRechange
+    ? (budgetPiecesPool?.current_val ?? null)          // null = pool pas encore chargé
+    : (selectedDa?.budgetSousFamille?.budget_disponible ?? 0);
+
+  // BUG-2 FIX: isBudgetExceeded uniquement si le pool est chargé ET insuffisant.
+  //            Si budgetRestant est null (chargement en cours), on ne bloque pas l'UI.
+  const isBudgetExceeded = !isClassicFlux(selectedDa)
+    && budgetRestant !== null
+    && totalHT > (budgetRestant as number);
 
   return (
     <DashboardLayout title="Espace Acheteur — BAG Procurement" pendingCount={combinedDAs.length}>
@@ -447,11 +468,22 @@ export default function AcheteurPage() {
                                 <span className="w-5 h-5 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-[10px] text-slate-600">2</span>
                                 Surveillance Budget (TTC)
                             </h3>
-                            <div className={`p-5 rounded-2xl border ${isBudgetExceeded ? 'bg-rose-50 border-rose-200' : 'bg-emerald-50 border-emerald-200'}`}>
+                            <div className={`p-5 rounded-2xl border ${
+                              budgetRestant === null
+                                ? 'bg-slate-50 border-slate-200'
+                                : isBudgetExceeded
+                                  ? 'bg-rose-50 border-rose-200'
+                                  : 'bg-emerald-50 border-emerald-200'
+                            }`}>
                                 <div className="flex justify-between items-end">
                                     <div>
-                                        <p className="text-[10px] text-slate-400 uppercase font-bold">Disponible: {selectedDa.budgetSousFamille?.libelle || '—'}</p>
-                                        <p className="text-xl font-black text-slate-700">{formatCurrency(budgetRestant)}</p>
+                                        {/* BUG-1 FIX : libellé et valeur du pool pièces réel */}
+                                        <p className="text-[10px] text-slate-400 uppercase font-bold">
+                                          {selectedDa.isPieceRechange ? 'Pool Pièces de Rechange' : (selectedDa.budgetSousFamille?.libelle || '—')}
+                                        </p>
+                                        <p className="text-xl font-black text-slate-700">
+                                          {budgetRestant === null ? '…' : formatCurrency(budgetRestant as number)}
+                                        </p>
                                     </div>
                                     <div className="text-right">
                                         <p className="text-[10px] text-slate-400 uppercase font-bold">Total DA (HT)</p>

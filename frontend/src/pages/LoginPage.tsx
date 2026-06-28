@@ -5,6 +5,26 @@ import { login as loginApi } from '../api/services';
 import toast from 'react-hot-toast';
 import type { Role } from '../types';
 
+// Constante module-level : aucune réallocation à chaque render
+const DEMO_ACCOUNTS = [
+  { label: 'Demandeur',  email: 'demandeur@test.com',  icon: '👤' },
+  { label: 'N+1',        email: 'n1@test.com',         icon: '✅' },
+  { label: 'Technicien', email: 'tech@test.com',       icon: '🔧' },
+  { label: 'Acheteur',   email: 'acheteur@test.com',   icon: '🛒' },
+  { label: 'Ach. Info',  email: 'acheteur.info@test.com', icon: '💻' },
+  { label: 'Ach. Bureau',email: 'acheteur.bureau@test.com', icon: '🖨️' },
+  { label: 'Ach. Mob',   email: 'acheteur.mob@test.com', icon: '🪑' },
+  { label: 'Ach. Cons',  email: 'acheteur.cons@test.com', icon: '📎' },
+  { label: 'Ach. Autre', email: 'acheteur.autre@test.com', icon: '📦' },
+  { label: 'AMG',        email: 'amg@test.com',        icon: '📂' },
+  { label: 'DAF',        email: 'daf@test.com',        icon: '💰' },
+  { label: 'DG',         email: 'dg@test.com',         icon: '🏢' },
+  { label: 'Mag. Casa',  email: 'magasinier.casa@test.com', icon: '📍' },
+  { label: 'Mag. Rabat', email: 'magasinier.rabat@test.com', icon: '📍' },
+  { label: 'Mag. Tanger',email: 'magasinier.tanger@test.com', icon: '📍' },
+  { label: 'Mag. Marrakech', email: 'magasinier.marrakech@test.com', icon: '📍' },
+];
+
 export default function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -66,27 +86,10 @@ export default function LoginPage() {
     setPassword('password');
   };
 
-  const DEMO_ACCOUNTS = [
-    { label: 'Demandeur',  email: 'demandeur@test.com',  icon: '👤', color: 'bg-sky-50 border-sky-200 text-sky-700' },
-    { label: 'N+1',        email: 'n1@test.com',         icon: '✅', color: 'bg-violet-50 border-violet-200 text-violet-700' },
-    { label: 'Technicien', email: 'tech@test.com',       icon: '🔧', color: 'bg-cyan-50 border-cyan-200 text-cyan-700' },
-    { label: 'Acheteur',   email: 'acheteur@test.com',   icon: '🛒', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
-    { label: 'Ach. Info',  email: 'acheteur.info@test.com', icon: '💻', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
-    { label: 'Ach. Bureau',email: 'acheteur.bureau@test.com', icon: '🖨️', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
-    { label: 'Ach. Mob',   email: 'acheteur.mob@test.com', icon: '🪑', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
-    { label: 'Ach. Cons',  email: 'acheteur.cons@test.com', icon: '📎', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
-    { label: 'Ach. Autre', email: 'acheteur.autre@test.com', icon: '📦', color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
-    { label: 'AMG',        email: 'amg@test.com',        icon: '📂', color: 'bg-orange-50 border-orange-200 text-orange-700' },
-    { label: 'DAF',        email: 'daf@test.com',        icon: '💰', color: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-700' },
-    { label: 'DG',         email: 'dg@test.com',         icon: '🏢', color: 'bg-rose-50 border-rose-200 text-rose-700' },
-    { label: 'Mag. Casa',  email: 'magasinier.casa@test.com', icon: '📍', color: 'bg-blue-50 border-blue-200 text-blue-700' },
-    { label: 'Mag. Rabat', email: 'magasinier.rabat@test.com', icon: '📍', color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
-    { label: 'Mag. Tanger',email: 'magasinier.tanger@test.com', icon: '📍', color: 'bg-teal-50 border-teal-200 text-teal-700' },
-    { label: 'Mag. Marrakech', email: 'magasinier.marrakech@test.com', icon: '📍', color: 'bg-orange-50 border-orange-200 text-orange-700' },
-  ];
+
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex items-center justify-center p-4 font-sans">
+    <div className="relative min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex items-center justify-center p-4 font-sans">
       {/* Background decoration */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-96 h-96 bg-indigo-500/10 rounded-full blur-3xl" />
@@ -94,13 +97,18 @@ export default function LoginPage() {
       </div>
 
       <div className="relative w-full max-w-md animate-fade-in-up">
-        {/* Logo / Title */}
+        {/* Logo BAG */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-600 shadow-2xl shadow-indigo-500/30 mb-4">
-            <span className="text-3xl">🛒</span>
+          <div className="inline-flex items-center justify-center mb-4">
+            <img
+              src="/bag-logo.png"
+              alt="Bugshan Automotive Group"
+              className="h-24 w-auto object-contain drop-shadow-2xl"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = 'none'; }}
+            />
           </div>
-          <h1 className="text-3xl font-bold text-white">GestionsAchat</h1>
-          <p className="text-slate-400 mt-1 text-sm">Système de gestion des achats</p>
+          <h1 className="text-3xl font-bold text-white">BAG ERP</h1>
+          <p className="text-slate-400 mt-1 text-sm">Système de gestion des achats · Bugshan Automotive Group</p>
         </div>
 
         {/* Login card */}
@@ -111,7 +119,7 @@ export default function LoginPage() {
               <label className="block text-xs font-semibold text-slate-300 mb-1.5">Adresse e-mail</label>
               <input
                 id="email"
-                type="text"
+                type="email"
                 value={email}
                 onChange={e => { setEmail(e.target.value); if (emailError) validateEmail(e.target.value); }}
                 onBlur={e => validateEmail(e.target.value)}

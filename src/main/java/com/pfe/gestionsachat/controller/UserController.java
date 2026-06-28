@@ -16,40 +16,48 @@ public class UserController {
     @Autowired
     private UserService userService;
 
-    @PostMapping
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
+    @PostMapping
     public ResponseEntity<User> createUser(@RequestBody @org.springframework.lang.NonNull User user) {
         return ResponseEntity.ok(userService.createUser(user));
     }
 
-    @GetMapping
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
+    @GetMapping
     public ResponseEntity<List<User>> getAllUsers() {
         return ResponseEntity.ok(userService.getAllUsers());
     }
 
-    @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
+    @GetMapping("/{id}")
     public ResponseEntity<User> getUserById(@PathVariable @org.springframework.lang.NonNull Integer id) {
         return ResponseEntity.ok(userService.getUserById(id));
     }
 
-    @GetMapping("/role/{role}")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
+    @GetMapping("/role/{role}")
     public ResponseEntity<List<User>> getUsersByRole(@PathVariable @org.springframework.lang.NonNull Role role) {
         return ResponseEntity.ok(userService.getUsersByRole(role));
     }
 
-    @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
+    @PutMapping("/{id}")
     public ResponseEntity<User> updateUser(@PathVariable @org.springframework.lang.NonNull Integer id, @RequestBody @org.springframework.lang.NonNull User userDetails) {
         return ResponseEntity.ok(userService.updateUser(id, userDetails));
     }
 
-    @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteUser(@PathVariable @org.springframework.lang.NonNull Integer id) {
         userService.deleteUser(id);
         return ResponseEntity.ok().build();
+    }
+
+    @PreAuthorize("isAuthenticated()")
+    @GetMapping("/me")
+    public ResponseEntity<User> getCurrentUser() {
+        User currentUser = (User) org.springframework.security.core.context.SecurityContextHolder.getContext()
+            .getAuthentication().getPrincipal();
+        return ResponseEntity.ok(userService.getUserById(currentUser.getOidUser()));
     }
 }

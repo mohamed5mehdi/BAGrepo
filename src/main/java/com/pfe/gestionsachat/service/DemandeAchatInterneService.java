@@ -19,9 +19,7 @@ import java.util.Optional;
  * Flux B — Pièces de rechange SAV (isPieceRechange = true)
  * BROUILLON → DISPONIBLE_STOCK (sortie stock auto, fin)
  * OU
- * BROUILLON → EN_TRAITEMENT → valorisation Acheteur
- * → VALIDE_N1 → VALIDE_TECH → VALIDE_AMG → VALIDE_DAF
- * → VALIDE_DG → PO
+ * BROUILLON → EN_TRAITEMENT → [valoriserDemande Acheteur] → [traiterAchat] → APPROUVEE → creerPO() → PENDING_APPROVAL → approvePO(RESP_ACHAT) → GRN → GRC POSTED
  */
 @Service
 public class DemandeAchatInterneService {
@@ -30,6 +28,8 @@ public class DemandeAchatInterneService {
     private DemandeAchatInterneRepository repository;
     @Autowired
     private StockItemRepository stockItemRepository;
+    @Autowired
+    private WarehouseService warehouseService;
     @Autowired
     private PurchaseOrderService poService;
     @Autowired
@@ -44,6 +44,8 @@ public class DemandeAchatInterneService {
     private OffreFournisseurRepository offreRepository;
     @Autowired
     private SupplierRepository supplierRepository;
+    @Autowired
+    private NotificationService notificationService;
 
     public List<OffreFournisseur> getOffresByDemande(Long demandeId) {
         return offreRepository.findByDa_Id(demandeId);
@@ -173,22 +175,25 @@ public class DemandeAchatInterneService {
                 throw new IllegalArgumentException("Code article obligatoire pour une demande de pièce de rechange.");
             }
 
-            Optional<StockItem> stockOpt = stockItemRepository.findByItemCode(effectiveItemCode).stream().findFirst();
-
             Integer effectiveQuantity = da.getQuantite();
             if (effectiveQuantity == null) effectiveQuantity = 1;
 
-            boolean disponible = stockOpt.isPresent() && stockOpt.get().getQuantityAvailable() >= effectiveQuantity;
+            Warehouse centralWarehouse = warehouseService.getDefaultWarehouse();
+            Optional<StockItem> lockedStockOpt = stockItemRepository.findByItemCodeAndWarehouseIdWithLock(effectiveItemCode, centralWarehouse.getId());
+
+            boolean disponible = lockedStockOpt.isPresent() && lockedStockOpt.get().getQuantityAvailable() >= effectiveQuantity;
 
             if (disponible) {
-                // Sortie de stock automatique avec verrou pessimiste (Fix PhD : utiliser effectiveItemCode)
-                StockItem stock = stockItemRepository.findByItemCodeWithLock(effectiveItemCode).stream().findFirst().orElseThrow();
-                stock.setQuantityAvailable(stock.getQuantityAvailable() - effectiveQuantity);
-                stockItemRepository.save(stock);
+                // Sortie de stock déléguée à WarehouseService : verrou anticipé sur l'entrepôt central
+                // + génération automatique du StockMovement (traçabilité restaurée).
+                warehouseService.removeStock(effectiveItemCode, effectiveQuantity, "SAV-DA-" + da.getId());
 
                 // IMPUTATION BUDGET PIECES (Fix SAV Fuite)
+                StockItem stock = lockedStockOpt.get();
                 java.math.BigDecimal totalCost = stock.getUnitCost() != null ? stock.getUnitCost().multiply(java.math.BigDecimal.valueOf(effectiveQuantity)) : java.math.BigDecimal.ZERO;
-                budgetPiecesService.consommerBudgetPieces(totalCost, da.getId(), String.valueOf(da.getDateCreation().getYear()));
+                if (totalCost.compareTo(java.math.BigDecimal.ZERO) > 0) {
+                    budgetPiecesService.consommerBudgetPieces(totalCost, da.getId(), String.valueOf(da.getDateCreation().getYear()));
+                }
 
                 da.setIsAvailableInStock(true);
                 da.setStatut(StatutDemande.DISPONIBLE_STOCK);
@@ -199,6 +204,9 @@ public class DemandeAchatInterneService {
                 da.setStatut(StatutDemande.EN_TRAITEMENT);
                 log(da, statutPrecedent, StatutDemande.EN_TRAITEMENT, user,
                     "Pièce hors stock — en attente de valorisation par l'acheteur");
+                if (notificationService != null) {
+                    notificationService.notifyTopic("acheteurs", "Nouvelle pièce SAV hors stock en attente de valorisation: " + effectiveItemCode);
+                }
             }
         } else {
             // ── Flux A : achat général (Circuit hiérarchique N1) ──────────
@@ -332,8 +340,13 @@ public class DemandeAchatInterneService {
         }
 
         da.setMontantEstime(newTotal);
-        da.setFournisseur(new Supplier(supplierId));
+        da.setFournisseur(supplierRepository.findById(supplierId).orElseThrow(() -> new RuntimeException("Fournisseur introuvable")));
 
+        if (Boolean.TRUE.equals(da.getIsPieceRechange())) {
+            StatutDemande oldStatut = da.getStatut();
+            da.setStatut(StatutDemande.APPROUVEE);
+            log(da, oldStatut, StatutDemande.APPROUVEE, null, "Auto-confirmation post-valorisation SAV");
+        }
 
         return repository.save(da);
     }
@@ -363,8 +376,10 @@ public class DemandeAchatInterneService {
             }
         }
         
-        if (user.getRole() != Role.ACHETEUR && user.getRole().getCategorieAssignee() != daCategorie) {
-            throw new SecurityException("Habilitation insuffisante : Vous ne pouvez traiter que les demandes de la catégorie " + user.getRole().getCategorieAssignee());
+        if (!Boolean.TRUE.equals(da.getIsPieceRechange())) {
+            if (user.getRole() != Role.ACHETEUR && user.getRole().getCategorieAssignee() != daCategorie) {
+                throw new SecurityException("Habilitation insuffisante : Vous ne pouvez traiter que les demandes de la catégorie " + user.getRole().getCategorieAssignee());
+            }
         }
 
         if (Boolean.TRUE.equals(da.getIsPieceRechange())) {
@@ -493,18 +508,17 @@ public class DemandeAchatInterneService {
     @Transactional
     public DemandeAchatInterne annulerDemande(Long id, User user) {
         DemandeAchatInterne da = repository.findById(id).orElseThrow();
-        if (da.getStatut() == StatutDemande.PO_CREE || da.getStatut() == StatutDemande.VALIDE_DG) {
-            throw new IllegalStateException("Impossible d'annuler une demande déjà validée par la DG ou avec PO.");
+        if (da.getStatut() == StatutDemande.PO_CREE || da.getStatut() == StatutDemande.VALIDE_DG || da.getStatut() == StatutDemande.APPROUVEE) {
+            throw new IllegalStateException("Impossible d'annuler une demande déjà validée par la DG, approuvée ou avec PO.");
         }
         
         StatutDemande from = da.getStatut();
         
         // Restauration du stock si la pièce était réservée
         if (from == StatutDemande.DISPONIBLE_STOCK && Boolean.TRUE.equals(da.getIsAvailableInStock())) {
-            StockItem stock = stockItemRepository.findByItemCodeWithLock(da.getItemCode())
-                    .stream().findFirst().orElseThrow();
-            stock.setQuantityAvailable(stock.getQuantityAvailable() + da.getQuantite());
-            stockItemRepository.save(stock);
+            // Délégation à WarehouseService : cible l'entrepôt central et génère
+            // le StockMovement réciproque (IN_RECEIPT) pour la traçabilité.
+            warehouseService.addStock(da.getItemCode(), da.getQuantite(), "ANNUL-SAV-DA-" + da.getId());
         }
         
         da.setStatut(StatutDemande.REJETEE);
@@ -517,7 +531,7 @@ public class DemandeAchatInterneService {
     public void rejeterDaSuiteAuPO(Long id, User responsable, String motif) {
         DemandeAchatInterne da = repository.findById(id).orElseThrow();
         StatutDemande from = da.getStatut();
-        da.setStatut(StatutDemande.BROUILLON);
+        da.setStatut(StatutDemande.REJETEE);
         restituerBudgetInterne(da);
         
         String msg = "Demande rejetée automatiquement suite au rejet du Bon de Commande.";
@@ -525,7 +539,7 @@ public class DemandeAchatInterneService {
             msg += " Motif : " + motif;
         }
         
-        log(da, from, StatutDemande.BROUILLON, responsable, msg);
+        log(da, from, StatutDemande.REJETEE, responsable, msg);
         repository.save(da);
     }
 

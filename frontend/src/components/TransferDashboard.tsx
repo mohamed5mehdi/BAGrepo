@@ -42,7 +42,7 @@ export default function TransferDashboard() {
   const { data: userWarehouse } = useQuery<{ id: number; name: string } | null>({
     queryKey: ['user-warehouse', userId],
     queryFn: async () => {
-      const res = await api.get(`/users/${userId}`);
+      const res = await api.get(`/users/me`);
       const wh = res.data?.warehouse;
       return wh ? { id: wh.id, name: wh.name } : null;
     },

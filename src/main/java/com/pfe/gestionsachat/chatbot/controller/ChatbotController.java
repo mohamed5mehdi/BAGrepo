@@ -13,6 +13,7 @@ import com.pfe.gestionsachat.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.security.access.prepost.PreAuthorize;
 
 import java.util.List;
 import java.util.Map;
@@ -45,7 +46,9 @@ public class ChatbotController {
      * Démarre ou reprend une session chatbot pour un utilisateur authentifié.
      * Retourne un ChatResponse avec le message de bienvenue.
      */
+    // RBAC Niv.4 — audit session 3
     @PostMapping("/session")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> demarrerSession(@RequestParam Integer userId) {
         Optional<User> userOpt = userRepository.findById(userId);
         if (userOpt.isEmpty() || !Boolean.TRUE.equals(userOpt.get().getActif())) {
@@ -78,7 +81,9 @@ public class ChatbotController {
      * Traite un message utilisateur et retourne la réponse bot avec le SlotState mis à jour.
      * Body attendu : { "sessionId": "...", "userId": 1, "message": "..." }
      */
+    // RBAC Niv.4 — audit session 3
     @PostMapping("/message")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> envoyerMessage(@RequestBody Map<String, Object> body) {
         Integer payloadUserId = extractUserId(body.get("userId"));
         String sessionId = (String) body.get("sessionId");
@@ -113,7 +118,9 @@ public class ChatbotController {
      * Confirme la demande et soumet la DA.
      * Body attendu : { "sessionId": "...", "userId": 1 }
      */
+    // RBAC Niv.4 — audit session 3
     @PostMapping("/confirmer")
+    @PreAuthorize("isAuthenticated()")
     public ResponseEntity<?> confirmerDemande(@RequestBody Map<String, Object> body) {
         Integer payloadUserId = extractUserId(body.get("userId"));
         String sessionId = (String) body.get("sessionId");
@@ -146,6 +153,8 @@ public class ChatbotController {
     /**
      * Retourne l'historique complet des messages d'une session, triés chronologiquement.
      */
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/session/{sessionId}/messages")
     public ResponseEntity<?> getMessages(
             @PathVariable String sessionId,

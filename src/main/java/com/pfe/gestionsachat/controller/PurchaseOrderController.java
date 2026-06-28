@@ -21,21 +21,29 @@ public class PurchaseOrderController {
     @Autowired private com.pfe.gestionsachat.service.PdfExportService pdfExportService;
     @Autowired private UserRepository userRepository;
 
+    // RBAC Niv.2 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','COMPTABLE','DAF','DG','RESP_ACHAT','MANAGER_N1','ADMINISTRATEUR')")
     @GetMapping
     public ResponseEntity<List<PurchaseOrder>> getAllPurchaseOrders() {
         return ResponseEntity.ok(purchaseOrderService.getAllPurchaseOrders());
     }
 
+    // RBAC Niv.2 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','COMPTABLE','DAF','DG','RESP_ACHAT','MANAGER_N1','ADMINISTRATEUR')")
     @GetMapping("/{id}")
     public ResponseEntity<PurchaseOrder> getPurchaseOrderById(@PathVariable @org.springframework.lang.NonNull Integer id) {
         return ResponseEntity.ok(purchaseOrderService.getPurchaseOrderById(id));
     }
 
+    // RBAC Niv.2 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','COMPTABLE','DAF','DG','RESP_ACHAT','MANAGER_N1','ADMINISTRATEUR')")
     @GetMapping("/da/{oidDa}")
     public ResponseEntity<PurchaseOrder> getPurchaseOrderByDa(@PathVariable @org.springframework.lang.NonNull Long oidDa) {
         return ResponseEntity.ok(purchaseOrderService.getPurchaseOrderByDa(oidDa));
     }
 
+    // RBAC Niv.2 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','COMPTABLE','DAF','DG','RESP_ACHAT','MANAGER_N1','ADMINISTRATEUR')")
     @GetMapping("/status/{statut}")
     public ResponseEntity<List<PurchaseOrder>> getPurchaseOrdersByStatus(
             @PathVariable @org.springframework.lang.NonNull POStatus statut) {
@@ -46,14 +54,16 @@ public class PurchaseOrderController {
      * Retourne le solde de réception pour chaque article du PO.
      * Requis pour l'interface Magasinier (Calcul du Shipped Quantity).
      */
+    // RBAC Niv.2 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','COMPTABLE','DAF','DG','RESP_ACHAT','MANAGER_N1','ADMINISTRATEUR')")
     @GetMapping("/{id}/balance")
     public ResponseEntity<java.util.Map<String, Integer>> getPoBalance(@PathVariable Integer id) {
         return ResponseEntity.ok(purchaseOrderService.getPoBalance(id));
     }
 
     /** Responsable Achat approuve un PO PENDING_APPROVAL → APPROVED */
-    @PutMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('RESP_ACHAT', 'ADMINISTRATEUR')")
+    @PutMapping("/{id}/approve")
     public ResponseEntity<PurchaseOrder> approvePO(
             @PathVariable Integer id,
             @RequestParam Integer userId,
@@ -63,8 +73,8 @@ public class PurchaseOrderController {
     }
 
     /** Responsable Achat rejette un PO PENDING_APPROVAL → REJECTED */
-    @PutMapping("/{id}/reject")
     @PreAuthorize("hasAnyRole('RESP_ACHAT', 'ADMINISTRATEUR')")
+    @PutMapping("/{id}/reject")
     public ResponseEntity<PurchaseOrder> rejectPO(
             @PathVariable Integer id,
             @RequestParam Integer userId,
@@ -74,8 +84,8 @@ public class PurchaseOrderController {
     }
 
     /** Clôture manuelle forcée SHORT_CLOSED (APPROVED → SHORT_CLOSED) */
-    @PutMapping("/{id}/short-close")
     @PreAuthorize("hasAnyRole('RESP_ACHAT', 'ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'ADMINISTRATEUR')")
+    @PutMapping("/{id}/short-close")
     public ResponseEntity<PurchaseOrder> shortClose(
             @PathVariable Integer id,
             @RequestParam Integer userId,
@@ -84,6 +94,8 @@ public class PurchaseOrderController {
         return ResponseEntity.ok(purchaseOrderService.shortClose(id, responsable, motif));
     }
 
+    // RBAC Niv.3 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','MAGASINIER','MAGASINIER_DEST','COMPTABLE','DAF','DG','RESP_ACHAT','ADMINISTRATEUR')")
     @GetMapping("/{id}/download")
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> downloadPo(@PathVariable Integer id) {
@@ -91,6 +103,8 @@ public class PurchaseOrderController {
         return generatePdfResponse(po);
     }
 
+    // RBAC Niv.3 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','MAGASINIER','MAGASINIER_DEST','COMPTABLE','DAF','DG','RESP_ACHAT','ADMINISTRATEUR')")
     @GetMapping("/da/{oidDa}/download")
     @Transactional(readOnly = true)
     public ResponseEntity<byte[]> downloadPoByDa(@PathVariable Long oidDa) {

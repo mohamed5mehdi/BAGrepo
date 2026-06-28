@@ -66,17 +66,28 @@ export default function DemandeurPage() {
     enabled: !!budgetFamilleId
   });
 
-  const { data: stockItems = [] } = useQuery({
-    queryKey: ['stock-catalog'],
-    queryFn: () => getStockItems().then(r => r.data),
+  const { data: stockItems = [], isLoading: loadingStock, isError: stockError } = useQuery({
+    queryKey: ['stock-catalog', 'with-out-of-stock', user?.userId],
+    queryFn: () => getStockItems(true, user?.userId).then(r => r.data),
+    enabled: showPieceForm && !!user,
   });
-  const uniqueStockItems = Object.values(stockItems.reduce((acc: any, s: any) => {
-      if (!acc[s.itemCode]) acc[s.itemCode] = { ...s, totalQuantity: 0 };
-      acc[s.itemCode].totalQuantity += s.quantityAvailable;
+
+  const catalogItems = Object.values(stockItems.reduce((acc: any, s: any) => {
+      if (!acc[s.itemCode]) {
+        acc[s.itemCode] = { itemCode: s.itemCode, itemName: s.itemName, totalQuantity: 0, locationCode: s.locationCode };
+      }
+      acc[s.itemCode].totalQuantity += s.quantityAvailable ?? 0;
       return acc;
   }, {}));
 
-  const selectedPiece = uniqueStockItems.find((s: any) => s.itemCode === selectedPieceCode) as any;
+  const sortedCatalog = [
+    ...catalogItems.filter((s: any) => s.totalQuantity > 0),
+    ...catalogItems.filter((s: any) => s.totalQuantity <= 0),
+  ];
+
+  const selectedPiece = sortedCatalog.find((s: any) => s.itemCode === selectedPieceCode) as any;
+  const isCustomPiece = selectedPieceCode === 'CUSTOM';
+  const [customPieceName, setCustomPieceName] = useState('');
 
   const createMutation = useMutation({
     mutationFn: (payload: any) => createDemandeInterne(payload, user!.userId),
@@ -170,13 +181,22 @@ export default function DemandeurPage() {
 
   const handlePieceSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !selectedPiece) return;
+    if (!user) return;
+    if (!selectedPiece && !isCustomPiece) {
+      toast.error('Sélectionnez une pièce');
+      return;
+    }
+    if (isCustomPiece && !customPieceName.trim()) {
+      toast.error('Saisissez le nom de la pièce demandée');
+      return;
+    }
 
     const payload = {
-      designation: selectedPiece.itemName,
-      itemCode: selectedPiece.itemCode,
+      designation: isCustomPiece ? customPieceName : selectedPiece.itemName,
+      itemCode: isCustomPiece ? `NEW-SAV-${Date.now()}` : selectedPiece.itemCode,
       quantite: pieceQty,
-      justification: `Demande de pièce SAV / Maintenance : ${selectedPiece.itemName}`,
+      justification: `Demande de pièce SAV / Maintenance : ${isCustomPiece ? customPieceName : selectedPiece.itemName}`,
+      urgence: (isCustomPiece || selectedPiece?.totalQuantity <= 0) ? 'URGENTE' : 'NORMALE',
       isPieceRechange: true,
       submissionToken: crypto.randomUUID()
     };
@@ -353,7 +373,7 @@ export default function DemandeurPage() {
             <div className="px-8 py-6 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-indigo-50/50 dark:bg-indigo-900/10">
               <div>
                 <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">🛠️ Demande de Pièces & SAV</h2>
-                <p className="text-xs text-slate-400 mt-1">Sélectionnez une pièce dans le catalogue des rayons.</p>
+                <p className="text-xs text-slate-400 mt-1">✅ En stock = livraison immédiate · ⚠️ Hors stock = commande achat express (bypass N+1)</p>
               </div>
               <button onClick={() => setShowPieceForm(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-400">✕</button>
             </div>
@@ -366,12 +386,51 @@ export default function DemandeurPage() {
                   className="w-full px-5 py-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm font-medium focus:ring-2 focus:ring-indigo-500 outline-none transition-all shadow-sm"
                 >
                   <option value="">Chercher une pièce (Huile, Roue, Batterie...)</option>
-                  {uniqueStockItems.map((s: any) => (
-                    <option key={s.itemCode} value={s.itemCode}>
-                      {s.itemName} ({s.itemCode})
-                    </option>
-                  ))}
+                  {loadingStock && <option disabled>Chargement du catalogue...</option>}
+                  {stockError && <option disabled>⚠️ Erreur — catalogue indisponible</option>}
+
+                  {sortedCatalog.filter((s: any) => s.totalQuantity > 0).length > 0 && (
+                    <optgroup label="✅ En Stock — Livraison directe">
+                      {sortedCatalog
+                        .filter((s: any) => s.totalQuantity > 0)
+                        .map((s: any) => (
+                          <option key={s.itemCode} value={s.itemCode}>
+                            {s.itemName} ({s.itemCode}) — Qté: {s.totalQuantity}
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+
+                  {sortedCatalog.filter((s: any) => s.totalQuantity <= 0).length > 0 && (
+                    <optgroup label="⚠️ Hors Stock — Achat Express SAV">
+                      {sortedCatalog
+                        .filter((s: any) => s.totalQuantity <= 0)
+                        .map((s: any) => (
+                          <option key={s.itemCode} value={s.itemCode}>
+                            {s.itemName} ({s.itemCode}) — À commander
+                          </option>
+                        ))}
+                    </optgroup>
+                  )}
+                  
+                  <optgroup label="➕ Autre Pièce (Non Référencée)">
+                    <option value="CUSTOM">Autre pièce (Saisie manuelle) — À commander</option>
+                  </optgroup>
                 </select>
+                
+                {isCustomPiece && (
+                  <div className="mt-4">
+                    <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Nom de la pièce *</label>
+                    <input 
+                      type="text" 
+                      value={customPieceName} 
+                      onChange={e => setCustomPieceName(e.target.value)} 
+                      placeholder="Ex: Câble HDMI, Compresseur..." 
+                      required 
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 focus:ring-2 focus:ring-indigo-500 outline-none"
+                    />
+                  </div>
+                )}
               </div>
 
               {selectedPiece && (

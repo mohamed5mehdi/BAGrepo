@@ -19,12 +19,14 @@ public class FamilyController {
     @Autowired
     private FamilyService familyService;
 
-    @PostMapping
     @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
+    @PostMapping
     public ResponseEntity<Family> createFamily(@RequestBody @org.springframework.lang.NonNull Family family) {
         return ResponseEntity.ok(familyService.createFamily(family));
     }
 
+    // RBAC Niv.1 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping(produces = "application/json;charset=UTF-8")
     public ResponseEntity<?> getAllFamilies(@RequestParam(required = false, defaultValue = "DEMANDEUR") String role) {
         List<Family> families = familyService.getAllFamilies();
@@ -41,19 +43,21 @@ public class FamilyController {
         }
     }
 
+    // RBAC Niv.1 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/{id}")
     public ResponseEntity<Family> getFamilyById(@PathVariable @org.springframework.lang.NonNull Integer id) {
         return ResponseEntity.ok(familyService.getFamilyById(id));
     }
 
-    @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
+    @PutMapping("/{id}")
     public ResponseEntity<Family> updateFamily(@PathVariable @org.springframework.lang.NonNull Integer id, @RequestBody @org.springframework.lang.NonNull Family familyDetails) {
         return ResponseEntity.ok(familyService.updateFamily(id, familyDetails));
     }
 
-    @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteFamily(@PathVariable @org.springframework.lang.NonNull Integer id) {
         familyService.deleteFamily(id);
         return ResponseEntity.ok().build();

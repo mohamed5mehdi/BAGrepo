@@ -16,8 +16,8 @@ public class CreditNoteController {
     @Autowired
     private CreditNoteService creditNoteService;
 
-    @PostMapping
     @PreAuthorize("hasAnyRole('COMPTABLE', 'ACHETEUR', 'ACHETEUR_INFORMATIQUE', 'ACHETEUR_BUREAUTIQUE', 'ACHETEUR_MOBILIER', 'ACHETEUR_CONSOMMABLE', 'ACHETEUR_AUTRE', 'ADMINISTRATEUR')")
+    @PostMapping
     public ResponseEntity<CreditNote> createCreditNote(@RequestBody CreditNoteRequest request) {
         return ResponseEntity.ok(creditNoteService.processCreditNote(request));
     }

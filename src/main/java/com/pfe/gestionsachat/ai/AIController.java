@@ -2,6 +2,7 @@ package com.pfe.gestionsachat.ai;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -35,6 +36,8 @@ public class AIController {
     @Autowired
     private DelayPredictionService delayService;
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/dashboard")
     public ResponseEntity<Map<String, Object>> getDashboard() {
         return ResponseEntity.ok(Map.of(
@@ -45,27 +48,37 @@ public class AIController {
                 "consommationBudget", aggregationService.getConsommationBudget()));
     }
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/anomalies")
     public ResponseEntity<List<AnomalyDetectionService.AnomalyResult>> getAnomalies() {
         return ResponseEntity.ok(anomalyService.detecterAnomalies());
     }
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/routing")
     public ResponseEntity<List<DynamicRoutingEngine.RoutingDecision>> getRoutingAll() {
         return ResponseEntity.ok(routingEngine.routerDasEnAttente());
     }
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/routing/{daId}")
     public ResponseEntity<DynamicRoutingEngine.RoutingDecision> getRoutingForDa(
             @PathVariable Long daId) {
         return ResponseEntity.ok(routingEngine.calculerRoutage(daId));
     }
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/insights")
     public ResponseEntity<InsightGeneratorService.InsightReport> getInsights() {
         return ResponseEntity.ok(insightService.genererInsights());
     }
 
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/delays")
     public ResponseEntity<DelayPredictionService.PredictionGlobale> getDelays() {
         return ResponseEntity.ok(delayService.getPredictionsGlobales());
@@ -77,6 +90,8 @@ public class AIController {
      * REJETER
      * Consommé par ValidatorPage et DgPage au moment de l'arbitrage.
      */
+    // RBAC Niv.4 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/decision/{daId}")
     public ResponseEntity<?> getDecision(@PathVariable Long daId) {
         try {

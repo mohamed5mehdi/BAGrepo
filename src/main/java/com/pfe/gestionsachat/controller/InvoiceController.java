@@ -20,32 +20,36 @@ public class InvoiceController {
     @Autowired
     private InvoiceRepository invoiceRepository;
 
+    // RBAC Niv.2 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','COMPTABLE','DAF','DG','RESP_ACHAT','MANAGER_N1','ADMINISTRATEUR')")
     @GetMapping
     public ResponseEntity<List<Invoice>> getAll() {
         return ResponseEntity.ok(matchingService.getAllInvoices());
     }
 
+    // RBAC Niv.2 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','COMPTABLE','DAF','DG','RESP_ACHAT','MANAGER_N1','ADMINISTRATEUR')")
     @GetMapping("/{id}")
     public ResponseEntity<Invoice> getById(@PathVariable Long id) {
         return ResponseEntity.ok(invoiceRepository.findById(id).orElseThrow());
     }
 
+    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMINISTRATEUR')")
     @PostMapping
     @org.springframework.transaction.annotation.Transactional
-    @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMINISTRATEUR')")
     public ResponseEntity<Invoice> createInvoice(@RequestBody Invoice invoice) {
         invoice.setStatus(InvoiceStatus.RECEIVED);
         return ResponseEntity.ok(invoiceRepository.save(invoice));
     }
 
-    @PostMapping("/{id}/match")
     @PreAuthorize("hasAnyRole('COMPTABLE', 'ADMINISTRATEUR')")
+    @PostMapping("/{id}/match")
     public ResponseEntity<Invoice> matchInvoice(@PathVariable Long id) {
         return ResponseEntity.ok(matchingService.matchInvoice(java.util.Objects.requireNonNull(id)));
     }
 
-    @PostMapping("/{id}/approve")
     @PreAuthorize("hasAnyRole('DAF', 'DG', 'ADMINISTRATEUR')")
+    @PostMapping("/{id}/approve")
     public ResponseEntity<Invoice> approveInvoice(@PathVariable Long id) {
         return ResponseEntity.ok(matchingService.approveInvoice(java.util.Objects.requireNonNull(id)));
     }
@@ -53,6 +57,8 @@ public class InvoiceController {
     @Autowired
     private com.pfe.gestionsachat.service.PdfExportService pdfExportService;
 
+    // RBAC Niv.3 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','MAGASINIER','MAGASINIER_DEST','COMPTABLE','DAF','DG','RESP_ACHAT','ADMINISTRATEUR')")
     @GetMapping("/{id}/download")
     @org.springframework.transaction.annotation.Transactional(readOnly = true)
     public ResponseEntity<byte[]> downloadInvoice(@PathVariable Long id) {

@@ -42,6 +42,8 @@ public class TransferController {
      * GET /api/transfers/stock/available
      * Retourne tous les articles avec quantityAvailable > 0, avec JOIN FETCH warehouse (RISQUE-13).
      */
+    // RBAC Niv.1 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping("/stock/available")
     public ResponseEntity<List<com.pfe.gestionsachat.dto.transfer.AvailableStockDto>> getAvailableStock() {
         List<StockItem> items = stockItemRepository.findAvailableStock();
@@ -75,8 +77,8 @@ public class TransferController {
      * POST /api/transfers?userId={id}
      * Soumet une nouvelle demande de transfert (EMPLOYE).
      */
-    @PostMapping
     @PreAuthorize("hasAnyRole('EMPLOYE', 'MAGASINIER', 'MAGASINIER_DEST', 'ADMINISTRATEUR')")
+    @PostMapping
     public ResponseEntity<TransferHeader> submit(
             @RequestBody TransferHeader header,
             @RequestParam Integer userId) {
@@ -90,8 +92,8 @@ public class TransferController {
      * POST /api/transfers/bulk?userId={id}
      * Soumet une demande de transfert multi-sources (MAGASINIER).
      */
+    @PreAuthorize("hasAnyRole('EMPLOYE', 'MAGASINIER', 'MAGASINIER_DEST', 'ADMINISTRATEUR')")
     @PostMapping("/bulk")
-    @PreAuthorize("hasAnyRole('MAGASINIER', 'MAGASINIER_DEST', 'ADMINISTRATEUR')")
     public ResponseEntity<List<TransferHeader>> submitBulk(
             @RequestBody BulkTransferRequest request,
             @RequestParam Integer userId) {
@@ -106,8 +108,8 @@ public class TransferController {
      * PUT /api/transfers/{id}/ship?userId={id}
      * Expédie le transfert PENDING → IN_TRANSIT (MAGASINIER source uniquement).
      */
-    @PutMapping("/{id}/ship")
     @PreAuthorize("hasAnyRole('MAGASINIER', 'ADMINISTRATEUR')")
+    @PutMapping("/{id}/ship")
     public ResponseEntity<TransferHeader> ship(
             @PathVariable Long id,
             @RequestBody TransferShipRequest request,
@@ -123,8 +125,8 @@ public class TransferController {
      * PUT /api/transfers/{id}/receive?userId={id}
      * Valide la réception IN_TRANSIT → RECEIVED (MAGASINIER_DEST uniquement).
      */
-    @PutMapping("/{id}/receive")
     @PreAuthorize("hasAnyRole('MAGASINIER_DEST', 'ADMINISTRATEUR')")
+    @PutMapping("/{id}/receive")
     public ResponseEntity<TransferHeader> receive(
             @PathVariable Long id,
             @RequestBody TransferReceiveRequest request,
@@ -140,8 +142,8 @@ public class TransferController {
      * DELETE /api/transfers/{id}?userId={id}
      * Annule le transfert PENDING → CANCELLED (auteur ou ADMINISTRATEUR).
      */
-    @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('EMPLOYE', 'ADMINISTRATEUR')")
+    @DeleteMapping("/{id}")
     public ResponseEntity<TransferHeader> cancel(
             @PathVariable Long id,
             @RequestParam Integer userId) {
@@ -156,8 +158,8 @@ public class TransferController {
      * GET /api/transfers/my?userId={id}
      * Historique des transferts soumis par l'employé (vue DemandeurPage).
      */
-    @GetMapping("/my")
     @PreAuthorize("hasAnyRole('EMPLOYE', 'MAGASINIER', 'MAGASINIER_DEST', 'ADMINISTRATEUR')")
+    @GetMapping("/my")
     public ResponseEntity<List<TransferHeader>> getMyTransfers(@RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
@@ -168,8 +170,8 @@ public class TransferController {
      * GET /api/transfers/source?userId={id}
      * File PENDING pour le MAGASINIER source (onglet "Transferts à expédier").
      */
-    @GetMapping("/source")
     @PreAuthorize("hasAnyRole('MAGASINIER', 'ADMINISTRATEUR')")
+    @GetMapping("/source")
     public ResponseEntity<List<TransferHeader>> getSourceQueue(@RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
@@ -180,8 +182,8 @@ public class TransferController {
      * GET /api/transfers/dest?userId={id}
      * File IN_TRANSIT pour le MAGASINIER_DEST (vue réception).
      */
-    @GetMapping("/dest")
     @PreAuthorize("hasAnyRole('MAGASINIER_DEST', 'ADMINISTRATEUR')")
+    @GetMapping("/dest")
     public ResponseEntity<List<TransferHeader>> getDestQueue(@RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
@@ -192,8 +194,8 @@ public class TransferController {
      * GET /api/transfers/all
      * Retourne TOUS les transferts pour l'Administrateur globalement (Centre de Documents).
      */
-    @GetMapping("/all")
     @PreAuthorize("hasRole('ADMINISTRATEUR')")
+    @GetMapping("/all")
     public ResponseEntity<List<TransferHeader>> getAllTransfers() {
         return ResponseEntity.ok(transferService.getAllTransfers());
     }
@@ -201,8 +203,8 @@ public class TransferController {
     /**
      * GET /api/transfers/history/source?userId={id}
      */
-    @GetMapping("/history/source")
     @PreAuthorize("hasAnyRole('MAGASINIER', 'ADMINISTRATEUR')")
+    @GetMapping("/history/source")
     public ResponseEntity<List<TransferHeader>> getSourceHistory(@RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
@@ -212,8 +214,8 @@ public class TransferController {
     /**
      * GET /api/transfers/history/dest?userId={id}
      */
-    @GetMapping("/history/dest")
     @PreAuthorize("hasAnyRole('MAGASINIER_DEST', 'ADMINISTRATEUR')")
+    @GetMapping("/history/dest")
     public ResponseEntity<List<TransferHeader>> getDestHistory(@RequestParam Integer userId) {
         User user = userRepository.findById(userId)
             .orElseThrow(() -> new IllegalArgumentException("Utilisateur introuvable : " + userId));
@@ -222,6 +224,8 @@ public class TransferController {
 
     // ── PDF ───────────────────────────────────────────────────────────────────
 
+    // RBAC Niv.3 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','MAGASINIER','MAGASINIER_DEST','COMPTABLE','DAF','DG','RESP_ACHAT','ADMINISTRATEUR')")
     @GetMapping("/{id}/pdf/lto")
     public ResponseEntity<byte[]> getLtoPdf(@PathVariable Long id) {
         byte[] pdfBytes = transferService.generateLtoPdf(id);
@@ -232,6 +236,8 @@ public class TransferController {
         return ResponseEntity.ok().headers(headers).body(pdfBytes);
     }
 
+    // RBAC Niv.3 — audit session 3
+    @PreAuthorize("hasAnyRole('ACHETEUR','ACHETEUR_INFORMATIQUE','ACHETEUR_BUREAUTIQUE','ACHETEUR_MOBILIER','ACHETEUR_CONSOMMABLE','ACHETEUR_AUTRE','MAGASINIER','MAGASINIER_DEST','COMPTABLE','DAF','DG','RESP_ACHAT','ADMINISTRATEUR')")
     @GetMapping("/{id}/pdf/lti")
     public ResponseEntity<byte[]> getLtiPdf(@PathVariable Long id) {
         byte[] pdfBytes = transferService.generateLtiPdf(id);

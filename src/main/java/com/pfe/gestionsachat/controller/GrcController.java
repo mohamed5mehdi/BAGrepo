@@ -27,14 +27,14 @@ public class GrcController {
     @Autowired private GrcHeaderRepository grcRepository;
     @Autowired private GrnHeaderRepository grnRepository;
 
-    @GetMapping
     @PreAuthorize("hasAnyRole('MAGASINIER_DEST', 'ACHETEUR', 'COMPTABLE', 'ADMINISTRATEUR')")
+    @GetMapping
     public ResponseEntity<java.util.List<GrcHeader>> getAllGrcs() {
         return ResponseEntity.ok(grcService.getAllGrcs());
     }
 
+    @PreAuthorize("hasAnyRole('MAGASINIER_DEST', 'COMPTABLE', 'ADMINISTRATEUR')")
     @PostMapping
-    @PreAuthorize("hasAnyRole('MAGASINIER_DEST', 'ADMINISTRATEUR')")
     public ResponseEntity<GrcHeader> createGrc(@RequestBody GrcHeader grc) {
         return ResponseEntity.ok(grcService.createGrc(grc));
     }
@@ -42,8 +42,8 @@ public class GrcController {
     /**
      * /valider — Comptable : PENDING_APPROVAL → POSTED (validation financière + génération facture).
      */
-    @PutMapping("/{id}/valider")
     @PreAuthorize("hasAnyRole('COMPTABLE', 'DAF', 'ADMINISTRATEUR')")
+    @PutMapping("/{id}/valider")
     public ResponseEntity<GrcHeader> validateGrc(@PathVariable Long id) {
         return ResponseEntity.ok(grcService.validateGrc(Objects.requireNonNull(id)));
     }
@@ -55,8 +55,8 @@ public class GrcController {
      * mais il DOIT déléguer une opération différente de /valider.
      * En attendant, il valide également (idempotent guard dans le service).
      */
-    @PutMapping("/{id}/approuver")
     @PreAuthorize("hasAnyRole('RESP_ACHAT', 'ADMINISTRATEUR')")
+    @PutMapping("/{id}/approuver")
     public ResponseEntity<GrcHeader> approveGrc(@PathVariable Long id) {
         return ResponseEntity.ok(grcService.approveGrc(Objects.requireNonNull(id)));
     }
@@ -66,9 +66,9 @@ public class GrcController {
      * @Transactional(readOnly=true) : évite LazyInitializationException sur
      * grnHeader.getGrcHeader() (relation @OneToOne mappedBy — lazy par défaut).
      */
+    @PreAuthorize("hasAnyRole('MAGASINIER_DEST', 'ACHETEUR', 'COMPTABLE', 'ADMINISTRATEUR')")
     @GetMapping("/{id}/download")
     @Transactional(readOnly = true)
-    @PreAuthorize("hasAnyRole('MAGASINIER_DEST', 'ACHETEUR', 'COMPTABLE', 'ADMINISTRATEUR')")
     public ResponseEntity<byte[]> downloadGrc(@PathVariable Long id) {
         GrcHeader grc = grcRepository.findById(id)
                 .orElseGet(() -> {

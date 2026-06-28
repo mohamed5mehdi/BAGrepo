@@ -16,18 +16,22 @@ public class SubFamilyController {
     @Autowired
     private SubFamilyService subFamilyService;
 
-    @PostMapping
     @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
+    @PostMapping
     public ResponseEntity<SubFamily> createSubFamily(@RequestBody @org.springframework.lang.NonNull SubFamily subFamily) {
         return ResponseEntity.ok(subFamilyService.createSubFamily(subFamily));
     }
 
+    // RBAC Niv.1 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping(produces = "application/json;charset=UTF-8")
     @ResponseStatus(org.springframework.http.HttpStatus.OK)
     public ResponseEntity<List<SubFamily>> getAllSubFamilies() {
         return ResponseEntity.ok(subFamilyService.getAllSubFamilies());
     }
 
+    // RBAC Niv.1 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping(value = "/{id}", produces = "application/json;charset=UTF-8")
     public ResponseEntity<Object> getSubFamilyByIdOrFamilyChildren(@PathVariable String id) {
         try {
@@ -45,6 +49,8 @@ public class SubFamilyController {
         }
     }
 
+    // RBAC Niv.1 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping(value = {"/family/{familyIdOrName}", "/famille/{familyIdOrName}"}, produces = "application/json;charset=UTF-8")
     public ResponseEntity<List<SubFamily>> getSubFamiliesByFamily(@PathVariable String familyIdOrName) {
         try {
@@ -57,6 +63,8 @@ public class SubFamilyController {
         }
     }
 
+    // RBAC Niv.1 — audit session 3
+    @PreAuthorize("isAuthenticated()")
     @GetMapping(value = "/search", produces = "application/json;charset=UTF-8")
     public ResponseEntity<List<SubFamily>> searchSubFamilies(
             @RequestParam(required = false) Integer familyId,
@@ -68,14 +76,14 @@ public class SubFamilyController {
         return ResponseEntity.ok(subFamilyService.getAllSubFamilies());
     }
 
-    @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
+    @PutMapping("/{id}")
     public ResponseEntity<SubFamily> updateSubFamily(@PathVariable @org.springframework.lang.NonNull Integer id, @RequestBody @org.springframework.lang.NonNull SubFamily subFamilyDetails) {
         return ResponseEntity.ok(subFamilyService.updateSubFamily(id, subFamilyDetails));
     }
 
-    @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('ADMINISTRATEUR', 'DAF')")
+    @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteSubFamily(@PathVariable @org.springframework.lang.NonNull Integer id) {
         subFamilyService.deleteSubFamily(id);
         return ResponseEntity.ok().build();
